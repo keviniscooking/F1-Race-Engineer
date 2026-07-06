@@ -3,7 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             mc:Ignorable="d" d:DesignWidth="320">
+             mc:Ignorable="d" d:DesignWidth="360">
 
     <Border Style="{StaticResource WidgetCardStyle}">
         <StackPanel>
@@ -16,6 +16,10 @@
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="60"/>
                     <ColumnDefinition Width="66"/>
+                    <ColumnDefinition Width="20"/>
+                    <!-- Reserved, unused for now - matches the tyre column's width so a
+                         future column can be added here without widening the tower again. -->
+                    <ColumnDefinition Width="20"/>
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="2" Text="Driver" FontSize="10.5" Foreground="#4A5460" Margin="8,0,0,0"/>
                 <TextBlock Grid.Column="3" Text="Int" FontSize="10.5" Foreground="#4A5460" HorizontalAlignment="Right"/>
@@ -51,31 +55,95 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="60"/>
                                     <ColumnDefinition Width="66"/>
+                                    <ColumnDefinition Width="20"/>
+                                    <!-- Reserved, unused for now - see header row comment. -->
+                                    <ColumnDefinition Width="20"/>
                                 </Grid.ColumnDefinitions>
 
-                                <TextBlock Grid.Column="0" Text="{Binding Position}" FontSize="13" FontWeight="Bold" Foreground="#E6EDF3" FontFamily="Consolas" VerticalAlignment="Center"/>
-                                <Border Grid.Column="1" Width="8" Height="8" CornerRadius="2" Background="{Binding LiveryBrush}" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="0" Text="{Binding Position}" FontSize="13" FontWeight="Bold" FontFamily="Consolas" VerticalAlignment="Center">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="#E6EDF3"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsOut}" Value="True">
+                                                    <Setter Property="Foreground" Value="#4A5460"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <Border Grid.Column="1" Width="8" Height="8" CornerRadius="2" VerticalAlignment="Center">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Background" Value="{Binding LiveryBrush}"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsOut}" Value="True">
+                                                    <Setter Property="Background" Value="#4A5460"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                </Border>
 
                                 <StackPanel Grid.Column="2" Margin="8,0,4,0" VerticalAlignment="Center">
-                                    <TextBlock Text="{Binding DriverName}" FontSize="13" Foreground="#E6EDF3" TextTrimming="CharacterEllipsis">
+                                    <TextBlock Text="{Binding DriverName}" FontSize="13" TextTrimming="CharacterEllipsis">
                                         <TextBlock.Style>
                                             <Style TargetType="TextBlock">
+                                                <Setter Property="Foreground" Value="#E6EDF3"/>
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding IsPlayer}" Value="True">
                                                         <Setter Property="FontWeight" Value="Bold"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding IsOut}" Value="True">
+                                                        <Setter Property="Foreground" Value="#4A5460"/>
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
                                         </TextBlock.Style>
                                     </TextBlock>
-                                    <TextBlock Text="{Binding TeamName}" FontSize="9.5" Foreground="#6B7684" TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Text="{Binding TeamName}" FontSize="9.5" TextTrimming="CharacterEllipsis">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Foreground" Value="#6B7684"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsOut}" Value="True">
+                                                        <Setter Property="Foreground" Value="#3A424C"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
                                 </StackPanel>
 
                                 <!-- 2 decimals (not the app-wide 3, see TelemetryState.FormatDelta
                                      call site) frees up room here to run these up in size -
                                      still plenty precise for a gap glanced at mid-race. -->
-                                <TextBlock Grid.Column="3" Text="{Binding IntervalText}" FontSize="13" Foreground="#E6EDF3" FontFamily="Consolas" HorizontalAlignment="Right" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Column="4" Text="{Binding GapText}" FontSize="12.5" Foreground="#9BA7B4" FontFamily="Consolas" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="3" Text="{Binding IntervalText}" FontSize="13" FontFamily="Consolas" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="#E6EDF3"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsOut}" Value="True">
+                                                    <Setter Property="Foreground" Value="#4A5460"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <TextBlock Grid.Column="4" Text="{Binding GapText}" FontSize="12.5" FontFamily="Consolas" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="#9BA7B4"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsOut}" Value="True">
+                                                    <Setter Property="Foreground" Value="#4A5460"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+
+                                <TextBlock Grid.Column="5" Text="{Binding TyreLetter}" FontSize="13" FontWeight="Bold" Foreground="{Binding TyreBrush}" FontFamily="Consolas" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                             </Grid>
                         </Border>
                     </DataTemplate>

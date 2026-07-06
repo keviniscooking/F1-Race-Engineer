@@ -13,8 +13,23 @@ namespace F1RaceEngineer.Models
         public string IntervalText { get; set; } = "-";
         public string GapText { get; set; } = "-";
 
-        // LiveryBrush compares by reference (not value) deliberately - brushes are cached
-        // per participant and frozen, so a real change always means a different instance.
+        // Retired/DNF/DSQ/not-classified cars report stale zeroed deltas rather than a
+        // meaningful gap (confirmed live: a retired car showed "+0.00" for both interval
+        // and gap, which reads as "right next to the leader") - IsOut drives the "Out"
+        // treatment (dimmed row, "Out" in place of Int/Gap) instead of showing that.
+        public bool IsOut { get; set; }
+
+        // Tyre compound letter, from CarStatusData (a separate packet from LapData) -
+        // cached per car index in TelemetryState so this row-building method can still
+        // read it inline. Blank for IsOut rows, matching the real broadcast graphic.
+        // Shown as a plain colored letter (TyreBrush doubles as its Foreground) - no
+        // background badge, matching the real broadcast's plain-letter treatment.
+        public string TyreLetter { get; set; } = "";
+        public SolidColorBrush TyreBrush { get; set; } = CompoundPalette.Unknown;
+
+        // LiveryBrush/TyreBrush compare by reference (not value) deliberately - brushes
+        // are cached per participant and frozen, so a real change always means a
+        // different instance.
         public bool Equals(RaceStanding? other) => other != null &&
             Position == other.Position &&
             DriverName == other.DriverName &&
@@ -22,6 +37,9 @@ namespace F1RaceEngineer.Models
             IsPlayer == other.IsPlayer &&
             IntervalText == other.IntervalText &&
             GapText == other.GapText &&
-            ReferenceEquals(LiveryBrush, other.LiveryBrush);
+            IsOut == other.IsOut &&
+            TyreLetter == other.TyreLetter &&
+            ReferenceEquals(LiveryBrush, other.LiveryBrush) &&
+            ReferenceEquals(TyreBrush, other.TyreBrush);
     }
 }

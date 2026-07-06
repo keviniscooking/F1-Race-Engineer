@@ -94,19 +94,22 @@
                 <Grid Margin="0,0,0,6">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="110"/>
-                        <ColumnDefinition Width="90"/>
-                        <ColumnDefinition Width="90"/>
-                        <ColumnDefinition Width="90"/>
+                        <ColumnDefinition Width="100"/>
+                        <ColumnDefinition Width="100"/>
+                        <ColumnDefinition Width="100"/>
                         <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="120"/>
+                        <ColumnDefinition Width="94"/>
+                        <ColumnDefinition Width="94"/>
+                        <ColumnDefinition Width="116"/>
                         <ColumnDefinition Width="100"/>
                     </Grid.ColumnDefinitions>
                     <TextBlock Grid.Column="0" Text="LAP" FontSize="11" Foreground="#4A5460"/>
                     <TextBlock Grid.Column="1" Text="S1" FontSize="11" Foreground="#4A5460"/>
                     <TextBlock Grid.Column="2" Text="S2" FontSize="11" Foreground="#4A5460"/>
                     <TextBlock Grid.Column="3" Text="S3" FontSize="11" Foreground="#4A5460"/>
-                    <TextBlock Grid.Column="5" Text="TIME" FontSize="11" Foreground="#4A5460"/>
-                    <TextBlock Grid.Column="6" Text="DELTA" FontSize="11" Foreground="#4A5460" HorizontalAlignment="Right"/>
+                    <TextBlock Grid.Column="5" Text="PIT" FontSize="11" Foreground="#4A5460"/>
+                    <TextBlock Grid.Column="7" Text="TIME" FontSize="11" Foreground="#4A5460"/>
+                    <TextBlock Grid.Column="8" Text="DELTA" FontSize="11" Foreground="#4A5460" HorizontalAlignment="Right"/>
                 </Grid>
 
                 <ItemsControl ItemsSource="{Binding LapHistory}">
@@ -115,42 +118,52 @@
                             <StackPanel Margin="0,6">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="66"/>
-                                        <ColumnDefinition Width="44"/>
-                                        <ColumnDefinition Width="90"/>
-                                        <ColumnDefinition Width="90"/>
-                                        <ColumnDefinition Width="90"/>
+                                        <ColumnDefinition Width="110"/>
+                                        <ColumnDefinition Width="100"/>
+                                        <ColumnDefinition Width="100"/>
+                                        <ColumnDefinition Width="100"/>
                                         <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="120"/>
+                                        <ColumnDefinition Width="94"/>
+                                        <ColumnDefinition Width="94"/>
+                                        <ColumnDefinition Width="116"/>
                                         <ColumnDefinition Width="100"/>
                                     </Grid.ColumnDefinitions>
 
                                     <TextBlock Grid.Column="0" Text="{Binding LapNumberText}" FontSize="18" Foreground="#E6EDF3" FontFamily="Consolas" VerticalAlignment="Center"/>
-                                    <Border Grid.Column="1" Background="#1C2733" CornerRadius="3" Padding="4,1" HorizontalAlignment="Left" VerticalAlignment="Center"
-                                            Visibility="{Binding HasLapTag, Converter={StaticResource BoolToVis}}">
-                                        <TextBlock Text="{Binding LapTagText}" FontSize="10" FontWeight="Bold" Foreground="#9BA7B4"/>
-                                    </Border>
 
                                     <!-- Margin on the right of each sector block (not just its
                                          underline) is what actually creates breathing room before
                                          the next sector - without it the numbers read as one long
                                          string at a glance, which is the opposite of what this
                                          widget is for. -->
-                                    <StackPanel Grid.Column="2" Margin="0,0,16,0">
+                                    <StackPanel Grid.Column="1" Margin="0,0,24,0">
                                         <TextBlock Text="{Binding Sector1Text}" FontSize="18" FontWeight="Bold" Foreground="{Binding Sector1Brush}" FontFamily="Consolas"/>
                                         <Border Height="2" Background="{Binding Sector1Brush}" Margin="0,4,0,0" HorizontalAlignment="Stretch"/>
                                     </StackPanel>
-                                    <StackPanel Grid.Column="3" Margin="0,0,16,0">
+                                    <StackPanel Grid.Column="2" Margin="0,0,24,0">
                                         <TextBlock Text="{Binding Sector2Text}" FontSize="18" FontWeight="Bold" Foreground="{Binding Sector2Brush}" FontFamily="Consolas"/>
                                         <Border Height="2" Background="{Binding Sector2Brush}" Margin="0,4,0,0" HorizontalAlignment="Stretch"/>
                                     </StackPanel>
-                                    <StackPanel Grid.Column="4" Margin="0,0,16,0">
+                                    <StackPanel Grid.Column="3" Margin="0,0,24,0">
                                         <TextBlock Text="{Binding Sector3Text}" FontSize="18" FontWeight="Bold" Foreground="{Binding Sector3Brush}" FontFamily="Consolas"/>
                                         <Border Height="2" Background="{Binding Sector3Brush}" Margin="0,4,0,0" HorizontalAlignment="Stretch"/>
                                     </StackPanel>
 
-                                    <TextBlock Grid.Column="6" Text="{Binding LapTimeText}" FontSize="21" FontWeight="Bold" Foreground="{Binding ColorBrush}" FontFamily="Consolas" VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Column="7" Text="{Binding DeltaText}" FontSize="17" Foreground="#6B7684" FontFamily="Consolas" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                    <!-- Only populated on the IN row (see TelemetryState.RegisterLapTime) -
+                                         blank everywhere else, same as the tag it sits beside. -->
+                                    <TextBlock Grid.Column="5" Text="{Binding PitStopTimeText}" FontSize="14" FontWeight="Bold" Foreground="#79C0FF" FontFamily="Consolas" HorizontalAlignment="Left" VerticalAlignment="Center"/>
+
+                                    <!-- Tag gets its own column rather than sharing one with Time -
+                                         a shared column shifted Time right on tagged laps only,
+                                         breaking vertical alignment with the untagged laps above/
+                                         below it. Its own fixed column keeps Time's start position
+                                         identical whether or not a tag is present. -->
+                                    <Border Grid.Column="6" Background="#1C2733" CornerRadius="4" Width="38" Padding="0,3" HorizontalAlignment="Left" VerticalAlignment="Center"
+                                            Visibility="{Binding HasLapTag, Converter={StaticResource BoolToVis}}">
+                                        <TextBlock Text="{Binding LapTagText}" FontSize="13" FontWeight="Bold" Foreground="#9BA7B4" HorizontalAlignment="Center"/>
+                                    </Border>
+                                    <TextBlock Grid.Column="7" Text="{Binding LapTimeText}" FontSize="21" FontWeight="Bold" Foreground="{Binding ColorBrush}" FontFamily="Consolas" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="8" Text="{Binding DeltaText}" FontSize="17" Foreground="#6B7684" FontFamily="Consolas" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                                 </Grid>
                                 <Border BorderBrush="#1C2733" BorderThickness="0,0,0,1" Margin="0,9,0,0"/>
                             </StackPanel>

@@ -54,9 +54,11 @@ and must switch context automatically.
   three sector boxes (time + colour), and a lap history list. Colour convention
   confirmed working live.
 - **Lap History** — toggleable (see Settings panel below), shows lap #, an IN/OUT tag
-  for in-laps/out-laps, per-sector times each with a colour-coded underline, lap time,
-  and delta, one lap per row. Confirmed rendering correctly, including the IN/OUT
-  classification itself — **confirmed live**.
+  for in-laps/out-laps (its own dedicated column so Time's start position never shifts),
+  a "PIT" column showing `PitStopTimerInMS` on the IN row only, per-sector times each
+  with a colour-coded underline, lap time, and delta, one lap per row. Confirmed
+  rendering correctly, including the IN/OUT classification itself — **confirmed live**.
+  The PIT column is new (§5 tenth round) and not yet live-confirmed (see §6).
 - **Alert banner** — Safety Car / VSC / Red Flag / Chequered Flag (see caveats in §6).
   Confirmed working live, including VSC.
 - **Qualifying position list** — full field, livery colour swatch, driver name +
@@ -74,23 +76,31 @@ and must switch context automatically.
   Confirmed live in a real race session (see fixes in §6 that came out of that test).
 - **Race Position Tower** (`Widgets/RacePositionTowerWidget.xaml`) — full-field tower
   shown only in Race, to the left of everything else: position, livery swatch, driver +
-  team, Interval (gap to car ahead), Gap (to leader). Reads `LapData.DeltaToCarInFrontInMS`/
-  `DeltaToRaceLeaderInMS` directly per car - no cross-referencing needed, unlike the
-  old Gaps & Position widget it replaced (see §8 for why that one was removed).
+  team, tyre compound letter, Interval (gap to car ahead), Gap (to leader). Reads
+  `LapData.DeltaToCarInFrontInMS`/`DeltaToRaceLeaderInMS` directly per car - no
+  cross-referencing needed, unlike the old Gaps & Position widget it replaced (see §8
+  for why that one was removed). Retired/DNF/DSQ/not-classified cars show a dimmed row
+  and "Out" instead of a stale interval/gap (§5, tenth round).
 - **Adaptive grid layout** (`MainWindow.xaml.cs` `ArrangeWidgets`) rebuilds the catalog
   widgets' row/column definitions to fit exactly the currently-visible set on every
   toggle change, so remaining widgets grow to fill freed space with no blank gaps.
   Widget key order is grouped by content density (denser widgets grouped together,
   compact ones grouped together) so rows sharing a card height don't mismatch as badly.
 
-Confirmed working in-game across seven full live-testing rounds by this point (see §5
+Confirmed working in-game across nine full live-testing rounds by this point (see §5
 for the complete log of what each round found and fixed): lap/sector timing and
 colouring, preset auto-switch, both position displays (Qualifying's list and the Race
 tower) with real names/livery/team, live delta, personal best, the alert banner
 (including VSC and, as of round seven, Chequered Flag's timing), the full catalog
-widget set, and, as of round eight, Lap History's IN/OUT tagging. Still open: the
-final-lap registration fix (§5 round five - reasoned from a symptom, not independently
-re-verified), and Car Condition's damage-threshold decision (§8).
+widget set, Lap History's IN/OUT tagging (round eight), and Car Condition looking
+correct overall (round nine, though see the caveat on race-start creep in §6). Still
+open: the final-lap registration fix (§5 round five - reasoned from a symptom, not
+independently re-verified) and the session-restart fix (§5 round nine - same
+situation, needs a second confirmation), and Car Condition's damage-threshold decision
+(§8). A tenth round (§5) added the tower's "Out" treatment and tyre letter, Penalties &
+Flags' 2-column layout, and Lap History's spacing/tag-column/PIT-column changes - all
+verified visually with mock data (screenshots), not yet against a live race (see §6 for
+the PIT column's specific open assumption).
 
 ## 3. Architecture
 
@@ -354,6 +364,53 @@ F1 25 game ──UDP──> UdpListenerService (background thread)
   starting) had only ever been reasoned through from field semantics, never verified
   in-game. User confirmed the IN/OUT tags in Lap History are correct.
 
+### Ninth round
+- **Car Condition confirmed looking correct overall** across a full race (see the
+  updated note above - doesn't specifically re-test the earlier race-start-creep
+  finding, so the damage-threshold decision in §8 stays open).
+- **Warnings only showed a bare count, not what they were for** - `TotalWarnings` in
+  `LapData` is just a running total with no reason attached, so "Warnings: 2" told the
+  driver nothing actionable if they missed the (transient, 8s) Penalty banner at the
+  time. Fixed by capturing each warning's `InfringementType` from the `PenaltyIssued`
+  event itself (already flowing in for the banner) into a new session-scoped
+  `_warningReasons` list, and showing one itemized line per warning (e.g. "Warning -
+  Ignoring Blue Flags") instead of the generic count. Falls back to a generic "+N more
+  warning(s)" line for any gap between the event-based list and `TotalWarnings` (e.g.
+  warnings that happened before the app connected this session), so the total shown
+  always still reconciles with the game's own authoritative count.
+- **Restarting a race (same session type) left Lap History and other session-scoped
+  state from the previous attempt in place, producing a misaligned lap count** - root
+  cause: `ResetSessionScopedState()` only fired on a `SessionType` *change*
+  (`HandleSession`), so restarting a Race while still a Race never triggered it at all.
+  Fixed by also comparing `PacketHeader.SessionUID` (a per-session-instance unique ID
+  that changes on a restart even when `SessionType` doesn't) alongside `SessionType` -
+  either changing now triggers the reset.
+
+### Tenth round (visual polish, from a post-race screenshot review)
+- **Position tower now shows "Out" for retired/DNF/DSQ/not-classified cars** instead of
+  a stale zeroed interval/gap (`LapData.ResultStatus`) - matches the real broadcast's
+  dimmed-row treatment (position, livery swatch, driver/team name all dim; no tyre
+  letter shown).
+- **Position tower now shows each driver's tyre compound** as a plain colored letter
+  (no background badge, matching the real broadcast) - `CarStatusData.VisualTyreCompound`
+  cached per car index (`_carTyreCompounds` in `TelemetryState`, populated for every
+  car, not just the player, mirroring the existing participant name/team cache pattern)
+  since it arrives on a different packet than the tower's own `LapData`-driven refresh.
+  Tower widened 320px → 360px to fit.
+- **Penalties & Flags now uses the same 2-column issue layout as Car Condition**
+  (`UniformGrid Columns="2"`), for consistency.
+- **Lap History**: S1/S2/S3 spaced further apart (was reading as one string); the
+  IN/OUT tag moved off the sector times and given its own dedicated column right next
+  to Time (previously shared Time's column, which shifted Time's start position on
+  tagged rows only, breaking vertical alignment with every other row); tag badges made
+  a consistent fixed size with centered text; a new "PIT" column shows `PitStopTimerInMS`
+  on the IN row only. `PitLaneTimeInLaneInMS` on the OUT row was deliberately left out
+  of scope - it would need to be captured a lap late (relative to when the pit lane
+  traversal actually happened) and cached forward, and the official field comment
+  ("if active, the current time...") left it unclear whether the value even survives
+  that long. Capturing `PitStopTimerInMS` at the IN row's own creation tick avoids the
+  whole question, since it's read at the same instant the row is built.
+
 ## 6. Not yet trustworthy / unvalidated
 
 - **Red Flag auto-clear is an untested heuristic.** There is no confirmed "flag
@@ -373,6 +430,19 @@ F1 25 game ──UDP──> UdpListenerService (background thread)
   on the final lap even though `CurrentLapNum` doesn't advance - consistent with what
   was observed, but not independently verified against a second real race/sprint
   finish. Watch the next session's final lap specifically.
+- **Session-restart fix (§5, ninth round) is reasoned from the reported symptom and a
+  confirmed field (`SessionUID`), not yet re-confirmed live.** Comparing `SessionUID`
+  alongside `SessionType` should catch a same-type restart that a `SessionType`-only
+  check misses, but hasn't been independently re-tested against a second deliberate
+  restart. Watch the next session restart specifically.
+- **Lap History's "PIT" column (§5, tenth round) assumes `PitStopTimerInMS` already
+  holds the completed stop's duration at the exact tick the IN lap's row is created**
+  (i.e. that the pit lane exit rejoins the track before the start/finish line, so the
+  whole stop concludes before that lap's `LastLapTimeInMS` updates). Reasoned from how
+  pit lanes are conventionally laid out and the official UDP spec's field wording, not
+  verified against this game's actual track geometry or a live pit stop. Watch the next
+  pit stop specifically - if the number ever reads as 0 or clearly wrong on the IN row,
+  this assumption is the first place to look.
 - **Car Condition previously showed background engine wear as if it were crash
   damage — fixed after live testing.** `EngineMGUHWear`/`EngineESWear`/`EngineCEWear`/
   `EngineICEWear`/`EngineMGUKWear`/`EngineTCWear` are a *different* concept from
@@ -385,8 +455,11 @@ F1 25 game ──UDP──> UdpListenerService (background thread)
   genuine damage fields (e.g. both front wings reading 100%) matched a real opening-lap
   wing-destroying incident alongside a VSC in one live test — but a *second* live test
   found these same fields climbing from race start with zero collisions, so "genuine
-  damage field" is no longer a safe assumption on its own. See the open decision in §8
-  (Car Condition damage threshold).
+  damage field" is no longer a safe assumption on its own. A *third* live test (see §5
+  ninth round) reported the widget looking correct overall across a full race - doesn't
+  specifically contradict the race-start-creep finding (that scenario wasn't retested),
+  so the open decision in §8 (Car Condition damage threshold) stays open, just with one
+  more data point in its favour.
 
 ## 7. Full agreed design spec
 
@@ -440,8 +513,11 @@ F1 25 game ──UDP──> UdpListenerService (background thread)
 
 ### Race Position Tower (Race-only, not part of the toggleable catalog)
 - Full-field tower to the left of everything else in Race: position, livery swatch,
-  driver + team, Interval (gap to car ahead), Gap (to leader). See §8 for why this
-  replaced the old Gaps & Position widget (removed on all presets, not just Race).
+  driver + team, tyre compound letter (plain colored text, no background badge - see
+  §5 tenth round), Interval (gap to car ahead), Gap (to leader). Retired/DNF/DSQ/
+  not-classified cars show a dimmed row and "Out" instead of a stale interval/gap
+  (`LapData.ResultStatus`, §5 tenth round). See §8 for why this replaced the old
+  Gaps & Position widget (removed on all presets, not just Race).
 
 ### Widget catalog (toggleable unless noted)
 - **Tyres** — rendered compound icon (FIA colour convention, drawn not captured),
@@ -457,9 +533,12 @@ F1 25 game ──UDP──> UdpListenerService (background thread)
   opposed to damage) is deliberately excluded - see §6; per-corner tyre *damage* is
   also excluded now (see §8) since the Tyres widget already shows per-corner wear and
   the two read as duplicated, not distinct, information.
-- **Penalties & Flags** — same quiet/yellow-itemised pattern as Car Condition; also
-  shows the player's own current flag (`VehicleFiaFlags`: None/Green/Blue/Yellow) as a
-  coloured chip with label (e.g. blue = let car through).
+- **Penalties & Flags** — same quiet/yellow-itemised pattern as Car Condition,
+  including the same 2-column grid (`UniformGrid Columns="2"`, see §5 tenth round);
+  also shows the player's own current flag (`VehicleFiaFlags`: None/Green/Blue/Yellow)
+  as a coloured chip with label (e.g. blue = let car through). Warnings show one
+  itemised line per specific reason (from `PenaltyIssued` events' `InfringementType`),
+  not a bare count - see §5 ninth round.
 - **Session & Track** — rendered weather icon (from the 6-value `Weather` enum, drawn
   not captured), track/air temp, current rain %, PLUS a single **forecast change**
   callout (see §5 - replaced the original multi-card forecast strip).
@@ -513,11 +592,14 @@ before rebuilding a version of this.
 - **Optimal pit lap** — was in the original ask; needs a tyre-degradation model, not
   just a data readout. Consciously deferred.
 - **Tyre stint timeline in Lap History** — the user pointed out the empty horizontal
-  gap in each Lap History row (between the sector columns and the Time/Delta columns)
-  and asked to log this idea rather than build it yet. Modelled on the real F1
-  broadcast tyre-strategy graphic (per-driver horizontal bar, colour-coded by compound,
-  circular compound-letter markers at each pit stop). Scoped-down version analyzed and
-  confirmed feasible with existing data:
+  gap in each Lap History row (originally between the sector columns and the Time/Delta
+  columns) and asked to log this idea rather than build it yet. **Note: that gap is
+  smaller now** - §5's tenth round added a dedicated tag column and a "PIT" column in
+  what used to be open space, so this would need a fresh look at where an overlaid bar
+  could actually sit before building it. Modelled on the real F1 broadcast tyre-strategy
+  graphic (per-driver horizontal bar, colour-coded by compound, circular compound-letter
+  markers at each pit stop). Scoped-down version analyzed and confirmed feasible with
+  existing data:
   - `SessionDataPacket.TotalLaps` gives race distance at session start, solving the
     user's "shorter races need different axis scaling" concern with no guessing.
   - Stint-change detection: `CarStatusData.TyresAgeLaps` resetting (more robust than

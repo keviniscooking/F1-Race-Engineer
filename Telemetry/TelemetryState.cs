@@ -54,6 +54,17 @@ namespace F1RaceEngineer.Telemetry
         private readonly Dictionary<int, SolidColorBrush> _participantLivery = new();
         private readonly Dictionary<int, string> _participantTeams = new();
 
+        // Tyre compound per car, from CarStatusData (a separate packet from LapData) -
+        // cached the same way as participant name/team above so RefreshRaceStandings
+        // (driven by LapData) can still read each car's current compound inline.
+        private readonly Dictionary<int, VisualCompound> _carTyreCompounds = new();
+
+        // Populated from individual PenaltyIssued events (which carry a specific
+        // InfringementType), not from LapData's TotalWarnings (a bare running count
+        // with no reason) - lets the Penalties & Flags widget say what each warning was
+        // actually for.
+        private readonly List<string> _warningReasons = new();
+
         private class CarLapTracker
         {
             public byte LastSeenLapNum;
@@ -325,13 +336,21 @@ namespace F1RaceEngineer.Telemetry
         }
 
         private SessionType? _lastSeenSessionType;
+        private ulong? _lastSeenSessionUID;
 
         private void HandleSession(SessionDataPacket session)
         {
-            if (_lastSeenSessionType != session.SessionType)
+            // SessionType alone misses a same-type session restart (e.g. "Restart
+            // Session" on a Race while still a Race) - confirmed via live testing: Lap
+            // History and other session-scoped state carried over from the previous
+            // attempt, producing a misaligned lap count. SessionUID uniquely identifies
+            // each session *instance*, so it changes on a restart even when SessionType
+            // doesn't - checking both catches a restart a SessionType-only check misses.
+            if (_lastSeenSessionType != session.SessionType || _lastSeenSessionUID != session.Header.SessionUID)
             {
                 ResetSessionScopedState();
                 _lastSeenSessionType = session.SessionType;
+                _lastSeenSessionUID = session.Header.SessionUID;
             }
 
             var preset = PresetMapper.FromSessionType(session.SessionType);
@@ -427,6 +446,7 @@ namespace F1RaceEngineer.Telemetry
 
             _carBestLapMs.Clear();
             _carTrackers.Clear(); // stale baselines from the old session would cause spurious sector/lap detections otherwise
+            _carTyreCompounds.Clear();
 
             // Always exactly LapHistoryDepth rows (blank placeholders until real laps come
             // in) so the widget's height - and everything stacked below it - never shifts
@@ -478,6 +498,7 @@ namespace F1RaceEngineer.Telemetry
 
             PenaltiesIssues.Clear();
             PenaltiesIsOk = true;
+            _warningReasons.Clear();
             PlayerFlagVisible = false;
             PlayerFlagText = "";
 
@@ -544,6 +565,15 @@ namespace F1RaceEngineer.Telemetry
                 _penaltyBannerText = penalty.PenaltyType == PenaltyType.TimePenalty
                     ? $"{penalty.Time}s time penalty - {infringement}"
                     : $"{EventLabels.LabelFor(penalty.PenaltyType)} - {infringement}";
+
+                // Captured here (not derivable from LapData's TotalWarnings, which is
+                // only ever a running count with no reason) so the persistent Penalties
+                // & Flags list can show what each warning was actually for, not just how
+                // many - the banner alone is easy to miss mid-race.
+                if (penalty.PenaltyType == PenaltyType.Warning)
+                {
+                    _warningReasons.Add(infringement);
+                }
 
                 _isPenaltyActive = true;
                 _penaltyTimer.Stop();
@@ -633,6 +663,12 @@ namespace F1RaceEngineer.Telemetry
             int playerIdx = packet.Header.PlayerCarIndex;
             var span = packet.CarStatusData.AsSpan();
             if (playerIdx < 0 || playerIdx >= span.Length) return;
+
+            for (int i = 0; i < span.Length; i++)
+            {
+                _carTyreCompounds[i] = span[i].VisualTyreCompound;
+            }
+
             var car = span[playerIdx];
 
             TyreCompoundLetter = CompoundPalette.LetterFor(car.VisualTyreCompound);
@@ -784,7 +820,7 @@ namespace F1RaceEngineer.Telemetry
                     }
 
                     string lapTag = isPlayer ? ClassifyLapTag(tracker.LastKnownDriverStatus) : "";
-                    RegisterLapTime(car.LastLapTimeInMS, sector1Ms, sector2Ms, sector3Ms, isPlayer, lapTag);
+                    RegisterLapTime(car.LastLapTimeInMS, sector1Ms, sector2Ms, sector3Ms, isPlayer, lapTag, car.PitStopTimerInMS);
 
                     // Track best lap per car (whole field) for the qualifying position list
                     if (!_carBestLapMs.TryGetValue(i, out var best) || best == null || car.LastLapTimeInMS < best)
@@ -846,6 +882,22 @@ namespace F1RaceEngineer.Telemetry
                 long intervalMs = car.DeltaToCarInFrontInMinutes * 60000L + car.DeltaToCarInFrontInMS;
                 long gapMs = car.DeltaToRaceLeaderInMinutes * 60000L + car.DeltaToRaceLeaderInMS;
 
+                // A retired/DNF/DSQ/not-classified car's deltas go stale at 0 rather than
+                // holding a meaningful last-known gap, which reads as "tied with the
+                // leader" - matches the real broadcast's "Out" treatment instead.
+                bool isOut = car.ResultStatus is ResultStatus.Retired or ResultStatus.DidNotFinish
+                    or ResultStatus.Disqualified or ResultStatus.NotClassified;
+
+                // Blank for an out car, matching the real broadcast graphic (no compound
+                // shown once a driver has retired).
+                string tyreLetter = "";
+                SolidColorBrush tyreBrush = CompoundPalette.Unknown;
+                if (!isOut && _carTyreCompounds.TryGetValue(i, out var compound))
+                {
+                    tyreLetter = CompoundPalette.LetterFor(compound);
+                    tyreBrush = CompoundPalette.BrushFor(compound);
+                }
+
                 rows.Add(new RaceStanding
                 {
                     Position = car.CarPosition,
@@ -853,11 +905,14 @@ namespace F1RaceEngineer.Telemetry
                     TeamName = team ?? "",
                     LiveryBrush = livery ?? TimingColorPalette.NeutralText,
                     IsPlayer = i == _playerCarIndex,
+                    IsOut = isOut,
+                    TyreLetter = tyreLetter,
+                    TyreBrush = tyreBrush,
                     // 2 decimals here specifically (not the app-wide 3) - frees up column
                     // width in the tower to run the font size up, and 2 decimals is still
                     // plenty precise for a live gap glanced at mid-race.
-                    IntervalText = isLeader ? "-" : FormatDelta(intervalMs, 2),
-                    GapText = isLeader ? "Leader" : FormatDelta(gapMs, 2)
+                    IntervalText = isOut ? "Out" : isLeader ? "-" : FormatDelta(intervalMs, 2),
+                    GapText = isOut ? "Out" : isLeader ? "Leader" : FormatDelta(gapMs, 2)
                 });
             }
 
@@ -898,8 +953,15 @@ namespace F1RaceEngineer.Telemetry
         {
             var issues = new List<string>();
             if (playerLap.Penalties > 0) issues.Add($"Time penalties: +{playerLap.Penalties}s");
-            if (playerLap.TotalWarnings > 0) issues.Add($"Warnings: {playerLap.TotalWarnings}");
-            if (playerLap.CornerCuttingWarnings > 0) issues.Add($"Corner-cutting warnings: {playerLap.CornerCuttingWarnings}");
+
+            // One line per specific warning (from PenaltyIssued events), not just a bare
+            // count - falls back to a generic "+N more" only for whatever the event-based
+            // list hasn't accounted for (e.g. warnings from before the app connected this
+            // session), so the total always still matches LapData's own running count.
+            foreach (var reason in _warningReasons) issues.Add($"Warning - {reason}");
+            int untrackedWarnings = playerLap.TotalWarnings - _warningReasons.Count;
+            if (untrackedWarnings > 0) issues.Add($"+{untrackedWarnings} more warning(s)");
+
             if (playerLap.NumUnservedDriveThroughPens > 0) issues.Add($"Unserved drive-through: {playerLap.NumUnservedDriveThroughPens}");
             if (playerLap.NumUnservedStopGoPens > 0) issues.Add($"Unserved stop-go: {playerLap.NumUnservedStopGoPens}");
 
@@ -1005,7 +1067,7 @@ namespace F1RaceEngineer.Telemetry
             _ => ""
         };
 
-        private void RegisterLapTime(uint ms, uint sector1Ms, uint sector2Ms, uint sector3Ms, bool isPlayer, string lapTag)
+        private void RegisterLapTime(uint ms, uint sector1Ms, uint sector2Ms, uint sector3Ms, bool isPlayer, string lapTag, uint pitStopTimerMs)
         {
             bool newSessionBest = _sessionBestLapMs == null || ms < _sessionBestLapMs;
             if (newSessionBest) _sessionBestLapMs = ms;
@@ -1061,6 +1123,10 @@ namespace F1RaceEngineer.Telemetry
                 ColorBrush = TimingColorPalette.TextBrush(color),
                 LapTagText = lapTag,
                 HasLapTag = !string.IsNullOrEmpty(lapTag),
+                // Only meaningful on the IN row - the pit stop that just happened is what
+                // that tag refers to; blank everywhere else, including OUT (see HANDOFF for
+                // why OUT's PitLaneTimeInLaneInMS was deliberately left out of scope).
+                PitStopTimeText = lapTag == "IN" ? FormatSector(pitStopTimerMs) : "",
                 // Captured here (not passed in) because at this point in HandleLapData the
                 // live Sector1/2/3 Text/Brush properties still hold the lap that just
                 // finished - ResetSectorDisplayForNewLap() only runs after this returns.

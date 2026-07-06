@@ -11,6 +11,11 @@ namespace F1RaceEngineer.Models
         public string LapTagText { get; set; } = "";
         public bool HasLapTag { get; set; }
 
+        // Only populated on the IN-tagged row (see TelemetryState.RegisterLapTime) - the
+        // pit stop's box time is captured at the same tick that row is created, so there's
+        // no cross-lap staleness risk like there would be reading it later on the OUT row.
+        public string PitStopTimeText { get; set; } = "";
+
         public string Sector1Text { get; set; } = "";
         public SolidColorBrush Sector1Brush { get; set; } = TimingColorPalette.NeutralText;
         public string Sector2Text { get; set; } = "";

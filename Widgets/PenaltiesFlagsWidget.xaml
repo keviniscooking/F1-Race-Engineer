@@ -35,10 +35,15 @@
             </StackPanel>
 
             <ItemsControl ItemsSource="{Binding PenaltiesIssues}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <UniformGrid Columns="2"/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <Border Background="#412402" CornerRadius="6" Padding="10,7" Margin="0,0,0,4">
-                            <TextBlock Text="{Binding}" FontSize="15" Foreground="#EF9F27"/>
+                        <Border Background="#412402" CornerRadius="6" Padding="10,7" Margin="0,0,6,4">
+                            <TextBlock Text="{Binding}" FontSize="15" Foreground="#EF9F27" TextTrimming="CharacterEllipsis"/>
                         </Border>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
