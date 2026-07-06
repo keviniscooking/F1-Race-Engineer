@@ -1,0 +1,107 @@
+<Window x:Class="F1RaceEngineer.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:widgets="clr-namespace:F1RaceEngineer.Widgets"
+        Title="F1 Race Engineer" Height="640" Width="720"
+        Background="#0D1117">
+    <Window.Resources>
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#E6EDF3"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+        </Style>
+        <Style TargetType="Button">
+            <!-- Deliberately not green: green is reserved for "personal best / OK" status
+                 throughout the app, and reusing it for a plain UI action would dilute that
+                 signal. -->
+            <Setter Property="Background" Value="#1F6FEB"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Padding" Value="10,4"/>
+            <Setter Property="BorderThickness" Value="0"/>
+        </Style>
+        <Style TargetType="TextBox">
+            <Setter Property="Background" Value="#161B22"/>
+            <Setter Property="Foreground" Value="#E6EDF3"/>
+            <Setter Property="BorderBrush" Value="#30363D"/>
+            <Setter Property="Padding" Value="4,2"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Connection bar (from Milestone 1, kept small) -->
+        <Grid Grid.Row="0" Margin="0,0,0,10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0" Orientation="Horizontal">
+                <TextBlock Text="Port:" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="11" Foreground="#6B7684"/>
+                <TextBox x:Name="PortTextBox" Width="70" Text="20777" FontSize="11"/>
+                <Button x:Name="ConnectButton" Content="Connect" Margin="10,0,0,0" FontSize="11" Click="ConnectButton_Click"/>
+                <TextBlock x:Name="StatusText" Text="Not connected" Margin="14,0,0,0" VerticalAlignment="Center" FontSize="11" Foreground="#F0883E"/>
+            </StackPanel>
+
+            <ToggleButton x:Name="SettingsButton" Grid.Column="1" Content="&#9881;" FontSize="16"
+                          Style="{StaticResource IconToggleButtonStyle}"
+                          Checked="SettingsButton_Checked" Unchecked="SettingsButton_Unchecked"/>
+            <Popup x:Name="SettingsPopup" PlacementTarget="{Binding ElementName=SettingsButton}"
+                   Placement="Bottom" StaysOpen="False" Closed="SettingsPopup_Closed">
+                <widgets:SettingsPanel x:Name="SettingsFlyoutContent"/>
+            </Popup>
+        </Grid>
+
+        <!-- Preset indicator row (auto-driven by SessionType, not clickable) -->
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,12">
+            <Border x:Name="PracticeTab" CornerRadius="4" Padding="12,4" Margin="0,0,6,0">
+                <TextBlock Text="Practice" FontSize="12"/>
+            </Border>
+            <Border x:Name="QualifyingTab" CornerRadius="4" Padding="12,4" Margin="0,0,6,0">
+                <TextBlock Text="Qualifying" FontSize="12"/>
+            </Border>
+            <Border x:Name="RaceTab" CornerRadius="4" Padding="12,4" Margin="0,0,6,0">
+                <TextBlock Text="Race" FontSize="12"/>
+            </Border>
+        </StackPanel>
+
+        <TextBlock x:Name="ErrorText" Grid.Row="2" Margin="0,0,0,10" Foreground="#F85149" TextWrapping="Wrap" FontSize="11"/>
+
+        <!-- Widget area -->
+        <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <!-- Auto so this column collapses to zero width (and the tower's own
+                         Margin along with it) when the tower is Collapsed outside Race -
+                         no code-behind column-width juggling needed. -->
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <widgets:RacePositionTowerWidget x:Name="RaceTower" Grid.Column="0" Width="320" Margin="0,0,14,0"/>
+
+                <StackPanel Grid.Column="1">
+                    <widgets:AlertBanner x:Name="Alert"/>
+                    <widgets:LapTimingWidget x:Name="LapTiming" Margin="0,0,0,12"/>
+                    <widgets:LapTimingWidget x:Name="QualifyingLapTiming" ShowHistory="False" Margin="0,0,0,12"/>
+                    <widgets:PositionListWidget x:Name="PositionList" Margin="0,0,0,12"/>
+
+                    <!-- Toggleable catalog widgets: arranged into an adaptive grid at runtime
+                         (MainWindow.xaml.cs ArrangeWidgets) so remaining widgets grow to fill
+                         the space freed by any that are toggled off via the settings panel. -->
+                    <Grid x:Name="WidgetGrid">
+                        <widgets:TyresWidget x:Name="TyresCtl" Margin="6"/>
+                        <widgets:CarConditionWidget x:Name="CarConditionCtl" Margin="6"/>
+                        <widgets:PenaltiesFlagsWidget x:Name="PenaltiesFlagsCtl" Margin="6"/>
+                        <widgets:SessionTrackWidget x:Name="SessionTrackCtl" Margin="6"/>
+                    </Grid>
+                </StackPanel>
+            </Grid>
+        </ScrollViewer>
+    </Grid>
+</Window>

@@ -1,0 +1,48 @@
+<UserControl x:Class="F1RaceEngineer.Widgets.PenaltiesFlagsWidget"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="320">
+
+    <Border Style="{StaticResource WidgetCardStyle}">
+        <StackPanel VerticalAlignment="Center">
+            <TextBlock Text="PENALTIES &amp; FLAGS" FontSize="11" Foreground="#6B7684" Margin="0,0,0,10"/>
+
+            <Border Background="{Binding PlayerFlagBrush}" CornerRadius="6" Padding="10,6" Margin="0,0,0,10"
+                    Visibility="{Binding PlayerFlagVisible, Converter={StaticResource BoolToVis}}">
+                <StackPanel Orientation="Horizontal">
+                    <Viewbox Width="10" Height="15" Margin="0,0,7,0">
+                        <Canvas Width="16" Height="24">
+                            <Path Data="{StaticResource FlagPoleGeometry}" Stroke="#0D1117" StrokeThickness="2"/>
+                            <Path Data="{StaticResource FlagPennantGeometry}" Fill="#0D1117"/>
+                        </Canvas>
+                    </Viewbox>
+                    <TextBlock Text="{Binding PlayerFlagText}" FontSize="15" FontWeight="Bold" Foreground="#0D1117" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Quiet by design, same convention as Car Condition: a clean session
+                 shouldn't compete for attention with an actual penalty. -->
+            <StackPanel Orientation="Horizontal" Visibility="{Binding PenaltiesIsOk, Converter={StaticResource BoolToVis}}">
+                <Viewbox Width="18" Height="18" Margin="0,0,9,0">
+                    <Canvas Width="24" Height="24">
+                        <Path Data="{StaticResource CheckmarkGeometry}" Stroke="#97C459" StrokeThickness="2.4"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+                    </Canvas>
+                </Viewbox>
+                <TextBlock Text="No penalties" FontSize="16" Foreground="#9BA7B4" VerticalAlignment="Center"/>
+            </StackPanel>
+
+            <ItemsControl ItemsSource="{Binding PenaltiesIssues}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Background="#412402" CornerRadius="6" Padding="10,7" Margin="0,0,0,4">
+                            <TextBlock Text="{Binding}" FontSize="15" Foreground="#EF9F27"/>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+    </Border>
+</UserControl>

@@ -1,0 +1,76 @@
+<UserControl x:Class="F1RaceEngineer.Widgets.SessionTrackWidget"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="360">
+
+    <Border Style="{StaticResource WidgetCardStyle}">
+        <StackPanel VerticalAlignment="Center">
+            <TextBlock Text="SESSION &amp; TRACK" FontSize="11" Foreground="#6B7684" Margin="0,0,0,10"/>
+
+            <Grid Margin="0,0,0,12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0" Width="44" Height="44" CornerRadius="22" Background="{Binding WeatherBackgroundBrush}"
+                        Margin="0,0,14,0">
+                    <Viewbox Width="22" Height="22">
+                        <Path Data="{Binding WeatherGlyphGeometry}" Fill="#F5F7FA" Stroke="#F5F7FA" StrokeThickness="1"
+                              StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                    </Viewbox>
+                </Border>
+
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding WeatherLabel}" FontSize="18" FontWeight="Bold"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
+                        <TextBlock FontSize="14" Foreground="#6B7684">
+                            <Run Text="Track "/><Run Text="{Binding TrackTempText, Mode=OneWay}" Foreground="#E6EDF3"/>
+                        </TextBlock>
+                        <TextBlock FontSize="14" Foreground="#6B7684" Margin="14,0,0,0">
+                            <Run Text="Air "/><Run Text="{Binding AirTempText, Mode=OneWay}" Foreground="#E6EDF3"/>
+                        </TextBlock>
+                        <TextBlock FontSize="14" Foreground="#6B7684" Margin="14,0,0,0">
+                            <Run Text="Rain "/><Run Text="{Binding CurrentRainPercentText, Mode=OneWay}" Foreground="#E6EDF3"/>
+                        </TextBlock>
+                    </StackPanel>
+                </StackPanel>
+            </Grid>
+
+            <Border BorderBrush="#232B35" BorderThickness="0,1,0,0" Margin="0,0,0,10"/>
+
+            <TextBlock Text="FORECAST" FontSize="11" Foreground="#6B7684" Margin="0,0,0,8"/>
+
+            <!-- Quiet by design, same convention as Car Condition/Penalties: nothing to
+                 report gets a plain caption, not a row of near-identical cards. -->
+            <TextBlock Text="Stable — no change expected" FontSize="15" Foreground="#9BA7B4"
+                       Visibility="{Binding ForecastIsStable, Converter={StaticResource BoolToVis}}"/>
+
+            <Grid Visibility="{Binding ForecastChangeExpected, Converter={StaticResource BoolToVis}}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0" Width="36" Height="36" CornerRadius="18" Background="{Binding ForecastChangeBackgroundBrush}"
+                        Margin="0,0,12,0">
+                    <Viewbox Width="18" Height="18">
+                        <Path Data="{Binding ForecastChangeGlyphGeometry}" Fill="#F5F7FA" Stroke="#F5F7FA" StrokeThickness="1"
+                              StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                    </Viewbox>
+                </Border>
+
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock FontSize="16" FontWeight="Bold">
+                        <Run Text="{Binding ForecastChangeWeatherText, Mode=OneWay}"/>
+                        <Run Text=" · "/>
+                        <Run Text="{Binding ForecastChangeRainText, Mode=OneWay}"/>
+                    </TextBlock>
+                    <TextBlock Text="{Binding ForecastChangeTimeText}" FontSize="13" Foreground="#6B7684" Margin="0,2,0,0"/>
+                </StackPanel>
+            </Grid>
+        </StackPanel>
+    </Border>
+</UserControl>

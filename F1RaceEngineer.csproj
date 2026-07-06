@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>F1RaceEngineer</RootNamespace>
+    <AssemblyName>F1RaceEngineer</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Parses UDP telemetry packets for both F1 25 and the F1 25: 2026 Season Pack -->
+    <PackageReference Include="F1Game.UDP" Version="26.0.0" />
+  </ItemGroup>
+
+</Project>

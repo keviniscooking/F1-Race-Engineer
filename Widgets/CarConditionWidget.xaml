@@ -1,0 +1,41 @@
+<UserControl x:Class="F1RaceEngineer.Widgets.CarConditionWidget"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="320">
+
+    <Border Style="{StaticResource WidgetCardStyle}">
+        <StackPanel VerticalAlignment="Center">
+            <TextBlock Text="CAR CONDITION" FontSize="11" Foreground="#6B7684" Margin="0,0,0,10"/>
+
+            <!-- Quiet by design: a healthy car shouldn't compete for attention with a
+                 loud banner - just a small confirmation, same visual weight as any other
+                 normal readout. Only actual damage (below) should stand out. -->
+            <StackPanel Orientation="Horizontal" Visibility="{Binding CarConditionIsOk, Converter={StaticResource BoolToVis}}">
+                <Viewbox Width="18" Height="18" Margin="0,0,9,0">
+                    <Canvas Width="24" Height="24">
+                        <Path Data="{StaticResource CheckmarkGeometry}" Stroke="#97C459" StrokeThickness="2.4"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+                    </Canvas>
+                </Viewbox>
+                <TextBlock Text="No damage" FontSize="16" Foreground="#9BA7B4" VerticalAlignment="Center"/>
+            </StackPanel>
+
+            <ItemsControl ItemsSource="{Binding CarConditionIssues}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <UniformGrid Columns="2"/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Background="#412402" CornerRadius="6" Padding="10,7" Margin="0,0,6,4">
+                            <TextBlock Text="{Binding}" FontSize="15" Foreground="#EF9F27" TextTrimming="CharacterEllipsis"/>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+    </Border>
+</UserControl>

@@ -1,0 +1,70 @@
+<UserControl x:Class="F1RaceEngineer.Widgets.TyresWidget"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="320">
+
+    <Border Style="{StaticResource WidgetCardStyle}">
+        <StackPanel VerticalAlignment="Center">
+            <TextBlock Text="TYRES" FontSize="11" Foreground="#6B7684" Margin="0,0,0,10"/>
+
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="26"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Compound + age -->
+                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                    <Border Width="50" Height="50" CornerRadius="25" Background="{Binding TyreCompoundBrush}" HorizontalAlignment="Center">
+                        <TextBlock Text="{Binding TyreCompoundLetter}" FontSize="22" FontWeight="Bold"
+                                   Foreground="{Binding TyreCompoundForeground}"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <TextBlock FontSize="14" Foreground="#6B7684" HorizontalAlignment="Center" Margin="0,7,0,0">
+                        <Run Text="{Binding TyreAgeLapsText, Mode=OneWay}"/><Run Text=" laps"/>
+                    </TextBlock>
+                </StackPanel>
+
+                <!-- Wear diagram: a "+" divider naturally splits the four corners into the
+                     same layout as the real car (FL/FR front, RL/RR rear) - far more
+                     compact than four separately-bordered boxes, and reads at a glance
+                     like the tyre diagrams real F1 dashboards use. -->
+                <Grid Grid.Column="2" HorizontalAlignment="Left" VerticalAlignment="Center">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Row="0" Grid.Column="0" HorizontalAlignment="Center" Margin="0,0,28,12">
+                        <TextBlock Text="FL" FontSize="12" Foreground="#6B7684" HorizontalAlignment="Center"/>
+                        <TextBlock Text="{Binding TyreWearFrontLeftText}" Style="{StaticResource HeroNumberStyle}" HorizontalAlignment="Center"/>
+                    </StackPanel>
+                    <StackPanel Grid.Row="0" Grid.Column="1" HorizontalAlignment="Center" Margin="28,0,0,12">
+                        <TextBlock Text="FR" FontSize="12" Foreground="#6B7684" HorizontalAlignment="Center"/>
+                        <TextBlock Text="{Binding TyreWearFrontRightText}" Style="{StaticResource HeroNumberStyle}" HorizontalAlignment="Center"/>
+                    </StackPanel>
+                    <StackPanel Grid.Row="1" Grid.Column="0" HorizontalAlignment="Center" Margin="0,0,28,0">
+                        <TextBlock Text="RL" FontSize="12" Foreground="#6B7684" HorizontalAlignment="Center"/>
+                        <TextBlock Text="{Binding TyreWearRearLeftText}" Style="{StaticResource HeroNumberStyle}" HorizontalAlignment="Center"/>
+                    </StackPanel>
+                    <StackPanel Grid.Row="1" Grid.Column="1" HorizontalAlignment="Center" Margin="28,0,0,0">
+                        <TextBlock Text="RR" FontSize="12" Foreground="#6B7684" HorizontalAlignment="Center"/>
+                        <TextBlock Text="{Binding TyreWearRearRightText}" Style="{StaticResource HeroNumberStyle}" HorizontalAlignment="Center"/>
+                    </StackPanel>
+
+                    <Rectangle Grid.Row="0" Grid.RowSpan="2" Grid.Column="0" Grid.ColumnSpan="2"
+                               Width="1" Fill="#232B35" HorizontalAlignment="Center" Margin="0,4"/>
+                    <Rectangle Grid.Row="0" Grid.RowSpan="2" Grid.Column="0" Grid.ColumnSpan="2"
+                               Height="1" Fill="#232B35" VerticalAlignment="Center" Margin="0"/>
+                </Grid>
+            </Grid>
+        </StackPanel>
+    </Border>
+</UserControl>
