@@ -20,6 +20,10 @@ and must switch context automatically.
   F1 25 and the 2026 Season Pack; the 2026 pack adds a `CarTelemetry2` packet on top
   of the same base packets).
 - **Build/run:** `dotnet build` / `dotnet run` from the project root.
+- **Version control:** in git as of this point, with a **private** GitHub remote
+  (`https://github.com/keviniscooking/F1-Race-Engineer`). `bin/`, `obj/`, and
+  `.claude/settings.local.json` are gitignored - the last one is this machine's local
+  Claude Code permission settings, not project content.
 
 ## 2. Current state (built and confirmed working against live game data)
 
@@ -40,8 +44,8 @@ and must switch context automatically.
   confirmed working live.
 - **Lap History** — toggleable (see Settings panel below), shows lap #, an IN/OUT tag
   for in-laps/out-laps, per-sector times each with a colour-coded underline, lap time,
-  and delta, one lap per row. Confirmed rendering correctly; the IN/OUT classification
-  itself is still an unconfirmed heuristic (§6).
+  and delta, one lap per row. Confirmed rendering correctly, including the IN/OUT
+  classification itself — **confirmed live**.
 - **Alert banner** — Safety Car / VSC / Red Flag / Chequered Flag (see caveats in §6).
   Confirmed working live, including VSC.
 - **Qualifying position list** — full field, livery colour swatch, driver name +
@@ -68,11 +72,14 @@ and must switch context automatically.
   Widget key order is grouped by content density (denser widgets grouped together,
   compact ones grouped together) so rows sharing a card height don't mismatch as badly.
 
-Confirmed working in-game (as of a full live race test): lap/sector timing and
-colouring, preset auto-switch, position list with real names/livery colours, live
-delta, personal best, the alert banner including VSC, and the full catalog widget set
-(after the Car Condition fix in §6). Lap History's IN/OUT tagging has not yet been
-specifically confirmed.
+Confirmed working in-game across seven full live-testing rounds by this point (see §5
+for the complete log of what each round found and fixed): lap/sector timing and
+colouring, preset auto-switch, both position displays (Qualifying's list and the Race
+tower) with real names/livery/team, live delta, personal best, the alert banner
+(including VSC and, as of round seven, Chequered Flag's timing), the full catalog
+widget set, and, as of round eight, Lap History's IN/OUT tagging. Still open: the
+final-lap registration fix (§5 round five - reasoned from a symptom, not independently
+re-verified), and Car Condition's damage-threshold decision (§8).
 
 ## 3. Architecture
 
@@ -329,6 +336,13 @@ F1 25 game ──UDP──> UdpListenerService (background thread)
   genuinely stale carried into a new one - unlike a flag that's inherently about the
   session-ending moment itself.
 
+### Eighth round (confirmations)
+- **In Lap / Out Lap tagging confirmed correct** — `TelemetryState.ClassifyLapTag`'s
+  approach (using the *previous* tick's `DriverStatus` rather than the current one, so
+  the classification lands on the lap that just ended rather than the one just
+  starting) had only ever been reasoned through from field semantics, never verified
+  in-game. User confirmed the IN/OUT tags in Lap History are correct.
+
 ## 6. Not yet trustworthy / unvalidated
 
 - **Red Flag auto-clear is an untested heuristic.** There is no confirmed "flag
@@ -348,12 +362,6 @@ F1 25 game ──UDP──> UdpListenerService (background thread)
   on the final lap even though `CurrentLapNum` doesn't advance - consistent with what
   was observed, but not independently verified against a second real race/sprint
   finish. Watch the next session's final lap specifically.
-- **In Lap / Out Lap tagging is a heuristic, not yet confirmed against live data.**
-  `TelemetryState.ClassifyLapTag` assumes `LapData.DriverStatus` holds `InLap`/`OutLap`
-  for the whole lap in question and only flips at (or slightly after) the timing line -
-  the tracker deliberately uses the *previous* tick's DriverStatus rather than the
-  current one, since the current tick's value may already reflect the lap that's just
-  starting. Reasoned through from the field semantics, not verified in-game.
 - **Car Condition previously showed background engine wear as if it were crash
   damage — fixed after live testing.** `EngineMGUHWear`/`EngineESWear`/`EngineCEWear`/
   `EngineICEWear`/`EngineMGUKWear`/`EngineTCWear` are a *different* concept from
@@ -392,9 +400,10 @@ F1 25 game ──UDP──> UdpListenerService (background thread)
   (not stretched), so a short one-line widget (e.g. Car Condition when "OK") hugs its
   own content instead of stretching into an empty-looking card next to a taller
   neighbour.
-- Lap Timing's history list always renders exactly 8 rows (blank placeholders before 8
-  laps exist) rather than growing from 0 — otherwise the widget's height, and everything
-  stacked below it, would visibly shift down lap-by-lap during a race.
+- Lap Timing's history list always renders exactly `LapHistoryDepth` (10) rows (blank
+  placeholders before 10 laps exist) rather than growing from 0 — otherwise the
+  widget's height, and everything stacked below it, would visibly shift down
+  lap-by-lap during a race.
 - Catalog widgets default **on** for Race only. Practice and Qualifying default to just
   their core (Lap Timing for Practice; history-less Lap Timing + Position List for
   Qualifying) with everything else off, toggleable if wanted. Lap History itself is now
@@ -404,8 +413,10 @@ F1 25 game ──UDP──> UdpListenerService (background thread)
 ### Always-on core (differs per preset)
 - Practice / Race: **Lap Timing** (with history).
 - Qualifying: **Position list** as the core, with a history-less **Lap Timing**
-  widget stacked on top. (Lap Timing in Qualifying is currently always-shown; once
-  the settings panel exists it becomes a toggle there.)
+  widget stacked on top. This is settled, not a placeholder: the settings panel is
+  built, but Qualifying's Lap Timing was deliberately left non-toggleable so the view
+  always stays focused on the hotlap - only the 4 catalog widgets (and Lap History,
+  for Practice/Race) are toggleable.
 
 ### Lap Timing colour convention (real F1 timing-screen convention, confirmed)
 - **Purple** = fastest of the session (any driver).
@@ -476,8 +487,9 @@ before rebuilding a version of this.
 - **`Collision` was implemented then removed** — the user judged it only matters when
   it results in a penalty, which the Penalty banner already covers on its own. Don't
   reintroduce it as a separate banner.
-- Of the 20 `EventType` values, only 5 drive a banner so far (Red Flag, Chequered Flag,
-  Penalty, Retirement, Team-mate in pits). The rest were reviewed and left unwired -
+- Of the 21 `EventType` values, only 5 drive a banner so far (Red Flag, Chequered Flag,
+  Penalty, Retirement, Team-mate in pits). Most of the rest were reviewed and left
+  unwired -
   see §8 (Proposed alert banners, not yet implemented) for the full draft-text pass.
 
 ### Identity in the position list
@@ -520,7 +532,7 @@ before rebuilding a version of this.
   questions before building: (1) the exact threshold value, (2) whether it applies
   uniformly across all components or per-component (e.g. wings/floor might creep
   faster than gearbox).
-- **Proposed alert banners, not yet implemented** — of the 20 `EventType` values, 15
+- **Proposed alert banners, not yet implemented** — of the 21 `EventType` values, 16
   remain unwired (5 are live - see §7). Draft text/colour/clear-behaviour for each,
   reviewed but not committed to:
   - **Safety Car event state machine** (would replace the current coarse
@@ -550,6 +562,15 @@ before rebuilding a version of this.
   - **Not recommended**: Flashback (self-inflicted, driver already knows) and Button
     Status (raw controller bitmask, not a discrete banner-shaped event) - reviewed and
     rejected, don't reconsider without new reasoning.
+  - **Not actually assessed until this doc pass** (found while re-verifying the count
+    above against the API reference - the earlier "20 values" figure had silently
+    dropped these three): `DRSEnabled` doesn't need its own banner - it's already the
+    implicit clear-signal for the `DRSDisabled` draft above, not a notable moment on
+    its own. `SessionStarted` is low-value - Start Lights/Lights Out already covers
+    the moment that matters (race about to begin) more specifically. `SessionEnded`
+    is the one worth a real look later: unlike Chequered Flag (which may be
+    Race-specific), this might fire for Practice/Qualifying too, and neither currently
+    has any "session's over" signal at all - untested, not drafted yet.
 
 ## 9. Non-negotiable technical requirements
 
