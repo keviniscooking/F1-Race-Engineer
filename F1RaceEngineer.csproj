@@ -7,11 +7,18 @@
     <UseWPF>true</UseWPF>
     <RootNamespace>F1RaceEngineer</RootNamespace>
     <AssemblyName>F1RaceEngineer</AssemblyName>
+    <ApplicationIcon>AppIcon.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
     <!-- Parses UDP telemetry packets for both F1 25 and the F1 25: 2026 Season Pack -->
     <PackageReference Include="F1Game.UDP" Version="26.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Embedded so MainWindow.xaml's Icon="AppIcon.ico" resolves at runtime, in
+         addition to ApplicationIcon above (which sets the .exe file's own icon). -->
+    <Resource Include="AppIcon.ico" />
   </ItemGroup>
 
 </Project>

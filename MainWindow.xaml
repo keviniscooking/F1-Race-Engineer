@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:widgets="clr-namespace:F1RaceEngineer.Widgets"
         Title="F1 Race Engineer" Height="640" Width="720"
+        Icon="AppIcon.ico"
         Background="#0D1117">
     <Window.Resources>
         <Style TargetType="TextBlock">

@@ -24,6 +24,17 @@ and must switch context automatically.
   (`https://github.com/keviniscooking/F1-Race-Engineer`). `bin/`, `obj/`, and
   `.claude/settings.local.json` are gitignored - the last one is this machine's local
   Claude Code permission settings, not project content.
+- **Launching without VS Code:** `dotnet build -c Release` produces
+  `bin\Release\net10.0-windows\F1RaceEngineer.exe`; a desktop shortcut points at it.
+  Re-run that command after future changes to refresh it in place - the shortcut
+  doesn't need to change. `AppIcon.ico` (project root) is a custom-drawn icon, not a
+  stock image - a rounded blue-badge (`#1F6FEB`, the app's own accent colour) around
+  the exact flag pole/pennant glyph already used in-app for alerts (`AlertBanner`,
+  Penalties & Flags), generated programmatically via `System.Drawing` rather than
+  external image tools, consistent with this project's "drawn, not captured" icon
+  convention. Wired via `<ApplicationIcon>` in the `.csproj` (the .exe file's own
+  icon) and `Window.Icon` in `MainWindow.xaml` (the running window/taskbar icon) -
+  both needed, they're separate things.
 
 ## 2. Current state (built and confirmed working against live game data)
 
