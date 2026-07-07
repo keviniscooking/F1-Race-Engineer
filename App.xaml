@@ -28,9 +28,9 @@
             <Setter Property="VerticalAlignment" Value="Stretch"/>
         </Style>
 
-        <!-- Common size for a widget's primary stat number, so numbers read at a
-             consistent size across Gaps, Tyres, and Fuel & ERS instead of each widget
-             having picked its own size independently. -->
+        <!-- Common size for a widget's primary stat number (currently just the Tyres
+             widget's four per-corner wear values), so they'd stay visually consistent
+             if another widget adopts the same "big number" treatment later. -->
         <Style x:Key="HeroNumberStyle" TargetType="TextBlock">
             <Setter Property="FontSize" Value="24"/>
             <Setter Property="FontWeight" Value="Bold"/>

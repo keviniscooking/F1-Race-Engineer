@@ -84,7 +84,7 @@
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
-                <widgets:RacePositionTowerWidget x:Name="RaceTower" Grid.Column="0" Width="360" Margin="0,0,14,0"/>
+                <widgets:RacePositionTowerWidget x:Name="RaceTower" Grid.Column="0" Width="400" Margin="0,0,14,0"/>
 
                 <StackPanel Grid.Column="1">
                     <widgets:AlertBanner x:Name="Alert"/>

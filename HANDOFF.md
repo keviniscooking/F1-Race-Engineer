@@ -87,20 +87,21 @@ and must switch context automatically.
   Widget key order is grouped by content density (denser widgets grouped together,
   compact ones grouped together) so rows sharing a card height don't mismatch as badly.
 
-Confirmed working in-game across nine full live-testing rounds by this point (see §5
+Confirmed working in-game across eleven full live-testing rounds by this point (see §5
 for the complete log of what each round found and fixed): lap/sector timing and
 colouring, preset auto-switch, both position displays (Qualifying's list and the Race
 tower) with real names/livery/team, live delta, personal best, the alert banner
 (including VSC and, as of round seven, Chequered Flag's timing), the full catalog
 widget set, Lap History's IN/OUT tagging (round eight), and Car Condition looking
-correct overall (round nine, though see the caveat on race-start creep in §6). Still
-open: the final-lap registration fix (§5 round five - reasoned from a symptom, not
-independently re-verified) and the session-restart fix (§5 round nine - same
-situation, needs a second confirmation), and Car Condition's damage-threshold decision
-(§8). A tenth round (§5) added the tower's "Out" treatment and tyre letter, Penalties &
-Flags' 2-column layout, and Lap History's spacing/tag-column/PIT-column changes - all
-verified visually with mock data (screenshots), not yet against a live race (see §6 for
-the PIT column's specific open assumption).
+correct overall (round nine, though see the caveat on race-start creep in §6). Round
+eleven both confirmed a tenth-round visual fix (tyre letter spacing) and caught a
+genuine bug in another (PIT column reading `0.000` - see §5/§6). Still open: the
+final-lap registration fix (§5 round five), the session-restart fix (§5 round nine),
+and the PIT column's latch-on-pit-exit fix (§5 round eleven) - all reasoned from a
+symptom, none independently re-verified a second time - plus Car Condition's
+damage-threshold decision (§8). A twelfth round (§5) equalized the tower's Int-Gap-Tyre
+spacing and added a pending-penalty badge, both verified visually with mock data
+(screenshots) but not yet against a live race (see §6).
 
 ## 3. Architecture
 
@@ -172,7 +173,12 @@ F1 25 game ──UDP──> UdpListenerService (background thread)
   current collection before touching it.
 - **`RefreshSessionAndTrack` rebuilt `ForecastEntries` every Session packet** (~2Hz)
   even though forecast samples barely change tick-to-tick. Fixed with a
-  `_lastForecastSamples` cache + `SequenceEqual` guard.
+  `_lastForecastSamples` cache + `SequenceEqual` guard. **Superseded, not current
+  code**: the second live-testing round below replaced the whole multi-card
+  `ForecastEntries` collection this guarded with a single "next change" callout
+  (scalar bindable properties, no collection to churn) - `_lastForecastSamples` no
+  longer exists in the codebase. Left here as a historical record of the reasoning,
+  not something to go looking for.
 - **`ResetSessionScopedState()` was missing the Session & Track fields** (weather
   label/glyph/background, track/air temp, current rain %, forecast entries) — a real
   gap against this project's own rule (above) that all session-scoped state must be
@@ -411,6 +417,37 @@ F1 25 game ──UDP──> UdpListenerService (background thread)
   that long. Capturing `PitStopTimerInMS` at the IN row's own creation tick avoids the
   whole question, since it's read at the same instant the row is built.
 
+### Eleventh round (live race, first test of the tenth round's changes)
+- **Tyre compound letter in the tower sat too close to the Gap column** - the letter
+  was centered in its own narrow column immediately after Gap's right-aligned text,
+  leaving barely any visual gap. Fixed with a left margin + left-alignment instead of
+  centering, giving a consistent, deliberate gap.
+- **PIT column showed `0.000` instead of the actual pit stop duration** - confirmed
+  the tenth round's assumption wrong: `PitStopTimerInMS` does not survive from pit
+  exit to the IN lap's line-crossing, it reads back as 0 well before then. Fixed by
+  latching the peak value at the moment `PitStatus` transitions back to `None` (pit
+  exit) instead of reading it later at lap completion - see §6 for the updated,
+  still-unconfirmed status of this fix.
+
+### Twelfth round (further tower polish)
+- **Int-Gap-Tyre spacing still looked uneven** even after the eleventh round's fix -
+  the Int-Gap gap came from Gap's own right-alignment slack (variable, depends on that
+  row's text width), while the Gap-Tyre gap was a fixed margin, so the two never
+  actually matched. Fixed by removing reliance on alignment slack entirely: two real,
+  equal-width (16px) spacer columns now sit between Int-Gap and Gap-Tyre, with Int and
+  Gap's own columns tightened to a snug fit (58px each, still fits a 3-digit-second gap
+  like "+199.90" with no clipping). Tower widened 360px → 384px to fit.
+- **New: pending-penalty badge** - a small red "!" badge next to the tyre letter for
+  any driver with a penalty not yet served, matching the real broadcast convention
+  (reference screenshot provided by the user). Driven by the same fields
+  `RefreshPenalties` already reads for the player's own Penalties & Flags list
+  (`LapData.Penalties`, `NumUnservedDriveThroughPens`, `NumUnservedStopGoPens`),
+  generalized to every car in `RefreshRaceStandings` instead of just the player. False
+  for `IsOut` rows - a retired car has nothing left to serve. Uses the tower's reserved
+  column (see eighth/tenth round comments) plus one more real spacer column matching
+  the Int-Gap-Tyre spacing, so there's no longer any reserved buffer left - see below.
+  Tower widened 384px → 400px to fit. Not yet tested against a real pending penalty.
+
 ## 6. Not yet trustworthy / unvalidated
 
 - **Red Flag auto-clear is an untested heuristic.** There is no confirmed "flag
@@ -425,6 +462,12 @@ F1 25 game ──UDP──> UdpListenerService (background thread)
   a real red flag specifically.
 - **`CarPosition == 0` is used to filter inactive car slots** in the position list —
   a reasonable inference from the API's general pattern, not explicitly documented.
+- **Tower's pending-penalty badge (§5, twelfth round) is reasoned from field semantics,
+  not yet re-confirmed live.** `Penalties > 0` / unserved drive-through / unserved
+  stop-go are read directly from `LapData` and already used elsewhere for the player's
+  own Penalties & Flags widget, but generalizing them to every car in the tower hasn't
+  been checked against a real pending penalty on a rival car. Watch the next penalty
+  situation specifically.
 - **Final-lap registration fix (§5, fifth round) is reasoned from the reported symptom,
   not yet re-confirmed live.** The fix assumes `LastLapTimeInMS` reliably changes value
   on the final lap even though `CurrentLapNum` doesn't advance - consistent with what
@@ -435,14 +478,14 @@ F1 25 game ──UDP──> UdpListenerService (background thread)
   alongside `SessionType` should catch a same-type restart that a `SessionType`-only
   check misses, but hasn't been independently re-tested against a second deliberate
   restart. Watch the next session restart specifically.
-- **Lap History's "PIT" column (§5, tenth round) assumes `PitStopTimerInMS` already
-  holds the completed stop's duration at the exact tick the IN lap's row is created**
-  (i.e. that the pit lane exit rejoins the track before the start/finish line, so the
-  whole stop concludes before that lap's `LastLapTimeInMS` updates). Reasoned from how
-  pit lanes are conventionally laid out and the official UDP spec's field wording, not
-  verified against this game's actual track geometry or a live pit stop. Watch the next
-  pit stop specifically - if the number ever reads as 0 or clearly wrong on the IN row,
-  this assumption is the first place to look.
+- **Lap History's "PIT" column fix (§5, eleventh round) is reasoned from the reported
+  symptom, not yet re-confirmed live.** The original tenth-round assumption (that
+  `PitStopTimerInMS` still held the stop's duration by the time the IN lap's row was
+  created) was confirmed wrong via live testing - it read as `0.000`. Fixed by
+  tracking the peak `PitStopTimerInMS` every tick while `PitStatus != None` and
+  latching it the instant `PitStatus` drops back to `None` (pit exit), well before the
+  value can go stale - see `CarLapTracker.CapturedPitStopDurationMs`. Not yet
+  re-tested against a second live pit stop. Watch the next one specifically.
 - **Car Condition previously showed background engine wear as if it were crash
   damage — fixed after live testing.** `EngineMGUHWear`/`EngineESWear`/`EngineCEWear`/
   `EngineICEWear`/`EngineMGUKWear`/`EngineTCWear` are a *different* concept from
@@ -513,11 +556,15 @@ F1 25 game ──UDP──> UdpListenerService (background thread)
 
 ### Race Position Tower (Race-only, not part of the toggleable catalog)
 - Full-field tower to the left of everything else in Race: position, livery swatch,
-  driver + team, tyre compound letter (plain colored text, no background badge - see
-  §5 tenth round), Interval (gap to car ahead), Gap (to leader). Retired/DNF/DSQ/
-  not-classified cars show a dimmed row and "Out" instead of a stale interval/gap
-  (`LapData.ResultStatus`, §5 tenth round). See §8 for why this replaced the old
-  Gaps & Position widget (removed on all presets, not just Race).
+  driver + team, Interval (gap to car ahead), Gap (to leader), tyre compound letter
+  (plain colored text, no background badge - see §5 tenth round), and a red "!" badge
+  for a pending/unserved penalty (§5 twelfth round). Int-Gap and Gap-Tyre/Penalty
+  gaps are real fixed-width spacer columns, not alignment slack, so they stay visually
+  identical regardless of content width (§5 twelfth round) - no reserved/unused column
+  left in the tower after this. Retired/DNF/DSQ/not-classified cars show a dimmed row
+  and "Out" instead of a stale interval/gap (`LapData.ResultStatus`, §5 tenth round).
+  See §8 for why this replaced the old Gaps & Position widget (removed on all presets,
+  not just Race).
 
 ### Widget catalog (toggleable unless noted)
 - **Tyres** — rendered compound icon (FIA colour convention, drawn not captured),

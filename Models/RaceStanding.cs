@@ -27,6 +27,12 @@ namespace F1RaceEngineer.Models
         public string TyreLetter { get; set; } = "";
         public SolidColorBrush TyreBrush { get; set; } = CompoundPalette.Unknown;
 
+        // Real F1 broadcast convention: a red "!" badge for a driver with a penalty not
+        // yet served (LapData.Penalties = pending time penalty, or an unserved
+        // drive-through/stop-go). False for IsOut rows - a retired car has nothing left
+        // to serve a penalty during.
+        public bool IsPenaltyPending { get; set; }
+
         // LiveryBrush/TyreBrush compare by reference (not value) deliberately - brushes
         // are cached per participant and frozen, so a real change always means a
         // different instance.
@@ -39,6 +45,7 @@ namespace F1RaceEngineer.Models
             GapText == other.GapText &&
             IsOut == other.IsOut &&
             TyreLetter == other.TyreLetter &&
+            IsPenaltyPending == other.IsPenaltyPending &&
             ReferenceEquals(LiveryBrush, other.LiveryBrush) &&
             ReferenceEquals(TyreBrush, other.TyreBrush);
     }

@@ -3,7 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             mc:Ignorable="d" d:DesignWidth="360">
+             mc:Ignorable="d" d:DesignWidth="400">
 
     <Border Style="{StaticResource WidgetCardStyle}">
         <StackPanel>
@@ -14,16 +14,22 @@
                     <ColumnDefinition Width="24"/>
                     <ColumnDefinition Width="12"/>
                     <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="60"/>
-                    <ColumnDefinition Width="66"/>
+                    <ColumnDefinition Width="58"/>
+                    <!-- Real spacer columns (not alignment slack) so the Int-Gap and
+                         Gap-Tyre gaps are identical and don't depend on how wide that
+                         row's particular text happens to be. -->
+                    <ColumnDefinition Width="16"/>
+                    <ColumnDefinition Width="58"/>
+                    <ColumnDefinition Width="16"/>
                     <ColumnDefinition Width="20"/>
-                    <!-- Reserved, unused for now - matches the tyre column's width so a
-                         future column can be added here without widening the tower again. -->
+                    <!-- Same real-spacer treatment as Int-Gap-Tyre, then the pending-
+                         penalty badge in what used to be the reserved column. -->
+                    <ColumnDefinition Width="16"/>
                     <ColumnDefinition Width="20"/>
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="2" Text="Driver" FontSize="10.5" Foreground="#4A5460" Margin="8,0,0,0"/>
                 <TextBlock Grid.Column="3" Text="Int" FontSize="10.5" Foreground="#4A5460" HorizontalAlignment="Right"/>
-                <TextBlock Grid.Column="4" Text="Gap" FontSize="10.5" Foreground="#4A5460" HorizontalAlignment="Right"/>
+                <TextBlock Grid.Column="5" Text="Gap" FontSize="10.5" Foreground="#4A5460" HorizontalAlignment="Right"/>
             </Grid>
 
             <ItemsControl ItemsSource="{Binding RaceStandings}">
@@ -53,10 +59,14 @@
                                     <ColumnDefinition Width="24"/>
                                     <ColumnDefinition Width="12"/>
                                     <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="60"/>
-                                    <ColumnDefinition Width="66"/>
+                                    <ColumnDefinition Width="58"/>
+                                    <!-- Real spacer columns - see header row comment. -->
+                                    <ColumnDefinition Width="16"/>
+                                    <ColumnDefinition Width="58"/>
+                                    <ColumnDefinition Width="16"/>
                                     <ColumnDefinition Width="20"/>
-                                    <!-- Reserved, unused for now - see header row comment. -->
+                                    <!-- Spacer + penalty badge - see header row comment. -->
+                                    <ColumnDefinition Width="16"/>
                                     <ColumnDefinition Width="20"/>
                                 </Grid.ColumnDefinitions>
 
@@ -130,7 +140,7 @@
                                         </Style>
                                     </TextBlock.Style>
                                 </TextBlock>
-                                <TextBlock Grid.Column="4" Text="{Binding GapText}" FontSize="12.5" FontFamily="Consolas" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                <TextBlock Grid.Column="5" Text="{Binding GapText}" FontSize="12.5" FontFamily="Consolas" HorizontalAlignment="Right" VerticalAlignment="Center">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
                                             <Setter Property="Foreground" Value="#9BA7B4"/>
@@ -143,7 +153,14 @@
                                     </TextBlock.Style>
                                 </TextBlock>
 
-                                <TextBlock Grid.Column="5" Text="{Binding TyreLetter}" FontSize="13" FontWeight="Bold" Foreground="{Binding TyreBrush}" FontFamily="Consolas" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="7" Text="{Binding TyreLetter}" FontSize="13" FontWeight="Bold" Foreground="{Binding TyreBrush}" FontFamily="Consolas" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+
+                                <!-- Real F1 broadcast convention: a red "!" badge for a
+                                     driver with a penalty they haven't served yet. -->
+                                <Border Grid.Column="9" Width="18" Height="18" CornerRadius="4" Background="#E12E2E" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                        Visibility="{Binding IsPenaltyPending, Converter={StaticResource BoolToVis}}">
+                                    <TextBlock Text="!" FontSize="13" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-2,0,0"/>
+                                </Border>
                             </Grid>
                         </Border>
                     </DataTemplate>

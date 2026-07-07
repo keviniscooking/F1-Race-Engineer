@@ -81,6 +81,15 @@ namespace F1RaceEngineer.Telemetry
             // cross the line) - using the prior tick's value reliably attributes the
             // in/out-lap classification to the lap that just ended instead.
             public DriverStatus LastKnownDriverStatus;
+
+            // PitStopTimerInMS goes stale (confirmed live: read as 0) by the time the IN
+            // lap's row is actually created at the line - it doesn't survive from pit exit
+            // to the next lap boundary. So the peak value is tracked here every tick while
+            // PitStatus is non-None, and latched into CapturedPitStopDurationMs the instant
+            // PitStatus drops back to None (pit exit) - well before it can go stale.
+            public PitStatus LastKnownPitStatus;
+            public uint MaxPitStopTimerMsThisStop;
+            public uint CapturedPitStopDurationMs;
         }
         private readonly Dictionary<int, CarLapTracker> _carTrackers = new();
 
@@ -797,6 +806,27 @@ namespace F1RaceEngineer.Telemetry
                     tracker.LastSeenSector2Ms = car.Sector2TimeInMS;
                 }
 
+                // Track the peak PitStopTimerInMS while actually in the pits, and latch it
+                // the instant PitStatus drops back to None (pit exit) - see the
+                // CarLapTracker field comments for why this can't just be read later,
+                // at the IN lap's own completion tick.
+                if (car.PitStatus != PitStatus.None)
+                {
+                    if (tracker.LastKnownPitStatus == PitStatus.None)
+                    {
+                        tracker.MaxPitStopTimerMsThisStop = 0; // entering a fresh stop
+                    }
+                    if (car.PitStopTimerInMS > tracker.MaxPitStopTimerMsThisStop)
+                    {
+                        tracker.MaxPitStopTimerMsThisStop = car.PitStopTimerInMS;
+                    }
+                }
+                else if (tracker.LastKnownPitStatus != PitStatus.None)
+                {
+                    tracker.CapturedPitStopDurationMs = tracker.MaxPitStopTimerMsThisStop;
+                }
+                tracker.LastKnownPitStatus = car.PitStatus;
+
                 // A completed lap is normally signalled by CurrentLapNum advancing, but
                 // that never happens after the FINAL lap of a race/sprint - there's no
                 // next lap for it to advance to. Confirmed via live testing: that left S3
@@ -820,7 +850,8 @@ namespace F1RaceEngineer.Telemetry
                     }
 
                     string lapTag = isPlayer ? ClassifyLapTag(tracker.LastKnownDriverStatus) : "";
-                    RegisterLapTime(car.LastLapTimeInMS, sector1Ms, sector2Ms, sector3Ms, isPlayer, lapTag, car.PitStopTimerInMS);
+                    RegisterLapTime(car.LastLapTimeInMS, sector1Ms, sector2Ms, sector3Ms, isPlayer, lapTag, tracker.CapturedPitStopDurationMs);
+                    tracker.CapturedPitStopDurationMs = 0; // consumed - don't let it leak onto a later unrelated IN lap
 
                     // Track best lap per car (whole field) for the qualifying position list
                     if (!_carBestLapMs.TryGetValue(i, out var best) || best == null || car.LastLapTimeInMS < best)
@@ -898,6 +929,12 @@ namespace F1RaceEngineer.Telemetry
                     tyreBrush = CompoundPalette.BrushFor(compound);
                 }
 
+                // Same fields already used for the player's own Penalties & Flags list
+                // (RefreshPenalties), just generalized to every car here instead of just
+                // the player. False for an out car - nothing left to serve.
+                bool hasPendingPenalty = !isOut && (car.Penalties > 0
+                    || car.NumUnservedDriveThroughPens > 0 || car.NumUnservedStopGoPens > 0);
+
                 rows.Add(new RaceStanding
                 {
                     Position = car.CarPosition,
@@ -908,6 +945,7 @@ namespace F1RaceEngineer.Telemetry
                     IsOut = isOut,
                     TyreLetter = tyreLetter,
                     TyreBrush = tyreBrush,
+                    IsPenaltyPending = hasPendingPenalty,
                     // 2 decimals here specifically (not the app-wide 3) - frees up column
                     // width in the tower to run the font size up, and 2 decimals is still
                     // plenty precise for a live gap glanced at mid-race.
@@ -1056,9 +1094,10 @@ namespace F1RaceEngineer.Telemetry
         }
 
         /// <summary>
-        /// Heuristic, not yet confirmed against live data: assumes DriverStatus holds
-        /// InLap/OutLap for the whole lap in question and only flips at (or after) the
-        /// timing line, which is why the caller passes the tracker's previous-tick value.
+        /// Assumes DriverStatus holds InLap/OutLap for the whole lap in question and only
+        /// flips at (or after) the timing line, which is why the caller passes the
+        /// tracker's previous-tick value. Confirmed correct via live testing (HANDOFF §5,
+        /// eighth round).
         /// </summary>
         private static string ClassifyLapTag(DriverStatus status) => status switch
         {
@@ -1067,7 +1106,7 @@ namespace F1RaceEngineer.Telemetry
             _ => ""
         };
 
-        private void RegisterLapTime(uint ms, uint sector1Ms, uint sector2Ms, uint sector3Ms, bool isPlayer, string lapTag, uint pitStopTimerMs)
+        private void RegisterLapTime(uint ms, uint sector1Ms, uint sector2Ms, uint sector3Ms, bool isPlayer, string lapTag, uint pitStopDurationMs)
         {
             bool newSessionBest = _sessionBestLapMs == null || ms < _sessionBestLapMs;
             if (newSessionBest) _sessionBestLapMs = ms;
@@ -1126,7 +1165,7 @@ namespace F1RaceEngineer.Telemetry
                 // Only meaningful on the IN row - the pit stop that just happened is what
                 // that tag refers to; blank everywhere else, including OUT (see HANDOFF for
                 // why OUT's PitLaneTimeInLaneInMS was deliberately left out of scope).
-                PitStopTimeText = lapTag == "IN" ? FormatSector(pitStopTimerMs) : "",
+                PitStopTimeText = lapTag == "IN" && pitStopDurationMs > 0 ? FormatSector(pitStopDurationMs) : "",
                 // Captured here (not passed in) because at this point in HandleLapData the
                 // live Sector1/2/3 Text/Brush properties still hold the lap that just
                 // finished - ResetSectorDisplayForNewLap() only runs after this returns.
