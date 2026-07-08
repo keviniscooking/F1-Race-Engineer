@@ -33,6 +33,16 @@ namespace F1RaceEngineer.Models
         // to serve a penalty during.
         public bool IsPenaltyPending { get; set; }
 
+        // Purple stopwatch badge for whoever currently holds the session's fastest lap -
+        // reuses the existing purple = "fastest of the session" convention (Lap Timing
+        // colours). Shares the same badge slot as IsPenaltyPending; deliberately set
+        // false at the source (TelemetryState.RefreshRaceStandings) whenever
+        // IsPenaltyPending is true for the same row, rather than resolving the conflict
+        // here in the view - a pending penalty is actionable and wins, matching the
+        // priority order the alert banner already uses elsewhere in this app. Also false
+        // for IsOut rows, same reasoning as the tyre letter and penalty badge above.
+        public bool IsFastestLap { get; set; }
+
         // LiveryBrush/TyreBrush compare by reference (not value) deliberately - brushes
         // are cached per participant and frozen, so a real change always means a
         // different instance.
@@ -46,6 +56,7 @@ namespace F1RaceEngineer.Models
             IsOut == other.IsOut &&
             TyreLetter == other.TyreLetter &&
             IsPenaltyPending == other.IsPenaltyPending &&
+            IsFastestLap == other.IsFastestLap &&
             ReferenceEquals(LiveryBrush, other.LiveryBrush) &&
             ReferenceEquals(TyreBrush, other.TyreBrush);
     }

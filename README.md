@@ -8,15 +8,17 @@ to alt-tab out of the game mid-session.
 ## Features
 
 - **Lap Timing** — current lap (live-coloured), personal best, delta vs personal best
-  (updates every sector, not just at the line), three sector boxes, and a 10-lap history
-  with per-sector colour coding.
-- **Race Position Tower** — full-field position, interval, and gap to leader, shown
-  only in Race.
+  (updates every sector, not just at the line), three sector boxes, a 10-lap history
+  with per-sector colour coding, IN/OUT lap tags, and pit stop/pit lane timing.
+- **Race Position Tower** — a "LAP X / Y" counter above the full field: position,
+  interval and gap to leader, tyre compound, and a shared badge slot for a pending
+  penalty or the session's fastest lap, shown only in Race.
 - **Qualifying position list** — full field with best lap and gap to pole.
 - **Alert banner** — Safety Car / VSC, Red Flag, Chequered Flag, penalties, retirement,
   and team-mate-in-pits notifications.
 - **Tyres, Car Condition, Penalties & Flags, Session & Track** — toggleable widgets via
-  the gear-icon settings panel, with sensible per-preset defaults.
+  the gear-icon settings panel, with sensible per-preset defaults. Penalties & Flags
+  reasons are labelled against real FIA terminology, not raw game field names.
 - Automatically switches between **Practice / Qualifying / Race** layouts based on the
   live session type — no manual tab clicking required.
 

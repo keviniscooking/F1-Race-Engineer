@@ -7,6 +7,13 @@
 
     <Border Style="{StaticResource WidgetCardStyle}">
         <StackPanel>
+            <!-- Own distinct bar, matching how the real broadcast graphic layers the lap
+                 counter as its own segment above the entrant list, rather than folding it
+                 into the "POSITION" caption row. -->
+            <Border Background="#1C2733" CornerRadius="6" Padding="0,8" Margin="0,0,0,10">
+                <TextBlock Text="{Binding LapCounterText}" FontSize="16" FontWeight="Bold" Foreground="#E6EDF3" HorizontalAlignment="Center"/>
+            </Border>
+
             <TextBlock Text="POSITION" FontSize="11" Foreground="#6B7684" Margin="0,0,0,10"/>
 
             <Grid Margin="4,0,4,4">
@@ -156,10 +163,28 @@
                                 <TextBlock Grid.Column="7" Text="{Binding TyreLetter}" FontSize="13" FontWeight="Bold" Foreground="{Binding TyreBrush}" FontFamily="Consolas" HorizontalAlignment="Center" VerticalAlignment="Center"/>
 
                                 <!-- Real F1 broadcast convention: a red "!" badge for a
-                                     driver with a penalty they haven't served yet. -->
+                                     driver with a penalty they haven't served yet. Shares
+                                     this column with the fastest-lap badge below - the two
+                                     are mutually exclusive at the source (see
+                                     TelemetryState.RefreshRaceStandings), so only one of
+                                     these two Borders is ever visible for a given row. -->
                                 <Border Grid.Column="9" Width="18" Height="18" CornerRadius="4" Background="#E12E2E" HorizontalAlignment="Center" VerticalAlignment="Center"
                                         Visibility="{Binding IsPenaltyPending, Converter={StaticResource BoolToVis}}">
                                     <TextBlock Text="!" FontSize="13" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-2,0,0"/>
+                                </Border>
+
+                                <!-- Purple stopwatch badge for whoever currently holds the
+                                     session's fastest lap - reuses the existing purple =
+                                     "fastest of the session" convention (Lap Timing colours). -->
+                                <Border Grid.Column="9" Width="18" Height="18" CornerRadius="9" Background="#AFA9EC" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                        Visibility="{Binding IsFastestLap, Converter={StaticResource BoolToVis}}">
+                                    <Viewbox Width="12" Height="12">
+                                        <Canvas Width="24" Height="24">
+                                            <Ellipse Canvas.Left="5" Canvas.Top="6" Width="14" Height="14" Stroke="#0D1117" StrokeThickness="2"/>
+                                            <Path Data="M12,6 L12,3" Stroke="#0D1117" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                                            <Path Data="M12,13 L15,10" Stroke="#0D1117" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                                        </Canvas>
+                                    </Viewbox>
                                 </Border>
                             </Grid>
                         </Border>

@@ -55,10 +55,13 @@ and must switch context automatically.
   confirmed working live.
 - **Lap History** — toggleable (see Settings panel below), shows lap #, an IN/OUT tag
   for in-laps/out-laps (its own dedicated column so Time's start position never shifts),
-  a "PIT" column showing `PitStopTimerInMS` on the IN row only, per-sector times each
-  with a colour-coded underline, lap time, and delta, one lap per row. Confirmed
-  rendering correctly, including the IN/OUT classification itself — **confirmed live**.
-  The PIT column is new (§5 tenth round) and not yet live-confirmed (see §6).
+  a "PIT" column showing the stop time on the IN row (patched in retroactively once the
+  stop finishes - see §5 thirteenth round) and total pit-lane time on the OUT row
+  (forward-stored, no ambiguity), per-sector times each with a colour-coded underline,
+  lap time, and delta, one lap per row. Confirmed rendering correctly, including the
+  IN/OUT classification itself — **confirmed live**. The PIT column's OUT-row value is
+  new and not yet live-confirmed; the IN-row value has gone through two rounds of live
+  testing that each ruled out a prior theory (see §6) - still not confirmed working.
 - **Alert banner** — Safety Car / VSC / Red Flag / Chequered Flag (see caveats in §6).
   Confirmed working live, including VSC.
 - **Qualifying position list** — full field, livery colour swatch, driver name +
@@ -74,34 +77,37 @@ and must switch context automatically.
   (`Widgets/SettingsPanel.xaml`), with per-preset default state: everything on for
   Race; only the core (Lap Timing / Position List) for Practice and Qualifying.
   Confirmed live in a real race session (see fixes in §6 that came out of that test).
-- **Race Position Tower** (`Widgets/RacePositionTowerWidget.xaml`) — full-field tower
-  shown only in Race, to the left of everything else: position, livery swatch, driver +
-  team, tyre compound letter, Interval (gap to car ahead), Gap (to leader). Reads
-  `LapData.DeltaToCarInFrontInMS`/`DeltaToRaceLeaderInMS` directly per car - no
-  cross-referencing needed, unlike the old Gaps & Position widget it replaced (see §8
-  for why that one was removed). Retired/DNF/DSQ/not-classified cars show a dimmed row
-  and "Out" instead of a stale interval/gap (§5, tenth round).
+- **Race Position Tower** (`Widgets/RacePositionTowerWidget.xaml`) — a "LAP X / Y"
+  banner (tracks the race leader, §5 thirteenth round) above a full-field tower shown
+  only in Race, to the left of everything else: position, livery swatch, driver + team,
+  Interval (gap to car ahead), Gap (to leader), tyre compound letter, and a pending-
+  penalty badge. Reads `LapData.DeltaToCarInFrontInMS`/`DeltaToRaceLeaderInMS` directly
+  per car - no cross-referencing needed, unlike the old Gaps & Position widget it
+  replaced (see §8 for why that one was removed). Retired/DNF/DSQ/not-classified cars
+  show a dimmed row and a single "Out" instead of a stale interval/gap (§5, tenth and
+  thirteenth rounds).
 - **Adaptive grid layout** (`MainWindow.xaml.cs` `ArrangeWidgets`) rebuilds the catalog
   widgets' row/column definitions to fit exactly the currently-visible set on every
   toggle change, so remaining widgets grow to fill freed space with no blank gaps.
   Widget key order is grouped by content density (denser widgets grouped together,
   compact ones grouped together) so rows sharing a card height don't mismatch as badly.
 
-Confirmed working in-game across eleven full live-testing rounds by this point (see §5
-for the complete log of what each round found and fixed): lap/sector timing and
+Confirmed working in-game across thirteen full live-testing rounds by this point (see
+§5 for the complete log of what each round found and fixed): lap/sector timing and
 colouring, preset auto-switch, both position displays (Qualifying's list and the Race
 tower) with real names/livery/team, live delta, personal best, the alert banner
 (including VSC and, as of round seven, Chequered Flag's timing), the full catalog
 widget set, Lap History's IN/OUT tagging (round eight), and Car Condition looking
-correct overall (round nine, though see the caveat on race-start creep in §6). Round
-eleven both confirmed a tenth-round visual fix (tyre letter spacing) and caught a
-genuine bug in another (PIT column reading `0.000` - see §5/§6). Still open: the
-final-lap registration fix (§5 round five), the session-restart fix (§5 round nine),
-and the PIT column's latch-on-pit-exit fix (§5 round eleven) - all reasoned from a
-symptom, none independently re-verified a second time - plus Car Condition's
-damage-threshold decision (§8). A twelfth round (§5) equalized the tower's Int-Gap-Tyre
-spacing and added a pending-penalty badge, both verified visually with mock data
-(screenshots) but not yet against a live race (see §6).
+correct overall (round nine, though see the caveat on race-start creep in §6). Rounds
+eleven and thirteen each confirmed a prior visual fix (tyre letter spacing, "Out Out")
+while also catching that the PIT column's IN-row value was STILL broken two rounds
+running - each round ruled out one specific theory rather than finding the fix on the
+first try (see §5/§6 for the full history). Still open: the final-lap registration fix
+(§5 round five), the session-restart fix (§5 round nine), the PIT column's IN-row
+retroactive-patch fix (§5 round thirteen - now on its third attempt), the new OUT-row
+pit-lane time, the new lap counter banner, and the FIA-aligned penalty text (all §5
+round thirteen) - none independently re-verified live yet - plus Car Condition's
+damage-threshold decision (§8).
 
 ## 3. Architecture
 
@@ -448,6 +454,63 @@ F1 25 game ──UDP──> UdpListenerService (background thread)
   the Int-Gap-Tyre spacing, so there's no longer any reserved buffer left - see below.
   Tower widened 384px → 400px to fit. Not yet tested against a real pending penalty.
 
+### Thirteenth round (live race - PIT column still showed nothing)
+- **PIT column was still blank on the IN row despite the eleventh round's fix** - the
+  user's own diagnosis nailed it: on at least some tracks the pit lane sits entirely
+  within the NEXT lap (the OUT lap), not the IN lap - so by the time the stop actually
+  finishes, the IN row was already built a full lap earlier, blank, with nothing left
+  to latch a forward-stored value into. Confirmed a better fit than the eleventh
+  round's same-tick race-condition theory precisely because it explains 100% failure
+  rather than an intermittent one. Fixed by testing this theory in isolation: the IN
+  row's stop time (`PitStopTimerInMS`) is no longer passed in at row-creation time at
+  all - `PatchMostRecentInRowPitTime` retroactively replaces `LapHistory[0]` once the
+  stop actually finishes, if it's still the blank IN row (see §6 for what this doesn't
+  yet rule out).
+- **New: OUT row now shows total pit-lane time** (`PitLaneTimeInLaneInMS`, entry to
+  exit - a bigger number than the IN row's stationary box time) in the same "PIT"
+  column - a row is never both IN and OUT, so no new column was needed. Unlike the IN
+  row, this one has no timing ambiguity to test: the pit lane is always exited before
+  the OUT lap even starts being driven, so the value is always ready well before that
+  row can possibly exist. Plain forward-store via `CarLapTracker.PendingPitLaneTimeMs`,
+  consumed the same way the IN row's stop time originally was before this round's fix.
+- **New: lap counter banner** ("LAP 41 / 53") added to the top of the position tower,
+  its own distinct bar above "POSITION" (matching the real broadcast's layered graphic
+  more closely than folding it into an existing label row). Tracks the race leader's
+  `LapData.CurrentLapNum` (captured in `RefreshRaceStandings`, which already loops the
+  whole field), not the player's own - a lapped player's own lap count can trail behind
+  where the race as a whole stands. `SessionDataPacket.TotalLaps` cached in
+  `HandleSession`.
+- **Retired cars showed "Out Out"** - both `IntervalText` and `GapText` independently
+  resolved to `"Out"`, rendering as two separate labels side by side. Fixed by leaving
+  `IntervalText` blank and keeping the single `"Out"` in `GapText` only, matching the
+  real broadcast.
+- **Penalty/warning text rewritten against real FIA terminology** - `InfringementType`
+  (55 values) was previously auto-generated by splitting the enum's PascalCase name
+  into words, which was readable but not necessarily how the FIA actually phrases
+  things. Hand-labelled all 55 in `Models/EventLabels.cs`, sourced from the FIA's
+  published F1 Penalty Guidelines and Driving Standards Guidelines (collision severity
+  tiers, "leaving the track and gaining a lasting advantage" for corner-cutting,
+  "impeding" under Article 37.5, "unsafe release", "parc fermé" breaches, safety car
+  delta infringements). A handful of values are game-mechanic-only concepts with no
+  real FIA equivalent at all (flashback used, reset-to-track, retry penalty, league
+  grid penalty) - those are labelled plainly rather than forcing fake FIA phrasing onto
+  something that was never a real infringement category. Falls back to the old generic
+  humanizer only for any future value not yet reviewed.
+- **New: fastest-lap badge** - a purple circular stopwatch badge (drawn, not captured,
+  matching the icon convention used elsewhere) for whoever currently holds the
+  session's fastest lap, reusing the existing purple = "fastest of the session"
+  convention (Lap Timing colours). Determined from `_carBestLapMs` (already maintained
+  per car for the qualifying position list's gap-to-leader calculation - no new
+  tracking needed) by finding whichever car index has the minimum value. Shares the
+  tower's pending-penalty badge column rather than adding a new one - the two are
+  mutually exclusive **by design decision, confirmed with the user**: a pending penalty
+  wins over fastest lap when a driver has both, matching the priority order the alert
+  banner already uses elsewhere (actionable/penalty states rank above purely
+  informational ones). The exclusivity is resolved at the data source
+  (`RefreshRaceStandings` sets `IsFastestLap = false` whenever `IsPenaltyPending` is
+  true for that row), not in the view - the two badge Borders in XAML just have
+  independent `Visibility` bindings and never actually collide.
+
 ## 6. Not yet trustworthy / unvalidated
 
 - **Red Flag auto-clear is an untested heuristic.** There is no confirmed "flag
@@ -478,14 +541,49 @@ F1 25 game ──UDP──> UdpListenerService (background thread)
   alongside `SessionType` should catch a same-type restart that a `SessionType`-only
   check misses, but hasn't been independently re-tested against a second deliberate
   restart. Watch the next session restart specifically.
-- **Lap History's "PIT" column fix (§5, eleventh round) is reasoned from the reported
-  symptom, not yet re-confirmed live.** The original tenth-round assumption (that
-  `PitStopTimerInMS` still held the stop's duration by the time the IN lap's row was
-  created) was confirmed wrong via live testing - it read as `0.000`. Fixed by
-  tracking the peak `PitStopTimerInMS` every tick while `PitStatus != None` and
-  latching it the instant `PitStatus` drops back to `None` (pit exit), well before the
-  value can go stale - see `CarLapTracker.CapturedPitStopDurationMs`. Not yet
-  re-tested against a second live pit stop. Watch the next one specifically.
+- **Lap History's IN-row stop time (§5, thirteenth round) tests one specific theory,
+  not yet re-confirmed live, and by design does NOT cover every track.** Two rounds of
+  live testing (eleventh, thirteenth) each ruled out a prior theory for why the PIT
+  column stayed blank on the IN row - first that `PitStopTimerInMS` survives to the
+  line-crossing tick (it doesn't), then that the same-tick race condition was the whole
+  story (still blank after that fix too). Currently live: retroactively patching
+  `LapHistory[0]` when the stop finishes, on the theory that the pit lane sits within
+  the OUT lap rather than the IN lap on at least some tracks. This is deliberately an
+  isolated test of ONE theory (per explicit user request) - if some tracks turn out to
+  have the pit lane genuinely within the IN lap after all (the original tenth-round
+  assumption), this patch-only version would need a forward-store path added back
+  alongside it to cover both. Watch the next pit stop specifically - if it's still
+  blank, this theory is also ruled out and the search continues.
+- **OUT row's total pit-lane time (§5, thirteenth round) has no theory to test - not
+  yet re-confirmed live, but for a much more mundane reason (just hasn't been watched
+  yet).** Unlike the IN row, there's no timing ambiguity here: the pit lane is always
+  exited before the OUT lap starts, so the value is always ready in time. Simple
+  forward-store, same shape as the original (superseded) IN-row design. Watch the next
+  pit stop to confirm the number itself is plausible (matches what the game/broadcast
+  would show for total pit lane time, not just that a number appears at all).
+- **Lap counter banner (§5, thirteenth round) is reasoned from confirmed fields
+  (`SessionDataPacket.TotalLaps`, the leader's `LapData.CurrentLapNum`), not yet
+  re-confirmed live.** Should track the race's overall lap count correctly regardless
+  of whether the player is lapped, but hasn't been watched against a real race to
+  confirm the leader-tracking logic picks the right car every tick, especially around
+  a lead change.
+- **FIA-aligned penalty text (§5, thirteenth round) is sourced from published FIA
+  guidelines and news coverage summarizing them, not a line-by-line official glossary
+  cross-referenced against the game's exact 55 `InfringementType` values.** The
+  general-purpose FIA categories (collisions, corner-cutting, safety car, unsafe
+  release, parc fermé) are grounded in real quoted terminology; the more granular
+  game-specific buckets (e.g. the three-tier "ran wide, gained time: minor/significant/
+  extreme") are phrased consistently with that terminology but aren't themselves
+  quoted from an FIA source verbatim. Worth a read-through against real in-game
+  warning/penalty text next time one fires, to catch anything that reads oddly.
+- **Fastest-lap badge (§5, thirteenth round) is reasoned from a field already confirmed
+  correct elsewhere (`_carBestLapMs`, used by the qualifying position list), not yet
+  re-confirmed live for this specific use.** Should correctly track whoever currently
+  holds the session's fastest lap, including switching rows as the record changes
+  hands mid-race, but hasn't been watched against a real fastest-lap swap. The
+  penalty-wins-over-fastest-lap priority rule is a confirmed design decision (asked and
+  answered with the user), not an assumption - only the underlying data/tracking needs
+  live confirmation, not the priority behaviour itself.
 - **Car Condition previously showed background engine wear as if it were crash
   damage — fixed after live testing.** `EngineMGUHWear`/`EngineESWear`/`EngineCEWear`/
   `EngineICEWear`/`EngineMGUKWear`/`EngineTCWear` are a *different* concept from
@@ -555,16 +653,22 @@ F1 25 game ──UDP──> UdpListenerService (background thread)
   deliberate simplification, looks slightly "stepped").
 
 ### Race Position Tower (Race-only, not part of the toggleable catalog)
-- Full-field tower to the left of everything else in Race: position, livery swatch,
-  driver + team, Interval (gap to car ahead), Gap (to leader), tyre compound letter
-  (plain colored text, no background badge - see §5 tenth round), and a red "!" badge
-  for a pending/unserved penalty (§5 twelfth round). Int-Gap and Gap-Tyre/Penalty
-  gaps are real fixed-width spacer columns, not alignment slack, so they stay visually
-  identical regardless of content width (§5 twelfth round) - no reserved/unused column
-  left in the tower after this. Retired/DNF/DSQ/not-classified cars show a dimmed row
-  and "Out" instead of a stale interval/gap (`LapData.ResultStatus`, §5 tenth round).
-  See §8 for why this replaced the old Gaps & Position widget (removed on all presets,
-  not just Race).
+- A "LAP X / Y" banner (§5 thirteenth round - tracks the race leader's `CurrentLapNum`
+  and `SessionDataPacket.TotalLaps`, not the player's own lap count) sits above the
+  full-field tower shown to the left of everything else in Race: position, livery
+  swatch, driver + team, Interval (gap to car ahead), Gap (to leader), tyre compound
+  letter (plain colored text, no background badge - see §5 tenth round), and one shared
+  badge slot for either a red "!" pending-penalty badge (§5 twelfth round) or a purple
+  stopwatch fastest-lap badge (§5 thirteenth round) - mutually exclusive by design, a
+  pending penalty always wins if a driver has both (confirmed with the user, matches
+  the alert banner's own actionable-beats-informational priority elsewhere in the app).
+  Int-Gap and Gap-Tyre/Badge gaps are real fixed-width spacer columns, not alignment
+  slack, so they stay visually identical regardless of content width (§5 twelfth round)
+  - no reserved/unused column left in the tower after this. Retired/DNF/DSQ/
+  not-classified cars show a dimmed row and a single "Out" instead of a stale
+  interval/gap (`LapData.ResultStatus`, §5 tenth and thirteenth rounds - the field was
+  originally set on both Int and Gap, rendering as "Out Out"). See §8 for why this
+  replaced the old Gaps & Position widget (removed on all presets, not just Race).
 
 ### Widget catalog (toggleable unless noted)
 - **Tyres** — rendered compound icon (FIA colour convention, drawn not captured),
@@ -585,7 +689,9 @@ F1 25 game ──UDP──> UdpListenerService (background thread)
   also shows the player's own current flag (`VehicleFiaFlags`: None/Green/Blue/Yellow)
   as a coloured chip with label (e.g. blue = let car through). Warnings show one
   itemised line per specific reason (from `PenaltyIssued` events' `InfringementType`),
-  not a bare count - see §5 ninth round.
+  not a bare count - see §5 ninth round. Reason text is hand-labelled against real FIA
+  terminology (`Models/EventLabels.cs`), not the generic PascalCase humanizer - see §5
+  thirteenth round and the caveat in §6.
 - **Session & Track** — rendered weather icon (from the 6-value `Weather` enum, drawn
   not captured), track/air temp, current rain %, PLUS a single **forecast change**
   callout (see §5 - replaced the original multi-card forecast strip).
@@ -618,9 +724,11 @@ before rebuilding a version of this.
   clears after 6s.
 - Priority when multiple are true at once (highest first): Red Flag → Retirement →
   Penalty → Safety Car/VSC → Team-mate in pits → Chequered Flag.
-- `Models/EventLabels.cs` formats `PenaltyType`/`ResultReason` with hand-written labels
-  (small fixed enums) and `InfringementType` (50+ values) with a generic
-  PascalCase-to-words humanizer, rather than hand-labelling all of them.
+- `Models/EventLabels.cs` hand-labels `PenaltyType`, `ResultReason`, and (as of §5
+  thirteenth round) all 55 `InfringementType` values - the last of these was originally
+  a generic PascalCase-to-words humanizer, replaced with FIA-aligned wording (see §5/§6
+  for sourcing and confidence). The humanizer still exists as a fallback for any future
+  enum value not yet reviewed, not as the primary path anymore.
 - **`Collision` was implemented then removed** — the user judged it only matters when
   it results in a penalty, which the Penalty banner already covers on its own. Don't
   reintroduce it as a separate banner.

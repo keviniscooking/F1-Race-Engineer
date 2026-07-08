@@ -82,14 +82,24 @@ namespace F1RaceEngineer.Telemetry
             // in/out-lap classification to the lap that just ended instead.
             public DriverStatus LastKnownDriverStatus;
 
-            // PitStopTimerInMS goes stale (confirmed live: read as 0) by the time the IN
-            // lap's row is actually created at the line - it doesn't survive from pit exit
-            // to the next lap boundary. So the peak value is tracked here every tick while
-            // PitStatus is non-None, and latched into CapturedPitStopDurationMs the instant
-            // PitStatus drops back to None (pit exit) - well before it can go stale.
+            // PitStopTimerInMS (the stationary box time) goes stale by the time the IN
+            // lap's row would normally be created at the line - confirmed live, it reads
+            // back as 0. Testing the theory that on some tracks the pit lane sits inside
+            // the NEXT lap, not the IN lap itself - meaning the IN row already exists
+            // (built a full lap earlier) by the time the stop finishes, so the only way to
+            // get the duration in is to patch that row retroactively (see
+            // PatchMostRecentInRowPitTime) rather than pass it in at row-creation time.
             public PitStatus LastKnownPitStatus;
             public uint MaxPitStopTimerMsThisStop;
-            public uint CapturedPitStopDurationMs;
+
+            // PitLaneTimeInLaneInMS (the whole pit lane traversal, entry to exit) has no
+            // such ambiguity: the pit lane is always exited before the OUT lap even starts
+            // being driven, let alone completes - so by the time PitLaneTimerActive drops
+            // back to false, the OUT row can never already exist yet. Straightforward
+            // forward-store: latch here, RegisterLapTime consumes it when that row is built.
+            public bool LastKnownPitLaneTimerActive;
+            public uint MaxPitLaneTimeInLaneMsThisStop;
+            public uint PendingPitLaneTimeMs;
         }
         private readonly Dictionary<int, CarLapTracker> _carTrackers = new();
 
@@ -151,6 +161,16 @@ namespace F1RaceEngineer.Telemetry
 
         // ---- Race position tower (bindable) ----
         public ObservableCollection<RaceStanding> RaceStandings { get; } = new();
+
+        // Race's overall lap count, matching the real broadcast's "LAP X / Y" banner -
+        // tracks the leader (P1), not necessarily the player, since a lapped player's own
+        // CurrentLapNum can trail behind where the race as a whole actually stands.
+        // TotalLaps comes from SessionDataPacket (cached here, set in HandleSession);
+        // the leader's current lap comes from LapData and is refreshed every tick in
+        // RefreshRaceStandings, which already loops over the whole field.
+        private byte _totalLaps;
+        private string _lapCounterText = "-";
+        public string LapCounterText { get => _lapCounterText; private set => SetProperty(ref _lapCounterText, value); }
 
         // ---- Lap timing (bindable) ----
         private string _currentLapTimeText = "-:--.---";
@@ -374,6 +394,8 @@ namespace F1RaceEngineer.Telemetry
                 RefreshAlertBanner();
             }
 
+            _totalLaps = session.TotalLaps;
+
             RefreshSessionAndTrack(session);
         }
 
@@ -465,6 +487,8 @@ namespace F1RaceEngineer.Telemetry
 
             PositionList.Clear();
             RaceStandings.Clear();
+            _totalLaps = 0;
+            LapCounterText = "-";
             ResetSectorDisplayForNewLap();
 
             CurrentLapTimeText = "-:--.---";
@@ -806,10 +830,10 @@ namespace F1RaceEngineer.Telemetry
                     tracker.LastSeenSector2Ms = car.Sector2TimeInMS;
                 }
 
-                // Track the peak PitStopTimerInMS while actually in the pits, and latch it
-                // the instant PitStatus drops back to None (pit exit) - see the
-                // CarLapTracker field comments for why this can't just be read later,
-                // at the IN lap's own completion tick.
+                // Track the peak PitStopTimerInMS while actually in the pits. On exit,
+                // try to patch it straight into an already-existing IN row (see
+                // PatchMostRecentInRowPitTime) - only meaningful for the player, since
+                // Lap History only ever tracks the player's own laps.
                 if (car.PitStatus != PitStatus.None)
                 {
                     if (tracker.LastKnownPitStatus == PitStatus.None)
@@ -821,11 +845,32 @@ namespace F1RaceEngineer.Telemetry
                         tracker.MaxPitStopTimerMsThisStop = car.PitStopTimerInMS;
                     }
                 }
-                else if (tracker.LastKnownPitStatus != PitStatus.None)
+                else if (tracker.LastKnownPitStatus != PitStatus.None && isPlayer && tracker.MaxPitStopTimerMsThisStop > 0)
                 {
-                    tracker.CapturedPitStopDurationMs = tracker.MaxPitStopTimerMsThisStop;
+                    PatchMostRecentInRowPitTime(tracker.MaxPitStopTimerMsThisStop);
                 }
                 tracker.LastKnownPitStatus = car.PitStatus;
+
+                // Total pit-lane time (entry to exit) - unlike the stop time above, this
+                // always finishes before the OUT row it belongs to can possibly exist (the
+                // pit lane is exited before the OUT lap even starts), so a plain
+                // forward-store into RegisterLapTime is all that's needed - no patching.
+                if (car.PitLaneTimerActive)
+                {
+                    if (!tracker.LastKnownPitLaneTimerActive)
+                    {
+                        tracker.MaxPitLaneTimeInLaneMsThisStop = 0; // entering a fresh pit lane visit
+                    }
+                    if (car.PitLaneTimeInLaneInMS > tracker.MaxPitLaneTimeInLaneMsThisStop)
+                    {
+                        tracker.MaxPitLaneTimeInLaneMsThisStop = car.PitLaneTimeInLaneInMS;
+                    }
+                }
+                else if (tracker.LastKnownPitLaneTimerActive)
+                {
+                    tracker.PendingPitLaneTimeMs = tracker.MaxPitLaneTimeInLaneMsThisStop;
+                }
+                tracker.LastKnownPitLaneTimerActive = car.PitLaneTimerActive;
 
                 // A completed lap is normally signalled by CurrentLapNum advancing, but
                 // that never happens after the FINAL lap of a race/sprint - there's no
@@ -850,8 +895,8 @@ namespace F1RaceEngineer.Telemetry
                     }
 
                     string lapTag = isPlayer ? ClassifyLapTag(tracker.LastKnownDriverStatus) : "";
-                    RegisterLapTime(car.LastLapTimeInMS, sector1Ms, sector2Ms, sector3Ms, isPlayer, lapTag, tracker.CapturedPitStopDurationMs);
-                    tracker.CapturedPitStopDurationMs = 0; // consumed - don't let it leak onto a later unrelated IN lap
+                    RegisterLapTime(car.LastLapTimeInMS, sector1Ms, sector2Ms, sector3Ms, isPlayer, lapTag, tracker.PendingPitLaneTimeMs);
+                    tracker.PendingPitLaneTimeMs = 0; // consumed - don't let it leak onto a later unrelated OUT lap
 
                     // Track best lap per car (whole field) for the qualifying position list
                     if (!_carBestLapMs.TryGetValue(i, out var best) || best == null || car.LastLapTimeInMS < best)
@@ -901,7 +946,22 @@ namespace F1RaceEngineer.Telemetry
         /// </summary>
         private void RefreshRaceStandings(Span<LapData> span)
         {
+            // Whoever currently holds the session's fastest lap - _carBestLapMs is
+            // already maintained per car (also used by RefreshPositionList's qualifying
+            // gap-to-leader calculation), so no new tracking is needed here.
+            int fastestLapCarIndex = -1;
+            uint? fastestLapMs = null;
+            foreach (var kvp in _carBestLapMs)
+            {
+                if (kvp.Value.HasValue && (fastestLapMs == null || kvp.Value.Value < fastestLapMs.Value))
+                {
+                    fastestLapMs = kvp.Value.Value;
+                    fastestLapCarIndex = kvp.Key;
+                }
+            }
+
             var rows = new List<RaceStanding>();
+            byte leaderCurrentLap = 0;
             for (int i = 0; i < span.Length; i++)
             {
                 var car = span[i];
@@ -910,6 +970,7 @@ namespace F1RaceEngineer.Telemetry
                 GetParticipantInfo(i, out var name, out var livery, out var team);
 
                 bool isLeader = car.CarPosition <= 1;
+                if (isLeader) leaderCurrentLap = car.CurrentLapNum;
                 long intervalMs = car.DeltaToCarInFrontInMinutes * 60000L + car.DeltaToCarInFrontInMS;
                 long gapMs = car.DeltaToRaceLeaderInMinutes * 60000L + car.DeltaToRaceLeaderInMS;
 
@@ -935,6 +996,11 @@ namespace F1RaceEngineer.Telemetry
                 bool hasPendingPenalty = !isOut && (car.Penalties > 0
                     || car.NumUnservedDriveThroughPens > 0 || car.NumUnservedStopGoPens > 0);
 
+                // Shares its badge slot with the pending-penalty badge above - a pending
+                // penalty is actionable and wins the same way the alert banner already
+                // prioritizes penalty/warning states over purely informational ones.
+                bool isFastestLap = !isOut && !hasPendingPenalty && i == fastestLapCarIndex;
+
                 rows.Add(new RaceStanding
                 {
                     Position = car.CarPosition,
@@ -946,10 +1012,14 @@ namespace F1RaceEngineer.Telemetry
                     TyreLetter = tyreLetter,
                     TyreBrush = tyreBrush,
                     IsPenaltyPending = hasPendingPenalty,
+                    IsFastestLap = isFastestLap,
                     // 2 decimals here specifically (not the app-wide 3) - frees up column
                     // width in the tower to run the font size up, and 2 decimals is still
                     // plenty precise for a live gap glanced at mid-race.
-                    IntervalText = isOut ? "Out" : isLeader ? "-" : FormatDelta(intervalMs, 2),
+                    // "Out" only shown once (Gap column) - showing it in both Int and Gap
+                    // read as "Out Out" side by side, matching the real broadcast's single
+                    // label instead.
+                    IntervalText = isOut ? "" : isLeader ? "-" : FormatDelta(intervalMs, 2),
                     GapText = isOut ? "Out" : isLeader ? "Leader" : FormatDelta(gapMs, 2)
                 });
             }
@@ -961,6 +1031,8 @@ namespace F1RaceEngineer.Telemetry
                 RaceStandings.Clear();
                 foreach (var row in rows) RaceStandings.Add(row);
             }
+
+            LapCounterText = _totalLaps > 0 && leaderCurrentLap > 0 ? $"LAP {leaderCurrentLap} / {_totalLaps}" : "-";
         }
 
         private void GetParticipantInfo(int carIndex, out string? name, out SolidColorBrush? livery, out string? team)
@@ -1106,7 +1178,7 @@ namespace F1RaceEngineer.Telemetry
             _ => ""
         };
 
-        private void RegisterLapTime(uint ms, uint sector1Ms, uint sector2Ms, uint sector3Ms, bool isPlayer, string lapTag, uint pitStopDurationMs)
+        private void RegisterLapTime(uint ms, uint sector1Ms, uint sector2Ms, uint sector3Ms, bool isPlayer, string lapTag, uint pitLaneTimeMs)
         {
             bool newSessionBest = _sessionBestLapMs == null || ms < _sessionBestLapMs;
             if (newSessionBest) _sessionBestLapMs = ms;
@@ -1162,10 +1234,11 @@ namespace F1RaceEngineer.Telemetry
                 ColorBrush = TimingColorPalette.TextBrush(color),
                 LapTagText = lapTag,
                 HasLapTag = !string.IsNullOrEmpty(lapTag),
-                // Only meaningful on the IN row - the pit stop that just happened is what
-                // that tag refers to; blank everywhere else, including OUT (see HANDOFF for
-                // why OUT's PitLaneTimeInLaneInMS was deliberately left out of scope).
-                PitStopTimeText = lapTag == "IN" && pitStopDurationMs > 0 ? FormatSector(pitStopDurationMs) : "",
+                // IN's stop time isn't passed in here at all - it's patched retroactively
+                // by PatchMostRecentInRowPitTime once the stop actually finishes (see
+                // CarLapTracker). OUT's total pit-lane time has no such ambiguity, so it's
+                // populated directly at row-creation time like everything else here.
+                PitStopTimeText = lapTag == "OUT" && pitLaneTimeMs > 0 ? FormatSector(pitLaneTimeMs) : "",
                 // Captured here (not passed in) because at this point in HandleLapData the
                 // live Sector1/2/3 Text/Brush properties still hold the lap that just
                 // finished - ResetSectorDisplayForNewLap() only runs after this returns.
@@ -1177,6 +1250,40 @@ namespace F1RaceEngineer.Telemetry
                 Sector3Brush = Sector3TextBrush
             });
             while (LapHistory.Count > LapHistoryDepth) LapHistory.RemoveAt(LapHistory.Count - 1);
+        }
+
+        /// <summary>
+        /// Testing the hypothesis that on some tracks the pit lane sits entirely within
+        /// the NEXT lap after the one tagged IN, not the IN lap itself - if so, the IN row
+        /// already exists (built a full lap earlier) by the time the stop actually
+        /// finishes, so the only way to get the duration into it is to patch it
+        /// retroactively. LapHistoryEntry isn't a live-bindable object (no per-property
+        /// change notification), so "patch" means replacing the entry at index 0 - the
+        /// newest lap is always inserted there - so the bound ItemsControl updates just
+        /// that one row instead of rebuilding the whole list.
+        /// </summary>
+        private void PatchMostRecentInRowPitTime(uint durationMs)
+        {
+            if (LapHistory.Count == 0) return;
+            var mostRecent = LapHistory[0];
+            if (!mostRecent.HasLapTag || mostRecent.LapTagText != "IN" || !string.IsNullOrEmpty(mostRecent.PitStopTimeText)) return;
+
+            LapHistory[0] = new LapHistoryEntry
+            {
+                LapNumberText = mostRecent.LapNumberText,
+                LapTimeText = mostRecent.LapTimeText,
+                DeltaText = mostRecent.DeltaText,
+                ColorBrush = mostRecent.ColorBrush,
+                LapTagText = mostRecent.LapTagText,
+                HasLapTag = mostRecent.HasLapTag,
+                PitStopTimeText = FormatSector(durationMs),
+                Sector1Text = mostRecent.Sector1Text,
+                Sector1Brush = mostRecent.Sector1Brush,
+                Sector2Text = mostRecent.Sector2Text,
+                Sector2Brush = mostRecent.Sector2Brush,
+                Sector3Text = mostRecent.Sector3Text,
+                Sector3Brush = mostRecent.Sector3Brush
+            };
         }
 
         private void SetSectorDisplay(int sectorIdx, uint ms, TimingColor color)
