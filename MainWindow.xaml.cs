@@ -86,7 +86,7 @@ namespace F1RaceEngineer
 
             _listener.ErrorOccurred += ex => Dispatcher.Invoke(() =>
             {
-                ErrorText.Text = $"Error: {ex.Message}";
+                SetError($"Error: {ex.Message}");
             });
 
             SettingsFlyoutContent.PreviewPresetRequested += _state.DebugForcePreset;
@@ -285,7 +285,7 @@ namespace F1RaceEngineer
 
         private void ConnectButton_Click(object sender, RoutedEventArgs e)
         {
-            ErrorText.Text = "";
+            SetError("");
 
             if (_listener.IsRunning)
             {
@@ -300,7 +300,7 @@ namespace F1RaceEngineer
         {
             if (!int.TryParse(PortTextBox.Text, out int port))
             {
-                ErrorText.Text = "Error: Port must be a number.";
+                SetError("Error: Port must be a number.");
                 return;
             }
 
@@ -310,8 +310,16 @@ namespace F1RaceEngineer
             }
             catch (Exception ex)
             {
-                ErrorText.Text = $"Error: could not bind to port {port}: {ex.Message}";
+                SetError($"Error: could not bind to port {port}: {ex.Message}");
             }
+        }
+
+        // ErrorText is Collapsed by default in XAML so it only reserves vertical space
+        // when there's actually an error to show, instead of a permanently blank row.
+        private void SetError(string message)
+        {
+            ErrorText.Text = message;
+            ErrorText.Visibility = string.IsNullOrEmpty(message) ? Visibility.Collapsed : Visibility.Visible;
         }
     }
 }

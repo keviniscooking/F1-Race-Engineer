@@ -221,7 +221,7 @@ namespace F1RaceEngineer.Telemetry
         private SolidColorBrush _sector3BackgroundBrush = TimingColorPalette.NeutralBg;
         public SolidColorBrush Sector3BackgroundBrush { get => _sector3BackgroundBrush; private set => SetProperty(ref _sector3BackgroundBrush, value); }
 
-        private const int LapHistoryDepth = 10;
+        private const int LapHistoryDepth = 12;
         public ObservableCollection<LapHistoryEntry> LapHistory { get; } = new();
 
         private int _lapNumberForHistory = 0;
@@ -252,6 +252,12 @@ namespace F1RaceEngineer.Telemetry
         public string TyreWearRearRightText { get => _tyreWearRearRightText; private set => SetProperty(ref _tyreWearRearRightText, value); }
 
         // ---- Car Condition (bindable) ----
+        // Shared cap for Car Condition and Penalties & Flags - both are unbounded lists
+        // in principle (a wrecked car or a heavily-penalized session could list a dozen
+        // items), so both get truncated to keep the widget's height predictable next to
+        // its catalog-grid siblings, with a "+N more" row so nothing is silently dropped.
+        private const int IssueListMaxRows = 5;
+
         private bool _carConditionIsOk = true;
         public bool CarConditionIsOk { get => _carConditionIsOk; private set => SetProperty(ref _carConditionIsOk, value); }
 
@@ -750,7 +756,12 @@ namespace F1RaceEngineer.Telemetry
             TyreWearRearLeftText = $"{car.TyresWear.RearLeft:F0}%";
             TyreWearRearRightText = $"{car.TyresWear.RearRight:F0}%";
 
-            var issues = new List<string>();
+            // Severity-ranked so the most urgent issue always sorts to the top: a car
+            // that can't drive (engine blown/seized) or has a broken system (DRS/ERS
+            // fault) matters more than any amount of cosmetic wing/floor damage, so
+            // those get a fixed severity above the 0-100 damage-percentage range;
+            // percentage items then rank each other by how damaged they actually are.
+            var issues = new List<(int Severity, string Text)>();
             AddIssueIfDamaged(issues, car.FrontLeftWingDamage, "Front left wing");
             AddIssueIfDamaged(issues, car.FrontRightWingDamage, "Front right wing");
             AddIssueIfDamaged(issues, car.RearWingDamage, "Rear wing");
@@ -775,22 +786,37 @@ namespace F1RaceEngineer.Telemetry
             // wear that accumulates every race regardless of incidents (the game's part-
             // degradation/grid-penalty mechanic), not incident damage - including them made
             // this widget show "damage" on every single lap of every race.
-            if (car.DrsFault) issues.Add("DRS fault");
-            if (car.ErsFault) issues.Add("ERS fault");
-            if (car.EngineBlown) issues.Add("Engine blown");
-            if (car.EngineSeized) issues.Add("Engine seized");
+            if (car.DrsFault) issues.Add((101, "DRS fault"));
+            if (car.ErsFault) issues.Add((101, "ERS fault"));
+            if (car.EngineBlown) issues.Add((102, "Engine blown"));
+            if (car.EngineSeized) issues.Add((102, "Engine seized"));
 
-            if (!CollectionUnchanged(CarConditionIssues, issues))
+            CarConditionIsOk = issues.Count == 0;
+            var ordered = CapIssueList(issues.OrderByDescending(i => i.Severity).Select(i => i.Text).ToList());
+            if (!CollectionUnchanged(CarConditionIssues, ordered))
             {
                 CarConditionIssues.Clear();
-                foreach (var issue in issues) CarConditionIssues.Add(issue);
+                foreach (var issue in ordered) CarConditionIssues.Add(issue);
             }
-            CarConditionIsOk = issues.Count == 0;
         }
 
-        private static void AddIssueIfDamaged(List<string> issues, byte value, string label)
+        /// <summary>
+        /// Truncates to IssueListMaxRows, replacing the last visible slot with a
+        /// "+N more" summary so an overflowing list never silently drops information.
+        /// Expects the list to already be sorted most-severe-first.
+        /// </summary>
+        private static List<string> CapIssueList(List<string> issues)
         {
-            if (value > 0) issues.Add($"{label}: {value}%");
+            if (issues.Count <= IssueListMaxRows) return issues;
+            int overflow = issues.Count - (IssueListMaxRows - 1);
+            var capped = issues.Take(IssueListMaxRows - 1).ToList();
+            capped.Add($"+{overflow} more");
+            return capped;
+        }
+
+        private static void AddIssueIfDamaged(List<(int Severity, string Text)> issues, byte value, string label)
+        {
+            if (value > 0) issues.Add((value, $"{label}: {value}%"));
         }
 
         private void HandleLapData(LapDataPacket packet)
@@ -1061,26 +1087,30 @@ namespace F1RaceEngineer.Telemetry
 
         private void RefreshPenalties(LapData playerLap)
         {
-            var issues = new List<string>();
-            if (playerLap.Penalties > 0) issues.Add($"Time penalties: +{playerLap.Penalties}s");
+            // Severity-ranked, most urgent first: unserved pens are mandatory and still
+            // owed (stop-go costs more time than drive-through, so it ranks above it),
+            // ahead of already-applied time penalties, ahead of individual warnings,
+            // ahead of the generic untracked-warnings overflow line.
+            var issues = new List<(int Severity, string Text)>();
+            if (playerLap.NumUnservedStopGoPens > 0) issues.Add((100, $"Unserved stop-go: {playerLap.NumUnservedStopGoPens}"));
+            if (playerLap.NumUnservedDriveThroughPens > 0) issues.Add((90, $"Unserved drive-through: {playerLap.NumUnservedDriveThroughPens}"));
+            if (playerLap.Penalties > 0) issues.Add((80, $"Time penalties: +{playerLap.Penalties}s"));
 
             // One line per specific warning (from PenaltyIssued events), not just a bare
             // count - falls back to a generic "+N more" only for whatever the event-based
             // list hasn't accounted for (e.g. warnings from before the app connected this
             // session), so the total always still matches LapData's own running count.
-            foreach (var reason in _warningReasons) issues.Add($"Warning - {reason}");
+            foreach (var reason in _warningReasons) issues.Add((50, $"Warning - {reason}"));
             int untrackedWarnings = playerLap.TotalWarnings - _warningReasons.Count;
-            if (untrackedWarnings > 0) issues.Add($"+{untrackedWarnings} more warning(s)");
+            if (untrackedWarnings > 0) issues.Add((40, $"+{untrackedWarnings} more warning(s)"));
 
-            if (playerLap.NumUnservedDriveThroughPens > 0) issues.Add($"Unserved drive-through: {playerLap.NumUnservedDriveThroughPens}");
-            if (playerLap.NumUnservedStopGoPens > 0) issues.Add($"Unserved stop-go: {playerLap.NumUnservedStopGoPens}");
-
-            if (!CollectionUnchanged(PenaltiesIssues, issues))
+            PenaltiesIsOk = issues.Count == 0;
+            var ordered = CapIssueList(issues.OrderByDescending(i => i.Severity).Select(i => i.Text).ToList());
+            if (!CollectionUnchanged(PenaltiesIssues, ordered))
             {
                 PenaltiesIssues.Clear();
-                foreach (var issue in issues) PenaltiesIssues.Add(issue);
+                foreach (var issue in ordered) PenaltiesIssues.Add(issue);
             }
-            PenaltiesIsOk = issues.Count == 0;
         }
 
         private void RefreshPositionList(Span<LapData> span)

@@ -31,26 +31,47 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <!-- Connection bar (from Milestone 1, kept small) -->
-        <Grid Grid.Row="0" Margin="0,0,0,10">
+        <!-- Connection bar + preset tabs, merged into one row (was two stacked rows) -
+             three equal-priority zones: connection controls pinned left, tabs truly
+             centered on the whole row (not just within leftover space) via matching
+             star-widths on the outer columns, settings gear pinned right. -->
+        <Grid Grid.Row="0" Margin="0,0,0,12">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
-            <StackPanel Grid.Column="0" Orientation="Horizontal">
+            <!-- Every interactive element in this row shares the same explicit Height
+                 (24) so nothing looks taller/shorter than its neighbours - the TextBox
+                 and Button both carry their own template chrome (focus rings, borders)
+                 that would otherwise render taller than the plain Border+TextBlock tabs
+                 even with visually-similar Padding values. -->
+            <StackPanel Grid.Column="0" Orientation="Horizontal" HorizontalAlignment="Left">
                 <TextBlock Text="Port:" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="11" Foreground="#6B7684"/>
-                <TextBox x:Name="PortTextBox" Width="70" Text="20777" FontSize="11"/>
-                <Button x:Name="ConnectButton" Content="Connect" Margin="10,0,0,0" FontSize="11" Click="ConnectButton_Click"/>
+                <TextBox x:Name="PortTextBox" Width="70" Height="24" Text="20777" FontSize="11"/>
+                <Button x:Name="ConnectButton" Content="Connect" Height="24" Margin="10,0,0,0" FontSize="11" Click="ConnectButton_Click"/>
                 <TextBlock x:Name="StatusText" Text="Not connected" Margin="14,0,0,0" VerticalAlignment="Center" FontSize="11" Foreground="#F0883E"/>
             </StackPanel>
 
-            <ToggleButton x:Name="SettingsButton" Grid.Column="1" Content="&#9881;" FontSize="16"
-                          Style="{StaticResource IconToggleButtonStyle}"
+            <!-- Preset indicator (auto-driven by SessionType, not clickable) -->
+            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                <Border x:Name="PracticeTab" Height="24" CornerRadius="4" Padding="12,4" Margin="0,0,6,0">
+                    <TextBlock Text="Practice" FontSize="12" VerticalAlignment="Center"/>
+                </Border>
+                <Border x:Name="QualifyingTab" Height="24" CornerRadius="4" Padding="12,4" Margin="0,0,6,0">
+                    <TextBlock Text="Qualifying" FontSize="12" VerticalAlignment="Center"/>
+                </Border>
+                <Border x:Name="RaceTab" Height="24" CornerRadius="4" Padding="12,4">
+                    <TextBlock Text="Race" FontSize="12" VerticalAlignment="Center"/>
+                </Border>
+            </StackPanel>
+
+            <ToggleButton x:Name="SettingsButton" Grid.Column="2" Content="&#9881;" FontSize="16"
+                          Style="{StaticResource IconToggleButtonStyle}" HorizontalAlignment="Right"
                           Checked="SettingsButton_Checked" Unchecked="SettingsButton_Unchecked"/>
             <Popup x:Name="SettingsPopup" PlacementTarget="{Binding ElementName=SettingsButton}"
                    Placement="Bottom" StaysOpen="False" Closed="SettingsPopup_Closed">
@@ -58,23 +79,12 @@
             </Popup>
         </Grid>
 
-        <!-- Preset indicator row (auto-driven by SessionType, not clickable) -->
-        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,12">
-            <Border x:Name="PracticeTab" CornerRadius="4" Padding="12,4" Margin="0,0,6,0">
-                <TextBlock Text="Practice" FontSize="12"/>
-            </Border>
-            <Border x:Name="QualifyingTab" CornerRadius="4" Padding="12,4" Margin="0,0,6,0">
-                <TextBlock Text="Qualifying" FontSize="12"/>
-            </Border>
-            <Border x:Name="RaceTab" CornerRadius="4" Padding="12,4" Margin="0,0,6,0">
-                <TextBlock Text="Race" FontSize="12"/>
-            </Border>
-        </StackPanel>
-
-        <TextBlock x:Name="ErrorText" Grid.Row="2" Margin="0,0,0,10" Foreground="#F85149" TextWrapping="Wrap" FontSize="11"/>
+        <!-- Collapsed by default (see MainWindow.xaml.cs SetError) - only reserves space
+             when there's actually an error to show, instead of a permanently blank row. -->
+        <TextBlock x:Name="ErrorText" Grid.Row="1" Margin="0,0,0,12" Foreground="#F85149" TextWrapping="Wrap" FontSize="11" Visibility="Collapsed"/>
 
         <!-- Widget area -->
-        <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto">
+        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <!-- Auto so this column collapses to zero width (and the tower's own
@@ -84,13 +94,24 @@
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
-                <widgets:RacePositionTowerWidget x:Name="RaceTower" Grid.Column="0" Width="400" Margin="0,0,14,0"/>
+                <widgets:RacePositionTowerWidget x:Name="RaceTower" Grid.Column="0" Width="400" Margin="0,0,12,0"/>
 
                 <StackPanel Grid.Column="1">
                     <widgets:AlertBanner x:Name="Alert"/>
-                    <widgets:LapTimingWidget x:Name="LapTiming" Margin="0,0,0,12"/>
-                    <widgets:LapTimingWidget x:Name="QualifyingLapTiming" ShowHistory="False" Margin="0,0,0,12"/>
-                    <widgets:PositionListWidget x:Name="PositionList" Margin="0,0,0,12"/>
+                    <!-- Bottom margin only 6 here (not 12) - the catalog widget grid
+                         below already contributes its own 6px top margin per widget, so
+                         6+6=12 matches the uniform gap used everywhere else. Neither of
+                         these carries a top margin, so whichever ends up first (Alert,
+                         when active, or one of these) still aligns flush with the
+                         tower's own top edge. -->
+                    <widgets:LapTimingWidget x:Name="LapTiming" Margin="0,0,0,6"/>
+                    <widgets:LapTimingWidget x:Name="QualifyingLapTiming" ShowHistory="False" Margin="0,0,0,6"/>
+                    <!-- Top margin added (unlike Lap Timing above) since Position List is
+                         never the first visible widget - only ever preceded by
+                         QualifyingLapTiming, so this doesn't disturb the tower alignment.
+                         6+6 against Lap Timing's own bottom keeps that gap at the same
+                         12px as everywhere else, not just the gap below Position List. -->
+                    <widgets:PositionListWidget x:Name="PositionList" Margin="0,6,0,6"/>
 
                     <!-- Toggleable catalog widgets: arranged into an adaptive grid at runtime
                          (MainWindow.xaml.cs ArrangeWidgets) so remaining widgets grow to fill

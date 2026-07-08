@@ -107,7 +107,10 @@ first try (see §5/§6 for the full history). Still open: the final-lap registra
 retroactive-patch fix (§5 round thirteen - now on its third attempt), the new OUT-row
 pit-lane time, the new lap counter banner, and the FIA-aligned penalty text (all §5
 round thirteen) - none independently re-verified live yet - plus Car Condition's
-damage-threshold decision (§8).
+damage-threshold decision (§8). A fourteenth round (§5) merged the connection bar and
+preset tabs into one row and stopped the error-text row from reserving space when
+empty - pure window-chrome layout, verified via screenshot rather than live game data
+(no telemetry-dependent behaviour involved).
 
 ## 3. Architecture
 
@@ -510,6 +513,74 @@ F1 25 game ──UDP──> UdpListenerService (background thread)
   (`RefreshRaceStandings` sets `IsFastestLap = false` whenever `IsPenaltyPending` is
   true for that row), not in the view - the two badge Borders in XAML just have
   independent `Visibility` bindings and never actually collide.
+
+### Fourteenth round (window chrome, no live game needed to verify)
+- **Connection bar and preset tabs merged into one row** (`MainWindow.xaml`), reclaiming
+  vertical space for the widget area without touching any widget's own layout. Was two
+  stacked `Auto` rows (~99.6 DIP total, calculated from the actual XAML padding/margin/
+  font-size values and cross-checked against a real pixel measurement of an unrelated
+  element - see the tenth-round-era measurement work). Now one row: connection controls
+  (Port/Connect/Status) pinned left, preset tabs *truly centered on the whole row* (not
+  just centered in whatever space is left over) via a 3-column grid with matching
+  `Width="*"` on the outer two columns and `Width="Auto"` on the middle - the settings
+  gear pinned right. Reclaims ~58px in the common case.
+- **`ErrorText` no longer permanently reserves a row of blank space.** It defaulted to
+  `Visibility="Visible"` with empty text, which is the common case (errors are rare) -
+  meaning ~23 DIP was wasted on nothing almost all the time. Now starts `Collapsed` in
+  XAML; a new `MainWindow.SetError(string)` helper toggles `Visibility` alongside
+  `Text` at all three call sites that used to set `ErrorText.Text` directly
+  (`ConnectButton_Click`, `Connect()`'s two failure paths, and the listener's
+  `ErrorOccurred` handler) - only reserves space when there's an actual error to show.
+- **Port textbox and Connect/Disconnect button looked taller than the preset tabs** -
+  `TextBox`/`Button` both carry their own template chrome (focus rings, borders) that
+  renders taller than a plain `Border`+`TextBlock` tab even with visually-similar
+  `Padding`. Fixed by giving every interactive element in the row the same explicit
+  `Height="24"` (PortTextBox, ConnectButton, the three preset tab Borders) rather than
+  relying on Padding alone to coincidentally match across different control types. The
+  settings gear (`IconToggleButtonStyle` in `App.xaml`) was resized to match too -
+  24x24 (`CornerRadius="12"` to stay circular), down from its original 32x32.
+- **Vertical spacing between widgets was inconsistent** - four different gap values
+  were in play (10px header-to-widgets, 14px tower-to-right-column, 12px between most
+  widgets, and an unintended 18px between Lap Timing/Position List and the catalog
+  widget grid, caused by Lap Timing/Position List's own one-sided `Margin="0,0,0,12"`
+  compounding with the catalog widgets' `Margin="6"` on all sides: 12+6=18 instead of
+  matching). Standardized everything to 12px: header row and `ErrorText` margins
+  changed `...,10` to `...,12`; the tower's right margin changed `0,0,14,0` to
+  `0,0,12,0`; Lap Timing/QualifyingLapTiming's bottom margin reduced to `0,0,0,6` and
+  Position List given a new top margin `0,6,0,6`, so paired 6+6 gaps match the 12px
+  used everywhere else without disturbing the invariant that whichever widget is
+  visually first in the right column (Alert or Lap Timing) still sits flush with no
+  top margin. Verified via screenshot on both the Race and Qualifying presets.
+
+### Fifteenth round (row-count limits, no live game needed to verify)
+- **Lap History depth increased from 10 to 12 rows** (`LapHistoryDepth` in
+  `TelemetryState.cs`). No XAML changes needed - the widget has no fixed height, it
+  just grows and the outer `ScrollViewer` picks up the extra rows.
+- **Car Condition and Penalties & Flags issue lists capped at 5 rows.** Both lists are
+  otherwise unbounded (a wrecked car or a heavily-penalized session could list a
+  dozen items), which would blow past the catalog grid's shared row height. New
+  shared `IssueListMaxRows = 5` constant and `CapIssueList()` helper in
+  `TelemetryState.cs`, applied after computing `CarConditionIsOk`/`PenaltiesIsOk` from
+  the *un*truncated count (so the OK/issue state itself is never affected by the cap)
+  but before assigning into the bound `ObservableCollection`. When truncated, the last
+  visible slot becomes a `"+N more"` summary rather than silently dropping items.
+  Verified via temporary debug scaffolding (removed before commit) seeding 6-7 fake
+  issues into each list and confirming the 5-row-plus-overflow rendering.
+- **Both capped lists are now severity-sorted, most urgent first**, instead of a fixed
+  source-code order. Each issue is built as a `(Severity, Text)` tuple and the list is
+  `OrderByDescending(Severity)` before the cap above is applied - so if a car has more
+  than 5 things wrong, the 5 that survive the cap are the *worst* 5, not just whichever
+  happened to be checked first in code.
+  - Car Condition: percentage-damage items rank by their own damage value (0-100);
+    DRS/ERS fault (101) and engine blown/seized (102) are fixed above the damage range
+    since a broken system or a dead engine matters more than any amount of cosmetic
+    wing/floor damage.
+  - Penalties & Flags: unserved stop-go (100) > unserved drive-through (90, costs
+    less time than stop-go) > already-applied time penalties (80) > individual
+    tracked warnings (50) > the generic untracked-warnings overflow line (40).
+  Verified via temporary debug scaffolding (removed before commit) seeding
+  deliberately out-of-order fake issues into both lists and confirming they rendered
+  in the expected severity order.
 
 ## 6. Not yet trustworthy / unvalidated
 
