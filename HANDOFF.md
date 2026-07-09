@@ -644,14 +644,23 @@ F1 25 game ──UDP──> UdpListenerService (background thread)
 
 ## 6. Not yet trustworthy / unvalidated
 
-- **Auto-update (Velopack) has a real published release now (`v1.0.0`,
-  `F1RaceEngineer-win-Setup.exe` on GitHub Releases), but the actual self-update
-  round-trip is still unconfirmed.** `v1.0.0` is necessarily the FIRST release, so
-  installing it can't test the update path itself - there's nothing older to update
-  FROM yet. True test: cut a `v1.0.1`+ release, then confirm an already-installed
-  `v1.0.0` copy detects it, silently downloads, applies, and restarts on its own next
-  launch. Do that once and confirm live before treating auto-update as reliable for a
-  friend to depend on.
+- **Auto-update (Velopack): install itself confirmed live, self-update round-trip
+  still isn't.** `v1.0.0`'s `Setup.exe` installed and ran correctly on the project
+  owner's own machine. `v1.0.0` is necessarily the FIRST release though, so this
+  can't test the actual update path - there's nothing older to update FROM yet. True
+  test: cut a `v1.0.1`+ release, then confirm an already-installed `v1.0.0` copy
+  detects it, silently downloads, applies, and restarts on its own next launch. Do
+  that once and confirm live before treating auto-update as reliable for a friend to
+  depend on. One install-time gotcha hit and fixed: Velopack's default install
+  directory is `%LocalAppData%\F1RaceEngineer` - the exact same path the now-removed
+  Track Map feature used for its `trackmaps\{Track}.json` cache (see §7 "Track Map -
+  built, then removed"). A leftover cache file from old testing made that folder
+  already exist, so `Setup.exe` reported "already installed" (a false positive - no
+  registry Uninstall entry existed, confirmed via a real registry check) instead of
+  doing a fresh install. Fixed by deleting the stray folder before re-running
+  `Setup.exe`. Not expected to recur (nothing writes to that path anymore since Track
+  Map was removed), but worth knowing if a similarly-named local cache folder ever
+  reappears under a future feature.
 - **Red Flag auto-clear is an untested heuristic.** There is no confirmed "flag
   cleared" event in the API, so it shows on its trigger event and auto-hides after a
   15s timeout. NOT yet tested against a real red flag. Safety Car / VSC, by contrast,
