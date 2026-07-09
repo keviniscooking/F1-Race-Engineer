@@ -59,7 +59,9 @@ and must switch context automatically.
   First-time install (both for the project owner and a friend): download and run the
   `Setup.exe` from the latest GitHub Release once - it installs the app and creates
   its own Start Menu/desktop shortcuts. Every release after that self-updates
-  silently on launch, no manual re-download needed.
+  silently on launch, no manual re-download needed. **`v1.0.0` cut and published this
+  way** - unsigned (no code-signing certificate), so Windows SmartScreen will likely
+  warn on first run; a known, accepted tradeoff for unsigned indie software, not a bug.
   `AppIcon.ico` (project root) is a custom-drawn icon, not a
   stock image - a rounded blue-badge (`#1F6FEB`, the app's own accent colour) around
   the exact flag pole/pennant glyph already used in-app for alerts (`AlertBanner`,
@@ -642,13 +644,14 @@ F1 25 game ──UDP──> UdpListenerService (background thread)
 
 ## 6. Not yet trustworthy / unvalidated
 
-- **Auto-update (Velopack) has not been tested end-to-end against a real published
-  release yet.** The check/download/apply/restart code path (`App.OnStartup` in
-  `App.xaml.cs`) builds and the app launches normally with it in place, but no actual
-  GitHub Release has been published via `vpk upload` yet - so the real round-trip
-  (install via `Setup.exe`, detect a newer release, silently download, apply, and
-  restart) has never actually run. First real release is the true test; do it once
-  and confirm live before treating this as reliable for a friend to depend on.
+- **Auto-update (Velopack) has a real published release now (`v1.0.0`,
+  `F1RaceEngineer-win-Setup.exe` on GitHub Releases), but the actual self-update
+  round-trip is still unconfirmed.** `v1.0.0` is necessarily the FIRST release, so
+  installing it can't test the update path itself - there's nothing older to update
+  FROM yet. True test: cut a `v1.0.1`+ release, then confirm an already-installed
+  `v1.0.0` copy detects it, silently downloads, applies, and restarts on its own next
+  launch. Do that once and confirm live before treating auto-update as reliable for a
+  friend to depend on.
 - **Red Flag auto-clear is an untested heuristic.** There is no confirmed "flag
   cleared" event in the API, so it shows on its trigger event and auto-hides after a
   15s timeout. NOT yet tested against a real red flag. Safety Car / VSC, by contrast,
