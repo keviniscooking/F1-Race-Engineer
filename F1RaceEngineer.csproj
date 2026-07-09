@@ -8,11 +8,29 @@
     <RootNamespace>F1RaceEngineer</RootNamespace>
     <AssemblyName>F1RaceEngineer</AssemblyName>
     <ApplicationIcon>AppIcon.ico</ApplicationIcon>
+    <!-- Compared by Velopack (see App.xaml.cs) to detect when a newer release is
+         available. Bump this on every release cut - see HANDOFF.md's release steps. -->
+    <Version>1.0.0</Version>
+    <!-- Velopack needs a custom Main (App.xaml.cs) instead of the default
+         StartupUri-generated one, so it can intercept install/update/uninstall
+         invocations before any window opens. -->
+    <StartupObject>F1RaceEngineer.App</StartupObject>
   </PropertyGroup>
 
   <ItemGroup>
     <!-- Parses UDP telemetry packets for both F1 25 and the F1 25: 2026 Season Pack -->
     <PackageReference Include="F1Game.UDP" Version="26.0.0" />
+    <!-- Installer + silent auto-update framework, see App.xaml.cs and HANDOFF.md's
+         release steps. -->
+    <PackageReference Include="Velopack" Version="1.2.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Build action changed from the default ApplicationDefinition (which would
+         auto-generate a Main that opens MainWindow directly) to Page, since
+         App.xaml.cs now defines its own Main to run VelopackApp.Build().Run() first. -->
+    <ApplicationDefinition Remove="App.xaml" />
+    <Page Include="App.xaml" />
   </ItemGroup>
 
   <ItemGroup>

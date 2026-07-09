@@ -8,7 +8,7 @@ to alt-tab out of the game mid-session.
 ## Features
 
 - **Lap Timing** — current lap (live-coloured), personal best, delta vs personal best
-  (updates every sector, not just at the line), three sector boxes, a 10-lap history
+  (updates every sector, not just at the line), three sector boxes, a 12-lap history
   with per-sector colour coding, IN/OUT lap tags, and pit stop/pit lane timing.
 - **Race Position Tower** — a "LAP X / Y" counter above the full field: position,
   interval and gap to leader, tyre compound, and a shared badge slot for a pending
@@ -22,6 +22,13 @@ to alt-tab out of the game mid-session.
 - Automatically switches between **Practice / Qualifying / Race** layouts based on the
   live session type — no manual tab clicking required.
 
+## Getting the app
+
+Download the latest installer (`Setup.exe`) from this repo's
+[Releases](https://github.com/keviniscooking/F1-Race-Engineer/releases) page and run
+it once. After that first install, the app checks for updates on every launch and
+silently updates itself when a new version is published - no need to re-download.
+
 ## In-game setup (F1 25 / F1 25: 2026 Season Pack)
 
 1. Launch the game.
@@ -31,7 +38,8 @@ to alt-tab out of the game mid-session.
 5. Set **UDP Port** to `20777` (the app's default - change both together if you ever
    need a different port).
 6. Set **UDP Send Rate** to `20Hz` or `60Hz`.
-7. Set **UDP Format** to `2025`.
+7. Set **UDP Format** to `2025` or `2026` - both work (`F1Game.UDP` 26.0.0 parses
+   either schema; confirmed live against a real `2026` setting).
 8. Leave **UDP Broadcast Mode** off.
 9. Back out of the menu so settings save.
 
@@ -46,14 +54,9 @@ already running and pointed at it, no further action needed. The Connect/Disconn
 button in the top bar is there for a manual attempt if that first try fails (e.g. wrong
 port, or another telemetry tool already bound to it).
 
-**Without VS Code**, once you're happy with a build:
-```
-dotnet build -c Release
-```
-This produces `F1RaceEngineer.exe` in `bin\Release\net10.0-windows\` - launch it
-directly (double-click, desktop shortcut, pin to Start/Taskbar) like any other app, no
-terminal needed. You'll need to re-run this command after future code changes to pick
-them up; it won't happen automatically.
+**Without VS Code**, see "Getting the app" above - install once via `Setup.exe` from
+Releases, then it stays current on its own. See `HANDOFF.md`'s "Cutting a release"
+steps if you're the one publishing a new version, not just running the app.
 
 ## Project docs
 
@@ -73,3 +76,7 @@ online docs.
   (not a menu or replay), and confirm no other telemetry tool (SimHub, RaceLab,
   CrewChief, etc.) is already bound to the same UDP port - only one app can bind a
   given port at a time.
+
+## License
+
+[MIT](LICENSE)

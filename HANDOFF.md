@@ -18,16 +18,49 @@ and must switch context automatically.
 - **Stack:** C# / WPF, targeting `net10.0-windows`.
 - **Telemetry parsing:** `F1Game.UDP` NuGet package, version **26.0.0** (parses both
   F1 25 and the 2026 Season Pack; the 2026 pack adds a `CarTelemetry2` packet on top
-  of the same base packets).
+  of the same base packets). The in-game **UDP Format** setting (`2025` or `2026`)
+  is independent of this - **confirmed live that both settings work**, not just
+  `2025` as previously assumed/documented.
 - **Build/run:** `dotnet build` / `dotnet run` from the project root.
-- **Version control:** in git as of this point, with a **private** GitHub remote
-  (`https://github.com/keviniscooking/F1-Race-Engineer`). `bin/`, `obj/`, and
-  `.claude/settings.local.json` are gitignored - the last one is this machine's local
-  Claude Code permission settings, not project content.
-- **Launching without VS Code:** `dotnet build -c Release` produces
-  `bin\Release\net10.0-windows\F1RaceEngineer.exe`; a desktop shortcut points at it.
-  Re-run that command after future changes to refresh it in place - the shortcut
-  doesn't need to change. `AppIcon.ico` (project root) is a custom-drawn icon, not a
+- **Version control:** in git, with a **public** GitHub remote
+  (`https://github.com/keviniscooking/F1-Race-Engineer`) - made public so a friend can
+  download installers from Releases and the auto-updater (below) can read them without
+  embedding a token in the shipped app. Confirmed via a full repo scan (current tree,
+  full history including anything ever added-then-deleted, and the icon binary's
+  metadata) before going public: no secrets, credentials, tokens, or personal info
+  anywhere. `bin/`, `obj/`, `publish/`, `Releases/`, and `.claude/settings.local.json`
+  are gitignored - the last one is this machine's local Claude Code permission
+  settings, not project content; `publish/`/`Releases/` are `vpk`'s local packaging
+  output (see "Cutting a release" below), regenerated every release, never committed.
+  Licensed **MIT** (`LICENSE`) - added going public since without a license the
+  default is "all rights reserved" even on a publicly visible repo.
+- **Auto-update via Velopack** (`Velopack` NuGet package). The app checks GitHub
+  Releases once at every launch and silently downloads + applies + restarts if a
+  newer version is published - no UI, no prompt. This required restructuring the
+  normal WPF startup: `App.xaml` no longer has `StartupUri` (removed), and its build
+  action is `Page` instead of the default `ApplicationDefinition` (`.csproj`), because
+  `App.xaml.cs` now defines its own `Main` that calls `VelopackApp.Build().Run()`
+  *before* anything else - Velopack briefly re-launches the exe with special
+  arguments during install/update/uninstall and needs to intercept that first. Update
+  checking itself lives in `App.OnStartup` (guarded by `UpdateManager.IsInstalled`, so
+  it's a no-op when running an un-packaged build straight from `bin/Debug` or
+  `bin/Release` - which is how this app is routinely launched/verified during
+  development and must keep working unchanged) and is wrapped in try/catch (no
+  internet or GitHub being unreachable must never block the app from opening).
+  `<Version>` in the `.csproj` is what Velopack compares to detect an update - bump it
+  every release (see below).
+- **Cutting a release** (replaces the old "build Release + point a desktop shortcut
+  at the exe" flow - Velopack now owns install/shortcuts):
+  1. Bump `<Version>` in `F1RaceEngineer.csproj`.
+  2. `dotnet publish F1RaceEngineer.csproj -c Release -r win-x64 --self-contained -o publish`
+  3. `dotnet tool install -g vpk` (one-time, if not already installed)
+  4. `vpk pack --packId F1RaceEngineer --packVersion <version> --packDir publish --mainExe F1RaceEngineer.exe`
+  5. `vpk upload github --repoUrl https://github.com/keviniscooking/F1-Race-Engineer --publish --tag v<version>` (needs a GitHub token with repo write access via `--token` or the `GITHUB_TOKEN` env var)
+  First-time install (both for the project owner and a friend): download and run the
+  `Setup.exe` from the latest GitHub Release once - it installs the app and creates
+  its own Start Menu/desktop shortcuts. Every release after that self-updates
+  silently on launch, no manual re-download needed.
+  `AppIcon.ico` (project root) is a custom-drawn icon, not a
   stock image - a rounded blue-badge (`#1F6FEB`, the app's own accent colour) around
   the exact flag pole/pennant glyph already used in-app for alerts (`AlertBanner`,
   Penalties & Flags), generated programmatically via `System.Drawing` rather than
@@ -110,7 +143,10 @@ round thirteen) - none independently re-verified live yet - plus Car Condition's
 damage-threshold decision (§8). A fourteenth round (§5) merged the connection bar and
 preset tabs into one row and stopped the error-text row from reserving space when
 empty - pure window-chrome layout, verified via screenshot rather than live game data
-(no telemetry-dependent behaviour involved).
+(no telemetry-dependent behaviour involved). A fifteenth round (§5) increased Lap
+History's depth, capped and severity-sorted the Car Condition/Penalties & Flags issue
+lists, and fixed a catalog-grid outer-edge alignment bug - also pure layout/UI work,
+verified via screenshot and temporary debug scaffolding rather than live game data.
 
 ## 3. Architecture
 
@@ -604,6 +640,15 @@ F1 25 game ──UDP──> UdpListenerService (background thread)
   before and after via temporary debug scaffolding (removed before commit) to force
   the Race preset with all 4 widgets visible.
 
+## 6. Not yet trustworthy / unvalidated
+
+- **Auto-update (Velopack) has not been tested end-to-end against a real published
+  release yet.** The check/download/apply/restart code path (`App.OnStartup` in
+  `App.xaml.cs`) builds and the app launches normally with it in place, but no actual
+  GitHub Release has been published via `vpk upload` yet - so the real round-trip
+  (install via `Setup.exe`, detect a newer release, silently download, apply, and
+  restart) has never actually run. First real release is the true test; do it once
+  and confirm live before treating this as reliable for a friend to depend on.
 - **Red Flag auto-clear is an untested heuristic.** There is no confirmed "flag
   cleared" event in the API, so it shows on its trigger event and auto-hides after a
   15s timeout. NOT yet tested against a real red flag. Safety Car / VSC, by contrast,
@@ -716,8 +761,8 @@ F1 25 game ──UDP──> UdpListenerService (background thread)
   (not stretched), so a short one-line widget (e.g. Car Condition when "OK") hugs its
   own content instead of stretching into an empty-looking card next to a taller
   neighbour.
-- Lap Timing's history list always renders exactly `LapHistoryDepth` (10) rows (blank
-  placeholders before 10 laps exist) rather than growing from 0 — otherwise the
+- Lap Timing's history list always renders exactly `LapHistoryDepth` (12) rows (blank
+  placeholders before 12 laps exist) rather than growing from 0 — otherwise the
   widget's height, and everything stacked below it, would visibly shift down
   lap-by-lap during a race.
 - Catalog widgets default **on** for Race only. Practice and Qualifying default to just
@@ -771,18 +816,21 @@ F1 25 game ──UDP──> UdpListenerService (background thread)
   yellow (wings, floor, diffuser, sidepod, gearbox, engine, per-corner brakes,
   per-corner tyre blisters, DRS/ERS faults, engine blown/seized), laid out as a
   2-column grid (`UniformGrid Columns="2"`) so a long issue list doesn't force the
-  widget taller than the viewport - see §5. Background engine-component *wear* (as
+  widget taller than the viewport - see §5. Capped at `IssueListMaxRows` (5) rows,
+  most-severe-first (a car's genuinely worst 5 problems survive the cap, not just
+  whichever were checked first in code), with a `"+N more"` summary row if truncated
+  - see §5 fifteenth round. Background engine-component *wear* (as
   opposed to damage) is deliberately excluded - see §6; per-corner tyre *damage* is
   also excluded now (see §8) since the Tyres widget already shows per-corner wear and
   the two read as duplicated, not distinct, information.
-- **Penalties & Flags** — same quiet/yellow-itemised pattern as Car Condition,
-  including the same 2-column grid (`UniformGrid Columns="2"`, see §5 tenth round);
-  also shows the player's own current flag (`VehicleFiaFlags`: None/Green/Blue/Yellow)
-  as a coloured chip with label (e.g. blue = let car through). Warnings show one
-  itemised line per specific reason (from `PenaltyIssued` events' `InfringementType`),
-  not a bare count - see §5 ninth round. Reason text is hand-labelled against real FIA
-  terminology (`Models/EventLabels.cs`), not the generic PascalCase humanizer - see §5
-  thirteenth round and the caveat in §6.
+- **Penalties & Flags** — same quiet/yellow-itemised, capped-and-severity-sorted
+  pattern as Car Condition (same `IssueListMaxRows`/2-column grid, see §5 tenth and
+  fifteenth rounds); also shows the player's own current flag (`VehicleFiaFlags`:
+  None/Green/Blue/Yellow) as a coloured chip with label (e.g. blue = let car through).
+  Warnings show one itemised line per specific reason (from `PenaltyIssued` events'
+  `InfringementType`), not a bare count - see §5 ninth round. Reason text is
+  hand-labelled against real FIA terminology (`Models/EventLabels.cs`), not the
+  generic PascalCase humanizer - see §5 thirteenth round and the caveat in §6.
 - **Session & Track** — rendered weather icon (from the 6-value `Weather` enum, drawn
   not captured), track/air temp, current rain %, PLUS a single **forecast change**
   callout (see §5 - replaced the original multi-card forecast strip).
@@ -855,7 +903,7 @@ before rebuilding a version of this.
     version) - the Race Position Tower (§7) is now the one place full-field rival data
     is shown; this stint timeline should stay player-only rather than duplicating that.
     Race preset only - `TotalLaps` isn't meaningful in Practice/Qualifying.
-  - Layout: Lap History always renders exactly `LapHistoryDepth` (10) rows including
+  - Layout: Lap History always renders exactly `LapHistoryDepth` (12) rows including
     blank placeholders specifically so the widget's height never shifts - that fixed
     height is what makes a single overlaid bar (not duplicated per row) realistic,
     placed as a sibling element in the same grid cell as the lap rows.
