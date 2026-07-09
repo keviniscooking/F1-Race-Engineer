@@ -581,8 +581,28 @@ F1 25 game ──UDP──> UdpListenerService (background thread)
   Verified via temporary debug scaffolding (removed before commit) seeding
   deliberately out-of-order fake issues into both lists and confirming they rendered
   in the expected severity order.
-
-## 6. Not yet trustworthy / unvalidated
+- **Fixed the catalog grid's OUTER edges not lining up with Lap Timing/Position List
+  above it.** Each catalog widget (Session & Track, Tyres, Car Condition, Penalties &
+  Flags) carried a static `Margin="6"` on all four sides in XAML. That 6px is correct
+  for the gap BETWEEN two widgets sharing a row (6+6=12, matching the gap used
+  everywhere else), but it also applied to the OUTER left/right edges of the whole
+  2x2 grid - which Lap Timing/Position List don't have (they carry no horizontal
+  margin at all, so they span the full column width). Net effect: the combined width
+  of the 2-column catalog grid was 12px narrower than Lap Timing's width, inset 6px
+  from each side, reading as visibly misaligned rather than sharing the same left/right
+  edges. Fixed by moving margin assignment out of XAML (removed `Margin="6"` from all
+  four widget tags in `MainWindow.xaml`) and into `ArrangeWidgets`
+  (`MainWindow.xaml.cs`), which now sets each widget's `Margin` per-instance based on
+  its actual column position each time the grid is rebuilt: 0 on a widget's outer-
+  facing side (leftmost widget's left edge, rightmost widget's right edge), 6 on the
+  side facing a neighbour. A static XAML value couldn't do this because which widget
+  ends up leftmost/rightmost is dynamic (depends on which widgets are currently
+  toggled on). Top/bottom margins are untouched (still a constant 6 top and bottom on
+  every widget, which was already correct - see the Fourteenth round spacing fix).
+  Verified by pixel-measuring the Sectors row (representing Lap Timing's full width)
+  against the catalog grid's row - both now span the exact same x-range, confirmed
+  before and after via temporary debug scaffolding (removed before commit) to force
+  the Race preset with all 4 widgets visible.
 
 - **Red Flag auto-clear is an untested heuristic.** There is no confirmed "flag
   cleared" event in the API, so it shows on its trigger event and auto-hides after a

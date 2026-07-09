@@ -115,12 +115,17 @@
 
                     <!-- Toggleable catalog widgets: arranged into an adaptive grid at runtime
                          (MainWindow.xaml.cs ArrangeWidgets) so remaining widgets grow to fill
-                         the space freed by any that are toggled off via the settings panel. -->
+                         the space freed by any that are toggled off via the settings panel.
+                         No Margin here - ArrangeWidgets assigns it per-widget at runtime based
+                         on each widget's actual column position (0 on outer edges, 6 on the
+                         inner edges facing a neighbour), since a static value here can't know
+                         which widget will end up leftmost/rightmost once toggles change which
+                         widgets are visible. -->
                     <Grid x:Name="WidgetGrid">
-                        <widgets:TyresWidget x:Name="TyresCtl" Margin="6"/>
-                        <widgets:CarConditionWidget x:Name="CarConditionCtl" Margin="6"/>
-                        <widgets:PenaltiesFlagsWidget x:Name="PenaltiesFlagsCtl" Margin="6"/>
-                        <widgets:SessionTrackWidget x:Name="SessionTrackCtl" Margin="6"/>
+                        <widgets:TyresWidget x:Name="TyresCtl"/>
+                        <widgets:CarConditionWidget x:Name="CarConditionCtl"/>
+                        <widgets:PenaltiesFlagsWidget x:Name="PenaltiesFlagsCtl"/>
+                        <widgets:SessionTrackWidget x:Name="SessionTrackCtl"/>
                     </Grid>
                 </StackPanel>
             </Grid>

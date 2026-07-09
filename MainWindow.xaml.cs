@@ -218,6 +218,14 @@ namespace F1RaceEngineer
         /// would share the same column boundaries regardless of how many items are in it.
         /// Rows are Auto-height (not star), so a short widget (e.g. a one-line "OK" badge)
         /// doesn't get stretched into a tall empty card next to a denser neighbour.
+        ///
+        /// Margin is assigned here per-widget (not in XAML) so the whole grid's OUTER edges
+        /// line up exactly with Lap Timing/Position List above it (which carry no horizontal
+        /// margin of their own, i.e. span the full column width): 0 on a widget's outer-
+        /// facing sides, 6 on sides facing a neighbour (6+6=12, matching the gap used
+        /// everywhere else in the app). A static per-widget XAML margin can't do this
+        /// because which widget ends up in the leftmost/rightmost column is dynamic,
+        /// depending on which widgets are currently toggled on.
         /// </summary>
         private static void ArrangeWidgets(Grid host, IEnumerable<FrameworkElement> allCatalogWidgets, IReadOnlyList<FrameworkElement> visibleWidgetsInOrder)
         {
@@ -253,6 +261,9 @@ namespace F1RaceEngineer
                 {
                     var widget = visibleWidgetsInOrder[start + c];
                     Grid.SetColumn(widget, c);
+                    double left = c == 0 ? 0 : 6;
+                    double right = c == countInRow - 1 ? 0 : 6;
+                    widget.Margin = new Thickness(left, 6, right, 6);
                     rowGrid.Children.Add(widget);
                 }
 
