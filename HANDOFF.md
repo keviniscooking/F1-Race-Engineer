@@ -149,6 +149,10 @@ empty - pure window-chrome layout, verified via screenshot rather than live game
 History's depth, capped and severity-sorted the Car Condition/Penalties & Flags issue
 lists, and fixed a catalog-grid outer-edge alignment bug - also pure layout/UI work,
 verified via screenshot and temporary debug scaffolding rather than live game data.
+A sixteenth round (§5) added the app version to the settings panel - verified via UI
+Automation rather than a screenshot, since the settings panel is a `Popup` (separate
+top-level window) and this environment's screen capture can't see this app's window
+at all.
 
 ## 3. Architecture
 
@@ -641,6 +645,29 @@ F1 25 game ──UDP──> UdpListenerService (background thread)
   against the catalog grid's row - both now span the exact same x-range, confirmed
   before and after via temporary debug scaffolding (removed before commit) to force
   the Race preset with all 4 widgets visible.
+
+### Sixteenth round (version number, no live game needed to verify)
+- **App version now shown in the settings panel** (`Widgets/SettingsPanel.xaml(.cs)`)
+  - small muted text at the bottom of the gear-icon flyout, e.g. "v1.0.0". Deliberately
+  NOT on the main dashboard (settings panel is the one surface that's fine to spend a
+  little space on, since it's only open when deliberately checking something, not
+  during actual racing). Read from the assembly's `AssemblyInformationalVersionAttribute`
+  (not `AssemblyVersion`) since that preserves the exact `<Version>` string from the
+  `.csproj` (e.g. "1.0.0") rather than a zero-padded 4-part `AssemblyVersion` (e.g.
+  "1.0.0.0"). One bug caught before shipping: the .NET SDK automatically appends
+  `+{git commit sha}` to `InformationalVersion` for traceable builds (e.g.
+  "1.0.0+7848c2a0907493c7fee7e7a4b4d8fbd68e724ec3") - far too much detail for a small
+  settings label, so the displayed text is truncated at the first `+`. Verified via UI
+  Automation (`AutomationElement`/`TogglePattern`/`AutomationIdProperty`, driven from
+  PowerShell) rather than a screenshot - the settings panel is a WPF `Popup`, which
+  renders as a separate top-level OS window that a `PrintWindow` capture of the main
+  window's `hwnd` can't see, and this test environment's screen capture doesn't show
+  this app's window at all (it's not on the interactive/capturable desktop surface),
+  so physical mouse-coordinate clicking was unreliable too. UI Automation sidesteps
+  both problems - it invoked the real `SettingsButton` `ToggleButton` directly via its
+  `TogglePattern`, and read the real bound `VersionText.Text` value directly by
+  `AutomationId`, confirming the actual runtime value ("v1.0.0") rather than eyeballing
+  a rendered image.
 
 ## 6. Not yet trustworthy / unvalidated
 
