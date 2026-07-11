@@ -859,19 +859,29 @@ feature authentic (timing colours, compound colours, flag semantics, FIA termino
   alongside `SessionType` should catch a same-type restart that a `SessionType`-only
   check misses, but hasn't been independently re-tested against a second deliberate
   restart. Watch the next session restart specifically.
-- **Lap History's IN-row stop time (§5, thirteenth round) tests one specific theory,
-  not yet re-confirmed live, and by design does NOT cover every track.** Two rounds of
-  live testing (eleventh, thirteenth) each ruled out a prior theory for why the PIT
-  column stayed blank on the IN row - first that `PitStopTimerInMS` survives to the
-  line-crossing tick (it doesn't), then that the same-tick race condition was the whole
-  story (still blank after that fix too). Currently live: retroactively patching
-  `LapHistory[0]` when the stop finishes, on the theory that the pit lane sits within
-  the OUT lap rather than the IN lap on at least some tracks. This is deliberately an
-  isolated test of ONE theory (per explicit user request) - if some tracks turn out to
-  have the pit lane genuinely within the IN lap after all (the original tenth-round
-  assumption), this patch-only version would need a forward-store path added back
-  alongside it to cover both. Watch the next pit stop specifically - if it's still
-  blank, this theory is also ruled out and the search continues.
+- **Lap History pit in/out tagging + stop time BREAKS on tracks where a pit stop
+  straddles the S/F line (e.g. Monaco) - confirmed live, under active investigation via
+  diagnostic logging.** Reported live at Monaco: a pit stop produced a **double "OUT"**
+  (both the in-lap and the out-lap tagged OUT, no "IN") and the **stationary stop time
+  was missing** (only the total pit-lane time on the OUT row appeared). Root cause: the
+  lap tag is read from the DriverStatus one tick before the lap completes
+  (`ClassifyLapTag`), which is correct only when the pit entry is AFTER the line (the
+  in-lap completes as `InLap`). At Monaco the pit straddles the line, so the in-lap
+  completes as `OutLap` (status already flipped during the stop) -> tagged "OUT". And
+  the stop-time patch (`PatchMostRecentInRowPitTime`) fires when the pit finishes, which
+  at Monaco is BEFORE the in-lap row even exists -> nothing to patch -> stop time lost.
+  The hard part: a Monaco in-lap and a normal-track out-lap can look identical (both end
+  as `OutLap`, both contain a full pit stop); the only distinguisher is the exact
+  DriverStatus/PitStatus timeline relative to the line, which varies by track and hasn't
+  been observed. So rather than guess a tagging fix (high regression risk on the
+  currently-working normal-track case), **temporary per-tick pit logging was added**
+  (`LogPitEvent` -> `%LocalAppData%\F1RaceEngineer\pit-debug.log`, shipping in v1.0.3):
+  it records the player's DriverStatus/PitStatus/PitLane/lap-tag timeline on every
+  pit-relevant state change + lap completion, so a provably-correct fix (robust to the
+  line falling before OR after the stop) can be built from real data across several
+  tracks. REMOVE the logging once the fix lands and is confirmed live. The prior
+  patch-based theory (below) is superseded by this finding - a forward-store for the
+  stop time is now known to be needed for the Monaco case.
 - **OUT row's total pit-lane time (§5, thirteenth round) has no theory to test - not
   yet re-confirmed live, but for a much more mundane reason (just hasn't been watched
   yet).** Unlike the IN row, there's no timing ambiguity here: the pit lane is always

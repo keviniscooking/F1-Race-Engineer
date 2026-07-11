@@ -103,6 +103,29 @@ namespace F1RaceEngineer.Telemetry
         }
         private readonly Dictionary<int, CarLapTracker> _carTrackers = new();
 
+        // TEMP diagnostic (see HANDOFF §6, Monaco pit-tag investigation): logs the player's
+        // pit-in/out DriverStatus + PitStatus timeline to a file so the "double OUT / missing
+        // stationary stop time" pit-tagging bug (a pit stop that straddles the S/F line) can
+        // be fixed from real per-tick data across tracks, rather than guessed. Only writes on
+        // pit-relevant state changes / lap completions (nothing during green-flag laps), so
+        // the file stays tiny. REMOVE once pit in/out tagging is fixed + confirmed live.
+        private static readonly string PitLogPath = System.IO.Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "F1RaceEngineer", "pit-debug.log");
+
+        private static void LogPitEvent(int lapNum, DriverStatus ds, PitStatus ps, bool laneActive,
+            uint stopTimerMs, uint laneTimeMs, uint lastLapMs, string note)
+        {
+            try
+            {
+                System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(PitLogPath)!);
+                System.IO.File.AppendAllText(PitLogPath,
+                    $"{DateTime.Now:HH:mm:ss.fff} lap={lapNum} driver={ds} pit={ps} lane={laneActive} " +
+                    $"stopT={stopTimerMs} laneT={laneTimeMs} lastLap={lastLapMs} {note}\n");
+            }
+            catch { /* diagnostic only - never let logging affect the app */ }
+        }
+
         // ---- Alert banner state ----
         private bool _isRedFlagActive;
         private bool _isChequeredFlagActive;
@@ -478,6 +501,9 @@ namespace F1RaceEngineer.Telemetry
         /// </summary>
         private void ResetSessionScopedState()
         {
+            // TEMP pit diagnostic: mark session boundaries so races are separable in the log.
+            LogPitEvent(0, DriverStatus.InGarage, PitStatus.None, false, 0, 0, 0, "===== SESSION RESET =====");
+
             _sessionBestSectorMs[0] = _sessionBestSectorMs[1] = _sessionBestSectorMs[2] = null;
             _personalBestSectorMs[0] = _personalBestSectorMs[1] = _personalBestSectorMs[2] = null;
             _sessionBestLapMs = null;
@@ -849,6 +875,13 @@ namespace F1RaceEngineer.Telemetry
 
                 bool isPlayer = i == _playerCarIndex;
 
+                // TEMP pit diagnostic: snapshot previous-tick pit state so a change this tick
+                // can be detected and logged at the end of the iteration (see LogPitEvent).
+                DriverStatus prevDriverStatus = tracker.LastKnownDriverStatus;
+                PitStatus prevPitStatus = tracker.LastKnownPitStatus;
+                bool prevPitLaneActive = tracker.LastKnownPitLaneTimerActive;
+                string? loggedLapTag = null;
+
                 if (car.Sector1TimeInMS != 0 && car.Sector1TimeInMS != tracker.LastSeenSector1Ms)
                 {
                     RegisterSectorTime(1, car.Sector1TimeInMS, isPlayer);
@@ -879,6 +912,8 @@ namespace F1RaceEngineer.Telemetry
                 else if (tracker.LastKnownPitStatus != PitStatus.None && isPlayer && tracker.MaxPitStopTimerMsThisStop > 0)
                 {
                     PatchMostRecentInRowPitTime(tracker.MaxPitStopTimerMsThisStop);
+                    LogPitEvent(car.CurrentLapNum, car.DriverStatus, car.PitStatus, car.PitLaneTimerActive,
+                        tracker.MaxPitStopTimerMsThisStop, car.PitLaneTimeInLaneInMS, car.LastLapTimeInMS, "PATCH_STOP_TIME (pit finished)");
                 }
                 tracker.LastKnownPitStatus = car.PitStatus;
 
@@ -900,6 +935,9 @@ namespace F1RaceEngineer.Telemetry
                 else if (tracker.LastKnownPitLaneTimerActive)
                 {
                     tracker.PendingPitLaneTimeMs = tracker.MaxPitLaneTimeInLaneMsThisStop;
+                    if (isPlayer)
+                        LogPitEvent(car.CurrentLapNum, car.DriverStatus, car.PitStatus, car.PitLaneTimerActive,
+                            car.PitStopTimerInMS, tracker.MaxPitLaneTimeInLaneMsThisStop, car.LastLapTimeInMS, "STORE_LANE_TIME (pit lane exited)");
                 }
                 tracker.LastKnownPitLaneTimerActive = car.PitLaneTimerActive;
 
@@ -926,6 +964,7 @@ namespace F1RaceEngineer.Telemetry
                     }
 
                     string lapTag = isPlayer ? ClassifyLapTag(tracker.LastKnownDriverStatus) : "";
+                    loggedLapTag = lapTag; // TEMP pit diagnostic
                     RegisterLapTime(car.LastLapTimeInMS, sector1Ms, sector2Ms, sector3Ms, isPlayer, lapTag, tracker.PendingPitLaneTimeMs);
                     tracker.PendingPitLaneTimeMs = 0; // consumed - don't let it leak onto a later unrelated OUT lap
 
@@ -950,6 +989,23 @@ namespace F1RaceEngineer.Telemetry
                     if (isPlayer)
                     {
                         ResetSectorDisplayForNewLap();
+                    }
+                }
+
+                // TEMP pit diagnostic: log a line whenever the player's pit-relevant state
+                // changed this tick, or a lap just completed (so every lap's IN/OUT tag is
+                // recorded). Green-flag laps (no state change) only log once, at completion.
+                if (isPlayer)
+                {
+                    bool stateChanged = car.DriverStatus != prevDriverStatus
+                        || car.PitStatus != prevPitStatus || car.PitLaneTimerActive != prevPitLaneActive;
+                    if (stateChanged || loggedLapTag != null)
+                    {
+                        string note = loggedLapTag != null
+                            ? $"LAP_COMPLETE tag={(string.IsNullOrEmpty(loggedLapTag) ? "-" : loggedLapTag)}"
+                            : "state-change";
+                        LogPitEvent(car.CurrentLapNum, car.DriverStatus, car.PitStatus, car.PitLaneTimerActive,
+                            car.PitStopTimerInMS, car.PitLaneTimeInLaneInMS, car.LastLapTimeInMS, note);
                     }
                 }
 
