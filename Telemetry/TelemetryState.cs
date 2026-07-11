@@ -221,7 +221,10 @@ namespace F1RaceEngineer.Telemetry
         private SolidColorBrush _sector3BackgroundBrush = TimingColorPalette.NeutralBg;
         public SolidColorBrush Sector3BackgroundBrush { get => _sector3BackgroundBrush; private set => SetProperty(ref _sector3BackgroundBrush, value); }
 
-        private const int LapHistoryDepth = 12;
+        // Every completed lap is kept here (the whole race). The lap-history widget shows
+        // them in a fixed-height viewport (12 rows) and scrolls once there are more than
+        // fit - see LapTimingWidget.xaml. Nothing is ever dropped, so a full race can be
+        // scrolled back through end to end.
         public ObservableCollection<LapHistoryEntry> LapHistory { get; } = new();
 
         private int _lapNumberForHistory = 0;
@@ -255,8 +258,11 @@ namespace F1RaceEngineer.Telemetry
         // Shared cap for Car Condition and Penalties & Flags - both are unbounded lists
         // in principle (a wrecked car or a heavily-penalized session could list a dozen
         // items), so both get truncated to keep the widget's height predictable next to
-        // its catalog-grid siblings, with a "+N more" row so nothing is silently dropped.
-        private const int IssueListMaxRows = 5;
+        // its catalog-grid siblings, with a "+N more" entry so nothing is silently
+        // dropped. This counts ENTRIES, not rows: both widgets lay entries out in a
+        // 2-column UniformGrid, so 6 entries fills exactly 3 rows (2+2+2); 7+ shows the
+        // 5 most-severe plus a "+N more" summary in the 6th slot.
+        private const int IssueListMaxEntries = 6;
 
         private bool _carConditionIsOk = true;
         public bool CarConditionIsOk { get => _carConditionIsOk; private set => SetProperty(ref _carConditionIsOk, value); }
@@ -485,11 +491,10 @@ namespace F1RaceEngineer.Telemetry
             _carTrackers.Clear(); // stale baselines from the old session would cause spurious sector/lap detections otherwise
             _carTyreCompounds.Clear();
 
-            // Always exactly LapHistoryDepth rows (blank placeholders until real laps come
-            // in) so the widget's height - and everything stacked below it - never shifts
-            // as a race progresses from lap 1 to lap 9+.
+            // Empty at the start of a session; the widget's fixed-height viewport
+            // (LapTimingWidget.xaml) holds the height steady, so there's no need to pad
+            // with placeholder rows - real laps just fill in from the top as they complete.
             LapHistory.Clear();
-            for (int i = 0; i < LapHistoryDepth; i++) LapHistory.Add(new LapHistoryEntry());
 
             PositionList.Clear();
             RaceStandings.Clear();
@@ -801,15 +806,15 @@ namespace F1RaceEngineer.Telemetry
         }
 
         /// <summary>
-        /// Truncates to IssueListMaxRows, replacing the last visible slot with a
+        /// Truncates to IssueListMaxEntries, replacing the last visible slot with a
         /// "+N more" summary so an overflowing list never silently drops information.
         /// Expects the list to already be sorted most-severe-first.
         /// </summary>
         private static List<string> CapIssueList(List<string> issues)
         {
-            if (issues.Count <= IssueListMaxRows) return issues;
-            int overflow = issues.Count - (IssueListMaxRows - 1);
-            var capped = issues.Take(IssueListMaxRows - 1).ToList();
+            if (issues.Count <= IssueListMaxEntries) return issues;
+            int overflow = issues.Count - (IssueListMaxEntries - 1);
+            var capped = issues.Take(IssueListMaxEntries - 1).ToList();
             capped.Add($"+{overflow} more");
             return capped;
         }
@@ -1006,6 +1011,11 @@ namespace F1RaceEngineer.Telemetry
                 bool isOut = car.ResultStatus is ResultStatus.Retired or ResultStatus.DidNotFinish
                     or ResultStatus.Disqualified or ResultStatus.NotClassified;
 
+                // In the pit lane (entry to exit) - the interval/gap is unreliable while
+                // stopped/crawling, so show "PIT" in its place, reverting automatically the
+                // moment PitStatus returns to None (back on track). IsOut takes priority.
+                bool isPitting = !isOut && car.PitStatus != PitStatus.None;
+
                 // Blank for an out car, matching the real broadcast graphic (no compound
                 // shown once a driver has retired).
                 string tyreLetter = "";
@@ -1035,6 +1045,7 @@ namespace F1RaceEngineer.Telemetry
                     LiveryBrush = livery ?? TimingColorPalette.NeutralText,
                     IsPlayer = i == _playerCarIndex,
                     IsOut = isOut,
+                    IsPitting = isPitting,
                     TyreLetter = tyreLetter,
                     TyreBrush = tyreBrush,
                     IsPenaltyPending = hasPendingPenalty,
@@ -1042,11 +1053,12 @@ namespace F1RaceEngineer.Telemetry
                     // 2 decimals here specifically (not the app-wide 3) - frees up column
                     // width in the tower to run the font size up, and 2 decimals is still
                     // plenty precise for a live gap glanced at mid-race.
-                    // "Out" only shown once (Gap column) - showing it in both Int and Gap
-                    // read as "Out Out" side by side, matching the real broadcast's single
-                    // label instead.
-                    IntervalText = isOut ? "" : isLeader ? "-" : FormatDelta(intervalMs, 2),
-                    GapText = isOut ? "Out" : isLeader ? "Leader" : FormatDelta(gapMs, 2)
+                    // "Out"/"PIT" only shown once (Gap column) - showing a status word in
+                    // both Int and Gap read as "Out Out" side by side; the real broadcast
+                    // shows a single label. IsOut wins over IsPitting (a retired car sitting
+                    // in the pit lane is Out, not pitting for a stop).
+                    IntervalText = isOut || isPitting ? "" : isLeader ? "-" : FormatDelta(intervalMs, 2),
+                    GapText = isOut ? "Out" : isPitting ? "PIT" : isLeader ? "Leader" : FormatDelta(gapMs, 2)
                 });
             }
 
@@ -1096,11 +1108,18 @@ namespace F1RaceEngineer.Telemetry
             if (playerLap.NumUnservedDriveThroughPens > 0) issues.Add((90, $"Unserved drive-through: {playerLap.NumUnservedDriveThroughPens}"));
             if (playerLap.Penalties > 0) issues.Add((80, $"Time penalties: +{playerLap.Penalties}s"));
 
-            // One line per specific warning (from PenaltyIssued events), not just a bare
-            // count - falls back to a generic "+N more" only for whatever the event-based
-            // list hasn't accounted for (e.g. warnings from before the app connected this
-            // session), so the total always still matches LapData's own running count.
-            foreach (var reason in _warningReasons) issues.Add((50, $"Warning - {reason}"));
+            // One line per specific warning *kind* (from PenaltyIssued events), not just a
+            // bare count - and duplicates of the same kind collapse into a single line with
+            // an "(xN)" multiplier (e.g. "Warning - Track limits (x3)") rather than
+            // repeating the identical row and eating list slots. GroupBy preserves
+            // first-occurrence order. Falls back to a generic "+N more" for whatever the
+            // event-based list hasn't accounted for (e.g. warnings from before the app
+            // connected this session), so the total always still matches LapData's own count.
+            foreach (var group in _warningReasons.GroupBy(r => r))
+            {
+                int count = group.Count();
+                issues.Add((50, count > 1 ? $"Warning - {group.Key} (x{count})" : $"Warning - {group.Key}"));
+            }
             int untrackedWarnings = playerLap.TotalWarnings - _warningReasons.Count;
             if (untrackedWarnings > 0) issues.Add((40, $"+{untrackedWarnings} more warning(s)"));
 
@@ -1279,7 +1298,8 @@ namespace F1RaceEngineer.Telemetry
                 Sector3Text = Sector3Text,
                 Sector3Brush = Sector3TextBrush
             });
-            while (LapHistory.Count > LapHistoryDepth) LapHistory.RemoveAt(LapHistory.Count - 1);
+            // No cap: every lap is kept and stays reachable by scrolling the viewport (a
+            // race is <=~78 laps, negligible to hold in memory / render un-virtualized).
         }
 
         /// <summary>

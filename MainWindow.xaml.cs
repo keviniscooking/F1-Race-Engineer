@@ -37,7 +37,6 @@ namespace F1RaceEngineer
             InitializeComponent();
 
             LapTiming.DataContext = _state;
-            QualifyingLapTiming.DataContext = _state;
             PositionList.DataContext = _state;
             Alert.DataContext = _state;
             RaceTower.DataContext = _state;
@@ -55,13 +54,14 @@ namespace F1RaceEngineer
                 ["penalties"] = PenaltiesFlagsCtl
             };
 
-            // Qualifying's core (Position List + history-less Lap Timing) is always on;
-            // the catalog widgets below default off there too, matching Practice, so the
-            // qualifying view stays focused on the hotlap unless the user wants more.
+            // Lap History is now on-by-default and toggleable on ALL presets (Qualifying
+            // included, for uniformity), so every preset passes historyDefault: true. The
+            // catalog widgets default off outside Race, keeping Practice/Qualifying focused
+            // on the timing board + lap timing unless the user toggles more on.
             _togglesByPreset = new Dictionary<PresetType, ObservableCollection<WidgetToggle>>
             {
                 [PresetType.Practice] = BuildToggleSet(defaultEnabled: false, historyDefault: true),
-                [PresetType.Qualifying] = BuildToggleSet(defaultEnabled: false, historyDefault: null),
+                [PresetType.Qualifying] = BuildToggleSet(defaultEnabled: false, historyDefault: true),
                 [PresetType.Race] = BuildToggleSet(defaultEnabled: true, historyDefault: true),
                 [PresetType.Unsupported] = BuildToggleSet(defaultEnabled: false, historyDefault: true)
             };
@@ -119,9 +119,9 @@ namespace F1RaceEngineer
         }
 
         /// <summary>
-        /// historyDefault is null for presets that don't use the toggleable Lap Timing
-        /// instance (Qualifying always shows its own fixed history-less Lap Timing), so no
-        /// "Lap History" checkbox is shown there at all.
+        /// historyDefault is nullable so a preset could omit the "Lap History" checkbox
+        /// entirely (null) - currently every preset passes true (history on, toggleable),
+        /// but the nullable path is kept for a future preset that shouldn't offer history.
         /// </summary>
         private ObservableCollection<WidgetToggle> BuildToggleSet(bool defaultEnabled, bool? historyDefault)
         {
@@ -157,19 +157,19 @@ namespace F1RaceEngineer
 
         private void UpdateWidgetVisibility()
         {
-            // Per design: Qualifying shows the position list as its always-on core,
-            // with a history-less Lap Timing widget on top so the driver still knows
-            // where they are. Practice and Race show the full Lap Timing widget (with
-            // history) instead.
-            bool isQualifying = _state.CurrentPreset == PresetType.Qualifying;
-            LapTiming.Visibility = isQualifying ? Visibility.Collapsed : Visibility.Visible;
-            QualifyingLapTiming.Visibility = isQualifying ? Visibility.Visible : Visibility.Collapsed;
-            PositionList.Visibility = isQualifying ? Visibility.Visible : Visibility.Collapsed;
-
-            // Race-only: the tower needs live interval/gap-to-leader, which only means
-            // anything mid-race. Its host column is Auto-width, so it collapses to zero
-            // width (taking its own Margin with it) rather than leaving a dead gap.
-            RaceTower.Visibility = _state.CurrentPreset == PresetType.Race ? Visibility.Visible : Visibility.Collapsed;
+            // Uniform layout across all three presets: the same Lap Timing widget (with
+            // history) fills the right column everywhere, and the LEFT column holds the
+            // full-field view - the Race Position Tower in Race, the position/timing board
+            // in Practice & Qualifying (both timed leaderboard sessions where the driver
+            // wants to see where they rank). The two left-column widgets share one column
+            // and are mutually exclusive per preset.
+            var preset = _state.CurrentPreset;
+            bool boardPreset = preset is PresetType.Practice or PresetType.Qualifying;
+            LapTiming.Visibility = Visibility.Visible;
+            // Practice/Qualifying only - NOT Unsupported (Time Trial), where the board would
+            // just be empty (no field to rank).
+            PositionList.Visibility = boardPreset ? Visibility.Visible : Visibility.Collapsed;
+            RaceTower.Visibility = preset == PresetType.Race ? Visibility.Visible : Visibility.Collapsed;
 
             ApplyCatalogWidgetLayout();
         }

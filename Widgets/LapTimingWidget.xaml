@@ -91,7 +91,11 @@
                         Visibility="{Binding ShowHistory, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}">
                 <TextBlock Text="LAP HISTORY" FontSize="11" Foreground="#6B7684" Margin="0,0,0,8"/>
 
-                <Grid Margin="0,0,0,6">
+                <!-- Right margin (14 = 8px scrollbar gutter + 6px breathing room) matches
+                     the row content's total right inset below (6px ScrollViewer padding +
+                     8px scrollbar), so the right-aligned DELTA header stays lined up with
+                     the row deltas whether or not the scrollbar thumb is showing. -->
+                <Grid Margin="0,0,14,6">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="110"/>
                         <ColumnDefinition Width="100"/>
@@ -112,6 +116,18 @@
                     <TextBlock Grid.Column="8" Text="DELTA" FontSize="11" Foreground="#4A5460" HorizontalAlignment="Right"/>
                 </Grid>
 
+                <!-- Fixed 12-row-tall viewport (589 = 12 * per-row height; tied to the
+                     lap-row template's own sizing, so re-measure if that changes). Fixed
+                     Height (not MaxHeight) keeps the widgets below from ever shifting: a
+                     short race shows its laps with blank space beneath, a full race fills up
+                     and scrolls (every lap is kept - see TelemetryState). Padding right 6
+                     holds the row content clear of the scrollbar; combined with the 8px
+                     scrollbar that's a 14px right inset, matched by the header margin above.
+                     Scrollbar visibility is Visible (not Auto) purely to reserve the gutter
+                     permanently - the themed ScrollBar in App.xaml hides its own thumb when
+                     there's nothing to scroll, so it only actually appears past 12 laps. -->
+                <ScrollViewer Height="589" Padding="0,0,6,0" VerticalScrollBarVisibility="Visible"
+                              HorizontalScrollBarVisibility="Disabled">
                 <ItemsControl ItemsSource="{Binding LapHistory}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
@@ -170,6 +186,7 @@
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
+                </ScrollViewer>
             </StackPanel>
         </Grid>
     </Border>

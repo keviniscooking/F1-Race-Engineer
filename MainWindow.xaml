@@ -94,40 +94,44 @@
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
+                <!-- LEFT column = the full-field view, identical placement/width on every
+                     preset: the Race Position Tower in Race, the position/timing board in
+                     Practice & Qualifying. Only one is ever visible at a time, so they share
+                     this Auto-width column (which collapses to zero, taking its 12px right
+                     margin with it, when neither is shown). 400px on both keeps the left
+                     column exactly the same width across all three tabs. -->
                 <widgets:RacePositionTowerWidget x:Name="RaceTower" Grid.Column="0" Width="400" Margin="0,0,12,0"/>
+                <widgets:PositionListWidget x:Name="PositionList" Grid.Column="0" Width="400" Margin="0,0,12,0"/>
 
-                <StackPanel Grid.Column="1">
-                    <widgets:AlertBanner x:Name="Alert"/>
-                    <!-- Bottom margin only 6 here (not 12) - the catalog widget grid
-                         below already contributes its own 6px top margin per widget, so
-                         6+6=12 matches the uniform gap used everywhere else. Neither of
-                         these carries a top margin, so whichever ends up first (Alert,
-                         when active, or one of these) still aligns flush with the
-                         tower's own top edge. -->
-                    <widgets:LapTimingWidget x:Name="LapTiming" Margin="0,0,0,6"/>
-                    <widgets:LapTimingWidget x:Name="QualifyingLapTiming" ShowHistory="False" Margin="0,0,0,6"/>
-                    <!-- Top margin added (unlike Lap Timing above) since Position List is
-                         never the first visible widget - only ever preceded by
-                         QualifyingLapTiming, so this doesn't disturb the tower alignment.
-                         6+6 against Lap Timing's own bottom keeps that gap at the same
-                         12px as everywhere else, not just the gap below Position List. -->
-                    <widgets:PositionListWidget x:Name="PositionList" Margin="0,6,0,6"/>
+                <!-- The right column's widgets, plus the Alert banner layered on TOP of
+                     them (later child = higher Z). The banner floats over the top of this
+                     column as a broadcast-style status strip instead of sitting in the flow,
+                     so showing/hiding it never pushes the widgets below up or down. It only
+                     overlays the top (the current-lap block) - the field view to the
+                     left stays fully visible. See AlertBanner.xaml. The single Lap Timing
+                     widget is used on every preset now (with history, toggleable) - there's
+                     no longer a separate history-less Qualifying instance. -->
+                <Grid Grid.Column="1">
+                    <StackPanel>
+                        <widgets:LapTimingWidget x:Name="LapTiming" Margin="0,0,0,6"/>
 
-                    <!-- Toggleable catalog widgets: arranged into an adaptive grid at runtime
-                         (MainWindow.xaml.cs ArrangeWidgets) so remaining widgets grow to fill
-                         the space freed by any that are toggled off via the settings panel.
-                         No Margin here - ArrangeWidgets assigns it per-widget at runtime based
-                         on each widget's actual column position (0 on outer edges, 6 on the
-                         inner edges facing a neighbour), since a static value here can't know
-                         which widget will end up leftmost/rightmost once toggles change which
-                         widgets are visible. -->
-                    <Grid x:Name="WidgetGrid">
-                        <widgets:TyresWidget x:Name="TyresCtl"/>
-                        <widgets:CarConditionWidget x:Name="CarConditionCtl"/>
-                        <widgets:PenaltiesFlagsWidget x:Name="PenaltiesFlagsCtl"/>
-                        <widgets:SessionTrackWidget x:Name="SessionTrackCtl"/>
-                    </Grid>
-                </StackPanel>
+                        <!-- Toggleable catalog widgets: arranged into an adaptive grid at runtime
+                             (MainWindow.xaml.cs ArrangeWidgets) so remaining widgets grow to fill
+                             the space freed by any that are toggled off via the settings panel.
+                             No Margin here - ArrangeWidgets assigns it per-widget at runtime based
+                             on each widget's actual column position (0 on outer edges, 6 on the
+                             inner edges facing a neighbour), since a static value here can't know
+                             which widget will end up leftmost/rightmost once toggles change which
+                             widgets are visible. -->
+                        <Grid x:Name="WidgetGrid">
+                            <widgets:TyresWidget x:Name="TyresCtl"/>
+                            <widgets:CarConditionWidget x:Name="CarConditionCtl"/>
+                            <widgets:PenaltiesFlagsWidget x:Name="PenaltiesFlagsCtl"/>
+                            <widgets:SessionTrackWidget x:Name="SessionTrackCtl"/>
+                        </Grid>
+                    </StackPanel>
+                    <widgets:AlertBanner x:Name="Alert" VerticalAlignment="Top"/>
+                </Grid>
             </Grid>
         </ScrollViewer>
     </Grid>

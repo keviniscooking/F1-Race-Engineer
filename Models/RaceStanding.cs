@@ -19,6 +19,13 @@ namespace F1RaceEngineer.Models
         // treatment (dimmed row, "Out" in place of Int/Gap) instead of showing that.
         public bool IsOut { get; set; }
 
+        // A car currently in the pit lane (PitStatus != None). Like IsOut it replaces the
+        // interval/gap - which is unreliable while stopped/crawling - with a "PIT" tag,
+        // but the row is NOT dimmed: the driver is still racing, just pitting, and reverts
+        // to the live gap automatically the moment they rejoin the track. IsOut wins if a
+        // car is somehow both.
+        public bool IsPitting { get; set; }
+
         // Tyre compound letter, from CarStatusData (a separate packet from LapData) -
         // cached per car index in TelemetryState so this row-building method can still
         // read it inline. Blank for IsOut rows, matching the real broadcast graphic.
@@ -54,6 +61,7 @@ namespace F1RaceEngineer.Models
             IntervalText == other.IntervalText &&
             GapText == other.GapText &&
             IsOut == other.IsOut &&
+            IsPitting == other.IsPitting &&
             TyreLetter == other.TyreLetter &&
             IsPenaltyPending == other.IsPenaltyPending &&
             IsFastestLap == other.IsFastestLap &&

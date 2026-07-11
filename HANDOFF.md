@@ -167,7 +167,17 @@ verified via screenshot and temporary debug scaffolding rather than live game da
 A sixteenth round (§5) added the app version to the settings panel - verified via UI
 Automation rather than a screenshot, since the settings panel is a `Popup` (separate
 top-level window) and this environment's screen capture can't see this app's window
-at all.
+at all. A seventeenth round (§5) made Lap History retain the whole race in a
+fixed-height, self-scrolling viewport (12 rows visible, scroll for older laps) with an
+app-wide themed scrollbar - pure UI/data-retention work, verified via UI Automation +
+screenshot with temporary seeded-lap scaffolding. An eighteenth round (§5) raised the
+issue-list cap to 6 entries, collapsed duplicate warnings into an "(xN)" multiplier,
+and turned the alert banner into a floating overlay (so it no longer pushes the widgets
+below around) - all verified without a live game. A nineteenth round (§5), out of a
+full-repo audit + F1 authenticity check, added the position/timing board to the
+Practice tab, a "PIT" indicator to the Race tower, and unified all three presets to
+one layout (full-field view in the left column, Lap Timing with history in the right)
+- Qualifying gained lap history and the separate history-less instance was removed.
 
 ## 3. Architecture
 
@@ -445,11 +455,15 @@ F1 25 game ──UDP──> UdpListenerService (background thread)
   driver nothing actionable if they missed the (transient, 8s) Penalty banner at the
   time. Fixed by capturing each warning's `InfringementType` from the `PenaltyIssued`
   event itself (already flowing in for the banner) into a new session-scoped
-  `_warningReasons` list, and showing one itemized line per warning (e.g. "Warning -
-  Ignoring Blue Flags") instead of the generic count. Falls back to a generic "+N more
-  warning(s)" line for any gap between the event-based list and `TotalWarnings` (e.g.
-  warnings that happened before the app connected this session), so the total shown
-  always still reconciles with the game's own authoritative count.
+  `_warningReasons` list, and showing one itemized line per warning *kind* (e.g.
+  "Warning - Ignoring Blue Flags") instead of the generic count. Duplicate warnings of
+  the same kind collapse into a single line with an "(xN)" multiplier (e.g. "Warning -
+  Track limits (x3)") rather than repeating the identical row and eating list slots
+  (`RefreshPenalties` groups `_warningReasons` by reason - added later than the original
+  itemization). Falls back to a generic "+N more warning(s)" line for any gap between
+  the event-based list and `TotalWarnings` (e.g. warnings that happened before the app
+  connected this session), so the total shown always still reconciles with the game's
+  own authoritative count.
 - **Restarting a race (same session type) left Lap History and other session-scoped
   state from the previous attempt in place, producing a misaligned lap count** - root
   cause: `ResetSessionScopedState()` only fired on a `SessionType` *change*
@@ -611,18 +625,24 @@ F1 25 game ──UDP──> UdpListenerService (background thread)
 
 ### Fifteenth round (row-count limits, no live game needed to verify)
 - **Lap History depth increased from 10 to 12 rows** (`LapHistoryDepth` in
-  `TelemetryState.cs`). No XAML changes needed - the widget has no fixed height, it
-  just grows and the outer `ScrollViewer` picks up the extra rows.
-- **Car Condition and Penalties & Flags issue lists capped at 5 rows.** Both lists are
-  otherwise unbounded (a wrecked car or a heavily-penalized session could list a
-  dozen items), which would blow past the catalog grid's shared row height. New
-  shared `IssueListMaxRows = 5` constant and `CapIssueList()` helper in
-  `TelemetryState.cs`, applied after computing `CarConditionIsOk`/`PenaltiesIsOk` from
-  the *un*truncated count (so the OK/issue state itself is never affected by the cap)
-  but before assigning into the bound `ObservableCollection`. When truncated, the last
-  visible slot becomes a `"+N more"` summary rather than silently dropping items.
-  Verified via temporary debug scaffolding (removed before commit) seeding 6-7 fake
-  issues into each list and confirming the 5-row-plus-overflow rendering.
+  `TelemetryState.cs`; that cap was later removed entirely in the seventeenth round). No
+  XAML changes needed at the time - the widget had no fixed height, it just grew and
+  the outer `ScrollViewer` picked up the extra rows (the seventeenth round changed this
+  to a fixed-height, self-scrolling viewport that keeps every lap).
+- **Car Condition and Penalties & Flags issue lists capped.** Both lists are otherwise
+  unbounded (a wrecked car or a heavily-penalized session could list a dozen items),
+  which would blow past the catalog grid's shared row height. New shared
+  `CapIssueList()` helper in `TelemetryState.cs`, applied after computing
+  `CarConditionIsOk`/`PenaltiesIsOk` from the *un*truncated count (so the OK/issue state
+  itself is never affected by the cap) but before assigning into the bound
+  `ObservableCollection`. When truncated, the last visible slot becomes a `"+N more"`
+  summary rather than silently dropping items. The cap constant counts **entries, not
+  rows** (both widgets lay entries out in a 2-column `UniformGrid`): started at
+  `IssueListMaxRows = 5` (a misleading name - 5 entries render as 3 rows: 2+2+1), later
+  renamed `IssueListMaxEntries` and raised to **6** so the third row fills evenly (2+2+2)
+  and 7+ issues show the 5 most-severe plus `"+N more"` in the 6th slot. Verified via
+  temporary debug scaffolding (removed before commit) seeding 8 fake issues into each
+  list and confirming 6 entries / 3 full rows with the overflow summary.
 - **Both capped lists are now severity-sorted, most urgent first**, instead of a fixed
   source-code order. Each issue is built as a `(Severity, Text)` tuple and the list is
   `OrderByDescending(Severity)` before the cap above is applied - so if a car has more
@@ -684,8 +704,133 @@ F1 25 game ──UDP──> UdpListenerService (background thread)
   `AutomationId`, confirming the actual runtime value ("v1.0.0") rather than eyeballing
   a rendered image.
 
+### Seventeenth round (scrollable full-race Lap History, no live game needed to verify)
+- **Lap History now retains the entire race and scrolls, instead of dropping laps past
+  12.** Previously `LapHistoryDepth` (12) was a hard cap - `RegisterLapTime` did
+  `while (Count > 12) RemoveAt(last)`, so from lap 13 on the oldest lap was deleted and
+  lost. Now nothing is dropped: the cap is gone (`RegisterLapTime` only inserts, never
+  removes), the widget shows a **fixed-height viewport of 12 rows**, and past 12 laps
+  the extra laps are reachable by scrolling. A prior measurement exercise (see the
+  tower-height analysis) established this also keeps the catalog widgets from being
+  pushed down as the race goes long - the viewport height is now constant regardless of
+  lap count.
+- **Data (`TelemetryState`):** the `LapHistory` collection now just grows (a race is
+  <=~78 laps, negligible to hold / render un-virtualized); reset clears it and it fills
+  from empty. The old "always keep exactly 12 rows via blank placeholder entries"
+  scheme is **gone** - an earlier version of this round used placeholder rows to hold
+  the height, but they rendered as faint ghost rows (empty sector underlines +
+  separators) that looked wrong on a short race (e.g. a <12-lap sprint), so the
+  fixed-height viewport (below) holds the height instead and no placeholder rows exist.
+- **View (`LapTimingWidget.xaml`):** the lap-row `ItemsControl` is wrapped in a
+  `ScrollViewer` with a **fixed `Height="589"`** (= 12 * per-row height; tied to the row
+  template, so re-measure if that template's sizing changes). Fixed `Height` (not
+  `MaxHeight`) is what keeps the widgets below from ever shifting - a short race shows
+  its real laps with blank space beneath (no ghost rows), a full race fills up and
+  scrolls. The column-header row stays *outside* the ScrollViewer so headers don't
+  scroll. Scrollbar visibility is `Visible` (not `Auto`) *purely to reserve the gutter
+  permanently* so the right-aligned DELTA column never reflows when the thumb appears;
+  the ScrollViewer has `Padding="0,0,6,0"` (6px between the row content and the 8px
+  scrollbar so the deltas don't touch it) and the header carries a matching 14px right
+  margin (6 + 8), keeping header and rows the same width. The themed scrollbar (below)
+  hides its own thumb when there's nothing to scroll, so it still only visibly appears
+  past 12 laps.
+- **Themed scrollbar (`App.xaml`, app-wide):** a custom `ScrollBar` style - thin (8px),
+  no arrow buttons, transparent track, muted rounded thumb (`#30363D`, brighter on
+  hover/drag) matching the app's border palette. Applied globally, so it also replaces
+  the main window scroll area's default chunky light-Windows bar (an existing
+  inconsistency) in one go. A `Trigger` on `IsEnabled=False` collapses the thumb when
+  the content fits - that's what makes the always-reserved-gutter scrollbar read as
+  "no scrollbar" until there's actually something to scroll.
+- Verified via UI Automation + screenshot with temporary seeded-lap scaffolding
+  (removed before commit): at 20 laps, exactly 12 rows visible (newest on top, Lap
+  20->9), the scrollbar present and `IsEnabled=True`, and all 20 laps retained; at 12
+  laps the scrollbar is `IsEnabled=False` (thumb hidden) - confirming the `Height`
+  boundary is tuned so 12 shows no bar and 13+ does; and at 8 laps the widget shows 8
+  real rows + blank space (no ghost rows) with the deltas clearing the scrollbar.
+
+### Eighteenth round (issue-list tuning + floating alert banner, no live game needed)
+- **Issue-list cap raised 5 -> 6 entries and the constant renamed** `IssueListMaxRows`
+  -> `IssueListMaxEntries` (it always counted entries, not rows - misleading name). 6
+  entries fills exactly 3 rows in the 2-column grid (2+2+2) instead of 2+2+1; 7+ still
+  shows the 5 most-severe + "+N more". See §5 fifteenth round (updated in place).
+- **Duplicate warnings collapse into an "(xN)" multiplier** in Penalties & Flags -
+  `RefreshPenalties` now `GroupBy`s `_warningReasons`, so three "Track limits" warnings
+  render as one "Warning - Track limits (x3)" line instead of three identical rows
+  eating slots. See §5 ninth round (updated in place). Verified via the real
+  `RefreshPenalties` path (seeded duplicate reasons through a settable `LapData`).
+- **Alert banner converted from an inline element to a floating overlay** so it no
+  longer pushes the widgets below up/down when it appears/disappears. Was the first
+  child of the right-column `StackPanel`; now it's a layered sibling on top of that
+  column's content (`Grid` + `VerticalAlignment="Top"` in `MainWindow.xaml`,
+  higher Z-order), so it overlays the top of the current-lap block while the position
+  tower and everything below stay exactly where they are. Modelled on the real F1
+  broadcast "status bar across the top of the screen" convention (researched against
+  Formula1.com - flags/race-control overlay the picture, they don't reflow the
+  graphics). Restyled (FontSize 28 -> 22) with a drop shadow so it reads as floating.
+  Scope decision (confirmed with the user): right-column-only overlay rather than full
+  window width, so the position tower / leaders are never covered. Because the banner's
+  background is opaque, it's sized (`MinHeight="72"`) to **fully cover** the current-lap
+  / PB / delta block underneath (measured 70 DIP from the top of the timing widget to
+  the bottom of the big lap-time number) - an earlier slim version left the lap-time
+  numbers peeking out below it, which read as unclean; the taller opaque strip hides
+  them entirely and stops just shy of the SECTORS row (~84 DIP down). Confirmed with the
+  user before this refinement. Verified via UI Automation: `LapTiming.Top` is identical
+  (75) whether the alert is shown or hidden - i.e. genuinely zero layout shift - plus
+  screenshots confirming the banner floats over and fully covers the current-lap block
+  with the full 22-car tower still visible. (Note: the overlay lives inside the outer `ScrollViewer`,
+  so it's pinned to the top of the right-column content, not the viewport - on a screen
+  where everything fits, that's the top of the page; if scrolled down on a smaller
+  screen it scrolls with the content rather than staying fixed. Acceptable for the
+  common all-fits case; a truly fixed status bar would need it hoisted out of the
+  ScrollViewer with a preset-aware left offset to stay right-column-aligned.)
+
+### Nineteenth round (per-session realism, from a full-repo audit + F1 research)
+Came out of a full line-by-line code review + authenticity check against real F1
+sources. The review found the codebase clean (no dead code, no stray debug scaffolding
+beyond the permanent `DebugForcePreset`, builds clean, docs current) and every existing
+feature authentic (timing colours, compound colours, flag semantics, FIA terminology,
+2026 grid all match real F1). Two per-session gaps were found and fixed:
+- **Practice now shows the position/timing board**, and **all three presets now share a
+  uniform layout** (a follow-up the user asked for after seeing the board added). Real
+  F1 practice is a timed leaderboard session (all drivers ranked by best lap, gap to
+  fastest), confirmed against Formula1.com live-timing coverage - Practice previously
+  showed only the player's own Lap Timing. The uniform layout: the **full-field view
+  lives in the LEFT column on every preset** (the Race Position Tower in Race, the
+  `PositionListWidget` board in Practice/Qualifying - same 400px column, mutually
+  exclusive), with the **same Lap Timing widget filling the RIGHT column everywhere**.
+  Previously the board was stacked *below* Lap Timing in the right column on
+  Practice/Qualifying; moving it to the left column matches the tower's placement and
+  also fits 1080p better (two ~850px columns side by side instead of one very tall
+  stacked column). The separate history-less `QualifyingLapTiming` instance was
+  **removed** - Qualifying now uses the single `LapTiming` (with history, toggleable,
+  on by default), dropping the old "hotlap-focused, no history" rule for uniformity.
+  Verified via screenshot on all three presets (board left + history right on
+  Practice/Qualifying; tower unaffected on Race).
+- **Race tower now shows "PIT" for cars in the pit lane.** Real broadcast towers show
+  an IN PIT / PIT indicator while a car is being serviced; the tower previously showed
+  nothing for a pitting car (only "Out" for retired). Added `IsPitting` to
+  `RaceStanding` (from `LapData.PitStatus != None`, computed in `RefreshRaceStandings`),
+  which replaces the interval/gap with a blue bold "PIT" in the Gap column - same
+  mechanism as "Out" but NOT dimmed (the driver is still racing) and it reverts to the
+  live gap automatically the moment `PitStatus` returns to None (back on track), no
+  timers needed. "Out" takes priority over "PIT". Blue (`#79C0FF`) matches the pit-time
+  colour already used in Lap History. Verified via screenshot with temporary mock rows
+  (removed before commit): a pitting row shows bold blue "PIT" undimmed with its tyre
+  letter still visible, a retired row shows dimmed "Out" with no tyre, normal rows
+  unaffected; and the Practice board renders below Lap Timing.
+- Deferred from the same audit (not built, no strong need per the user): rival tyre age
+  in the tower, a DRS indicator, a tyre-compound column on the qualifying board, and
+  re-adding Fuel & ERS - all technically feasible (`CarStatusData.TyresAgeLaps`/
+  `DrsAllowed` per car exist) but declined for now.
+
 ## 6. Not yet trustworthy / unvalidated
 
+- **Tower "PIT" indicator (§5, nineteenth round) is reasoned from `LapData.PitStatus`,
+  not yet re-confirmed live.** The XAML rendering (blue "PIT", auto-revert on
+  `PitStatus` returning to None) was verified against mock rows, but the exact live
+  behaviour - does `PitStatus` stay non-None for the whole pit-lane traversal, does it
+  flip cleanly on rejoin - hasn't been watched against a real rival pit stop. Watch the
+  next pit stop (own or rival) specifically.
 - **Red Flag auto-clear is an untested heuristic.** There is no confirmed "flag
   cleared" event in the API, so it shows on its trigger event and auto-hides after a
   15s timeout. NOT yet tested against a real red flag. Safety Car / VSC, by contrast,
@@ -798,23 +943,33 @@ F1 25 game ──UDP──> UdpListenerService (background thread)
   (not stretched), so a short one-line widget (e.g. Car Condition when "OK") hugs its
   own content instead of stretching into an empty-looking card next to a taller
   neighbour.
-- Lap Timing's history list always renders exactly `LapHistoryDepth` (12) rows (blank
-  placeholders before 12 laps exist) rather than growing from 0 — otherwise the
-  widget's height, and everything stacked below it, would visibly shift down
-  lap-by-lap during a race.
+- Lap Timing's history list lives in a **fixed-height viewport of 12 rows** (`Height`
+  on its `ScrollViewer`). Its height never changes regardless of lap count: a short
+  race shows its laps with blank space beneath (no filler rows), and past 12 laps the
+  *full race history is retained* and the viewport scrolls (a themed scrollbar - see §5
+  seventeenth round). Fixed height matters because everything stacked below it (the
+  catalog grid) would otherwise shift down lap-by-lap and, past 12 laps, be pushed past
+  the tower. No lap is ever dropped.
 - Catalog widgets default **on** for Race only. Practice and Qualifying default to just
-  their core (Lap Timing for Practice; history-less Lap Timing + Position List for
-  Qualifying) with everything else off, toggleable if wanted. Lap History itself is now
-  a toggle too (on by default for Practice/Race; not applicable to Qualifying, which
-  always uses the fixed history-less Lap Timing instance).
+  their core (the field board + Lap Timing) with everything else off, toggleable if
+  wanted. The position board (`PositionListWidget`) shows in both Practice and
+  Qualifying - both are timed leaderboard sessions where the driver wants to see where
+  they rank, matching real F1 practice/quali timing screens (§5 nineteenth round). Lap
+  History is a toggle on **every** preset now (on by default everywhere, Qualifying
+  included - §5 nineteenth round unified this).
 
-### Always-on core (differs per preset)
-- Practice / Race: **Lap Timing** (with history).
-- Qualifying: **Position list** as the core, with a history-less **Lap Timing**
-  widget stacked on top. This is settled, not a placeholder: the settings panel is
-  built, but Qualifying's Lap Timing was deliberately left non-toggleable so the view
-  always stays focused on the hotlap - only the 4 catalog widgets (and Lap History,
-  for Practice/Race) are toggleable.
+### Always-on core (UNIFORM across presets since §5 nineteenth round)
+Every preset has the same two-part structure: a **full-field view in the LEFT column**
+(fixed 400px), and the **same Lap Timing widget (with history) filling the RIGHT
+column**. Only the left-column occupant differs:
+- **Race**: the **Race Position Tower** (live interval/gap, tyres, PIT/Out, badges).
+- **Practice / Qualifying**: the **position/timing board** (`PositionListWidget` - best
+  lap + gap to fastest), in the exact same place/width as the tower.
+- The tower and the board share one Auto-width column and are mutually exclusive per
+  preset (`MainWindow.UpdateWidgetVisibility`). There is no longer a separate
+  history-less Qualifying Lap Timing instance - the single `LapTiming` widget is used
+  everywhere, with the Lap History toggle on by default (Qualifying's old
+  "hotlap-focused, no history" rule was dropped for uniformity at the user's request).
 
 ### Lap Timing colour convention (real F1 timing-screen convention, confirmed)
 - **Purple** = fastest of the session (any driver).
@@ -840,8 +995,12 @@ F1 25 game ──UDP──> UdpListenerService (background thread)
   - no reserved/unused column left in the tower after this. Retired/DNF/DSQ/
   not-classified cars show a dimmed row and a single "Out" instead of a stale
   interval/gap (`LapData.ResultStatus`, §5 tenth and thirteenth rounds - the field was
-  originally set on both Int and Gap, rendering as "Out Out"). See §8 for why this
-  replaced the old Gaps & Position widget (removed on all presets, not just Race).
+  originally set on both Int and Gap, rendering as "Out Out"). A car currently in the
+  pit lane (`LapData.PitStatus != None`) shows a blue "PIT" in the Gap column in place
+  of the (unreliable-while-stopped) interval/gap, reverting to the live gap
+  automatically the moment it rejoins the track - NOT dimmed like "Out", since the
+  driver is still racing (§5 nineteenth round). "Out" wins over "PIT". See §8 for why
+  this replaced the old Gaps & Position widget (removed on all presets, not just Race).
 
 ### Widget catalog (toggleable unless noted)
 - **Tyres** — rendered compound icon (FIA colour convention, drawn not captured),
@@ -853,19 +1012,21 @@ F1 25 game ──UDP──> UdpListenerService (background thread)
   yellow (wings, floor, diffuser, sidepod, gearbox, engine, per-corner brakes,
   per-corner tyre blisters, DRS/ERS faults, engine blown/seized), laid out as a
   2-column grid (`UniformGrid Columns="2"`) so a long issue list doesn't force the
-  widget taller than the viewport - see §5. Capped at `IssueListMaxRows` (5) rows,
-  most-severe-first (a car's genuinely worst 5 problems survive the cap, not just
-  whichever were checked first in code), with a `"+N more"` summary row if truncated
-  - see §5 fifteenth round. Background engine-component *wear* (as
+  widget taller than the viewport - see §5. Capped at `IssueListMaxEntries` (6)
+  entries = 3 full rows, most-severe-first (a car's genuinely worst problems survive
+  the cap, not just whichever were checked first in code), with a `"+N more"` summary
+  in the last slot if truncated - see §5 fifteenth round. Background engine-component
+  *wear* (as
   opposed to damage) is deliberately excluded - see §6; per-corner tyre *damage* is
   also excluded now (see §8) since the Tyres widget already shows per-corner wear and
   the two read as duplicated, not distinct, information.
 - **Penalties & Flags** — same quiet/yellow-itemised, capped-and-severity-sorted
-  pattern as Car Condition (same `IssueListMaxRows`/2-column grid, see §5 tenth and
+  pattern as Car Condition (same `IssueListMaxEntries`/2-column grid, see §5 tenth and
   fifteenth rounds); also shows the player's own current flag (`VehicleFiaFlags`:
   None/Green/Blue/Yellow) as a coloured chip with label (e.g. blue = let car through).
   Warnings show one itemised line per specific reason (from `PenaltyIssued` events'
-  `InfringementType`), not a bare count - see §5 ninth round. Reason text is
+  `InfringementType`), not a bare count, with duplicates of the same reason collapsed
+  into an "(xN)" multiplier line - see §5 ninth round. Reason text is
   hand-labelled against real FIA terminology (`Models/EventLabels.cs`), not the
   generic PascalCase humanizer - see §5 thirteenth round and the caveat in §6.
 - **Session & Track** — rendered weather icon (from the 6-value `Weather` enum, drawn
@@ -886,6 +1047,13 @@ meant (the recording never completing? an inaccurate outline? something else) �
 before rebuilding a version of this.
 
 ### Alert banner (persistent, not a toggleable widget)
+- **Floating overlay, not an inline element** (§5 eighteenth round). It floats over the
+  TOP of the right column (layered on top in a `Grid`, `VerticalAlignment="Top"`, in
+  `MainWindow.xaml`) so showing/hiding it never pushes the widgets below up or down -
+  it only overlays the current-lap block, and the position tower to the left stays
+  fully visible. Modelled on the real F1 broadcast "status bar across the top of the
+  screen" convention (Formula1.com), which overlays the picture rather than reflowing
+  the graphics. Has a drop shadow so it reads as floating above the content.
 - Safety Car / VSC: amber/yellow, differentiated by label and icon (real flag
   convention uses yellow for both — do not invent a separate VSC colour).
 - Red Flag: red. Chequered Flag: neutral black/white, informational.
@@ -940,10 +1108,10 @@ before rebuilding a version of this.
     version) - the Race Position Tower (§7) is now the one place full-field rival data
     is shown; this stint timeline should stay player-only rather than duplicating that.
     Race preset only - `TotalLaps` isn't meaningful in Practice/Qualifying.
-  - Layout: Lap History always renders exactly `LapHistoryDepth` (12) rows including
-    blank placeholders specifically so the widget's height never shifts - that fixed
-    height is what makes a single overlaid bar (not duplicated per row) realistic,
-    placed as a sibling element in the same grid cell as the lap rows.
+  - Layout: Lap History renders in a fixed-height viewport of 12 rows (scrolls past 12,
+    see §5 seventeenth round) so the widget's height never shifts - that fixed height is
+    what makes a single overlaid bar (not duplicated per row) realistic, placed as a
+    sibling element in the same grid cell as the lap rows.
   - Open questions before building: whether to include axis gridlines/lap-number
     labels like the real graphic or keep it to just the coloured bar + letter markers,
     and whether the open/current stint needs an explicit "current lap" tick mark.

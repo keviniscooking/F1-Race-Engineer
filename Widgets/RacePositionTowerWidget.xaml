@@ -155,6 +155,13 @@
                                                 <DataTrigger Binding="{Binding IsOut}" Value="True">
                                                     <Setter Property="Foreground" Value="#4A5460"/>
                                                 </DataTrigger>
+                                                <!-- "PIT" stands out in the same blue used for pit
+                                                     times in Lap History - a car being serviced is a
+                                                     notable, actionable state, not a dimmed/gone one. -->
+                                                <DataTrigger Binding="{Binding IsPitting}" Value="True">
+                                                    <Setter Property="Foreground" Value="#79C0FF"/>
+                                                    <Setter Property="FontWeight" Value="Bold"/>
+                                                </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
                                     </TextBlock.Style>
