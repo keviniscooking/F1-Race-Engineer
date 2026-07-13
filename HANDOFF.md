@@ -861,12 +861,16 @@ feature authentic (timing colours, compound colours, flag semantics, FIA termino
   bare layout that happened to look like the *old* (pre-board) Practice tab. Added an
   opaque overlay (`WaitingPlaceholder`, `MainWindow.xaml`, on Grid.Row 2 over the
   ScrollViewer so it centres in the visible viewport, not the taller scroll content).
-  Gated by `UpdateWaitingPlaceholder()` on **`CurrentPreset == Unsupported` AND
-  `!HasReceivedData`** - so it correctly steps aside for a settings-menu preview (which
-  forces a concrete preset) and for a live **Time Trial** (also `Unsupported`, but data
-  is flowing). `HasReceivedData` is a new one-way latch in `TelemetryState`, set true on
-  the first handled packet. Verified: shows centred at cold start, dismisses on Race
-  preview.
+  **Gating (revised, §5 twenty-second round):** shown for any `Unsupported`-preset state
+  EXCEPT a live **Time Trial** - i.e. `CurrentPreset == Unsupported && !IsTimeTrial`.
+  Originally this keyed off a "has any packet arrived" latch, but that was wrong: when the
+  game sits in its **menus/lobby** it streams data with an unmapped session type
+  (`Unsupported`), so the latch flipped and the placeholder hid, leaving a bare
+  Lap-Timing-only layout (looked like an "old Practice tab"). Keying off `IsTimeTrial`
+  instead keeps the placeholder up in the menus (where there's nothing to show) while
+  still stepping aside for Time Trial (a real drivable session) and for a settings-menu
+  preview (which forces a concrete preset). `IsTimeTrial` is set in `HandleSession`.
+  Verified centred at cold start; the menu case needs a live confirm.
 - **Tyre compound marker is now the broadcast-style ring**, not a flat filled disc:
   coloured compound band (outer ring) around a dark tyre body with the letter in the
   band colour (`TyresWidget.xaml`, all vector shapes). Deliberately **not** the real

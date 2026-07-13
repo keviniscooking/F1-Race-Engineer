@@ -177,12 +177,14 @@ namespace F1RaceEngineer.Telemetry
         private PresetType _currentPreset = PresetType.Unsupported;
         public PresetType CurrentPreset { get => _currentPreset; private set => SetProperty(ref _currentPreset, value); }
 
-        // Flips true the first time ANY packet is handled. Lets the UI tell "the game
-        // hasn't started sending yet" (cold start - show a waiting placeholder) apart from
-        // a live Time Trial session, which also sits at the Unsupported preset but IS
-        // sending data. Never resets - once data has ever arrived, it has arrived.
-        private bool _hasReceivedData;
-        public bool HasReceivedData { get => _hasReceivedData; private set => SetProperty(ref _hasReceivedData, value); }
+        // True only for an actual Time Trial session. Time Trial maps to the Unsupported
+        // preset (no field to rank) but IS a real drivable session where the Lap Timing
+        // widget is useful - so the "waiting for a session" placeholder must step aside for
+        // it, while still covering every OTHER Unsupported state (cold start AND the game
+        // sitting in its menus/lobby, which streams data with an unmapped session type and
+        // would otherwise show a bare Lap-Timing-only layout).
+        private bool _isTimeTrial;
+        public bool IsTimeTrial { get => _isTimeTrial; private set => SetProperty(ref _isTimeTrial, value); }
 
         /// <summary>
         /// Preview mode hook: lets the UI be reviewed preset-by-preset without a live
@@ -414,7 +416,6 @@ namespace F1RaceEngineer.Telemetry
             // thread, so every packet's handling is marshaled here.
             System.Windows.Application.Current?.Dispatcher.BeginInvoke(() =>
             {
-                HasReceivedData = true;
                 switch (packet.PacketType)
                 {
                     case PacketType.Session when packet.TryGetSessionDataPacket(out SessionDataPacket session):
@@ -480,6 +481,7 @@ namespace F1RaceEngineer.Telemetry
 
             _totalLaps = session.TotalLaps;
             _currentTrack = session.Track;
+            IsTimeTrial = session.SessionType == SessionType.TimeTrial;
 
             RefreshSessionAndTrack(session);
         }

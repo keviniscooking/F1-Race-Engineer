@@ -70,12 +70,8 @@ namespace F1RaceEngineer.Telemetry
             {
                 string pos = row.IsOut ? "—" : row.Position.ToString();
                 string chips = "";
-                int prev = 0;
                 foreach (var st in row.Stints)
-                {
                     chips += $"<span class=\"chip\" style=\"background:{CHex(st.Compound)};color:{CInk(st.Compound)}\">{Enc(st.Compound)}</span>";
-                    prev = st.EndLap;
-                }
                 string best = row.BestLapMs > 0 ? SavedRaceView.FormatTime(row.BestLapMs) : "—";
                 string bestStyle = row.HasFastestLap ? "color:#AFA9EC" : "";
                 string fl = row.HasFastestLap ? " <span style=\"color:#AFA9EC\">◷</span>" : "";
@@ -111,7 +107,6 @@ namespace F1RaceEngineer.Telemetry
         private static string StintBar(SavedRace r)
         {
             if (r.PlayerStints.Count == 0) return "<div class=\"mut\">No stint data.</div>";
-            int total = r.TotalLaps > 0 ? r.TotalLaps : LastEnd(r.PlayerStints);
             var bar = new StringBuilder("<div class=\"stintbar\">");
             int prev = 0;
             foreach (var s in r.PlayerStints)
@@ -131,11 +126,8 @@ namespace F1RaceEngineer.Telemetry
                 ticks.Append($"<div class=\"tk\" style=\"flex:{laps}\"><span>{label}</span></div>");
             }
             ticks.Append("</div>");
-            _ = total;
             return bar.ToString() + ticks.ToString();
         }
-
-        private static int LastEnd(List<SavedStint> stints) => stints.Count == 0 ? 0 : stints[^1].EndLap;
 
         private static string Css() => @"
 :root{color-scheme:dark}

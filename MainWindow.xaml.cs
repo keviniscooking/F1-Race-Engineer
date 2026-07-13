@@ -159,19 +159,22 @@ namespace F1RaceEngineer
                 UpdatePresetTabs();
                 UpdateWidgetVisibility();
             }
-            else if (e.PropertyName == nameof(TelemetryState.HasReceivedData))
+            else if (e.PropertyName == nameof(TelemetryState.IsTimeTrial))
             {
+                // A session-type change (e.g. menu -> Time Trial) can leave the preset at
+                // Unsupported yet needs the placeholder re-evaluated.
                 UpdateWaitingPlaceholder();
             }
         }
 
-        // Cold-start empty state (see WaitingPlaceholder in XAML): only while the app is
-        // still at the default Unsupported preset AND no packet has ever arrived. A manual
-        // settings-menu preview forces a concrete preset, and a live Time Trial sets
-        // HasReceivedData - either condition drops the placeholder and reveals the layout.
+        // "Waiting for a session" empty state (see WaitingPlaceholder in XAML): shown for any
+        // Unsupported-preset state - cold start (no game) AND the game sitting in its menus
+        // (which streams data with an unmapped session type) - EXCEPT a live Time Trial, which
+        // is a real drivable session where the Lap Timing layout is useful. A settings-menu
+        // preview forces a concrete preset, which also drops the placeholder.
         private void UpdateWaitingPlaceholder()
         {
-            bool waiting = _state.CurrentPreset == PresetType.Unsupported && !_state.HasReceivedData;
+            bool waiting = _state.CurrentPreset == PresetType.Unsupported && !_state.IsTimeTrial;
             WaitingPlaceholder.Visibility = waiting ? Visibility.Visible : Visibility.Collapsed;
         }
 
