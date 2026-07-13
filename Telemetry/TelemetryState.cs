@@ -545,6 +545,12 @@ namespace F1RaceEngineer.Telemetry
             RaceStandings.Clear();
             _totalLaps = 0;
             LapCounterText = "-";
+            // Cleared with the rest of the tower's race-scoped state so the purple
+            // "FASTEST LAP" strip doesn't linger from the previous session until the new
+            // session's first LapData tick recomputes it.
+            HasRaceFastestLap = false;
+            FastestLapDriver = "";
+            FastestLapTimeText = "";
             ResetSectorDisplayForNewLap();
 
             CurrentLapTimeText = "-:--.---";

@@ -109,16 +109,23 @@ and must switch context automatically.
   stop finishes - see §5 thirteenth round) and total pit-lane time on the OUT row
   (forward-stored, no ambiguity), per-sector times each with a colour-coded underline,
   lap time, and delta, one lap per row. Confirmed rendering correctly, including the
-  IN/OUT classification itself — **confirmed live**. The PIT column's OUT-row value is
-  new and not yet live-confirmed; the IN-row value has gone through two rounds of live
-  testing that each ruled out a prior theory (see §6) - still not confirmed working.
+  IN/OUT classification itself — **confirmed live**. The PIT column's OUT-row value
+  (total pit-lane time) is **confirmed live** (Barcelona log, §5 twentieth round); the
+  IN-row box time works on normal tracks but is still broken on line-straddling tracks
+  like Monaco (§6 - the pit-tag bug, deferred until a Monaco pit is captured).
 - **Alert banner** — Safety Car / VSC / Red Flag / Chequered Flag (see caveats in §6).
   Confirmed working live, including VSC.
-- **Qualifying position list** — full field, livery colour swatch, driver name +
-  team name (from `ParticipantData.Team`, mapped to a display label in
-  `Models/TeamNames.cs`), best lap, gap to leader.
-- **Qualifying also shows** a second Lap Timing widget instance (history hidden, via
-  the `ShowHistory` dependency property) stacked above the position list.
+- **Practice/Qualifying timing board** (`PositionListWidget`) — full field, livery
+  colour swatch, driver name + team name (from `ParticipantData.Team`, mapped to a
+  display label in `Models/TeamNames.cs`), best lap, gap to fastest. Sorted and numbered
+  by best lap (§5 twentieth round - the game's `CarPosition` isn't reliable best-lap
+  order in Practice). Shown in both Practice and Qualifying since the nineteenth round's
+  layout unification.
+- **Uniform per-preset layout** (§5 nineteenth round) — all three presets share one
+  layout: the full-field view in the left column (Race tower in Race; the timing board
+  in Practice/Qualifying), and the single Lap Timing widget *with* history in the right
+  column on every preset. The old separate history-less Qualifying Lap Timing instance
+  was removed.
 - **Widget catalog built**: Tyres (compound badge + per-corner wear, compact
   "+"-divided car-layout diagram), Car Condition (quiet checkmark when clean / yellow
   itemized list when actually damaged), Penalties & Flags (same pattern + a live flag
@@ -128,14 +135,16 @@ and must switch context automatically.
   Race; only the core (Lap Timing / Position List) for Practice and Qualifying.
   Confirmed live in a real race session (see fixes in §6 that came out of that test).
 - **Race Position Tower** (`Widgets/RacePositionTowerWidget.xaml`) — a "LAP X / Y"
-  banner (tracks the race leader, §5 thirteenth round) above a full-field tower shown
-  only in Race, to the left of everything else: position, livery swatch, driver + team,
-  Interval (gap to car ahead), Gap (to leader), tyre compound letter, and a pending-
-  penalty badge. Reads `LapData.DeltaToCarInFrontInMS`/`DeltaToRaceLeaderInMS` directly
-  per car - no cross-referencing needed, unlike the old Gaps & Position widget it
-  replaced (see §8 for why that one was removed). Retired/DNF/DSQ/not-classified cars
-  show a dimmed row and a single "Out" instead of a stale interval/gap (§5, tenth and
-  thirteenth rounds).
+  banner (tracks the race leader, §5 thirteenth round) and a purple "FASTEST LAP"
+  strip (§5 twenty-first round) above a full-field tower shown only in Race, to the left
+  of everything else: position, livery swatch, driver + team, Interval (gap to car
+  ahead), Gap (to leader), tyre compound letter, a "PIT" indicator while a car is being
+  serviced (§5 nineteenth round, confirmed §5 twentieth), and a shared badge slot for a
+  pending-penalty "!" or the fastest-lap stopwatch. Reads
+  `LapData.DeltaToCarInFrontInMS`/`DeltaToRaceLeaderInMS` directly per car - no
+  cross-referencing needed, unlike the old Gaps & Position widget it replaced (see §8 for
+  why that one was removed). Retired/DNF/DSQ/not-classified cars show a dimmed row and a
+  single "Out" instead of a stale interval/gap (§5, tenth and thirteenth rounds).
 - **Adaptive grid layout** (`MainWindow.xaml.cs` `ArrangeWidgets`) rebuilds the catalog
   widgets' row/column definitions to fit exactly the currently-visible set on every
   toggle change, so remaining widgets grow to fill freed space with no blank gaps.
@@ -178,6 +187,14 @@ full-repo audit + F1 authenticity check, added the position/timing board to the
 Practice tab, a "PIT" indicator to the Race tower, and unified all three presets to
 one layout (full-field view in the left column, Lap Timing with history in the right)
 - Qualifying gained lap history and the separate history-less instance was removed.
+A twentieth round (§5) fixed the timing board to sort/number by best lap (not the
+game's `CarPosition`), confirmed the tower "PIT" indicator and Car Condition damage as
+working, and confirmed the OUT-row pit-lane time via the Barcelona log. A twenty-first
+round (§5) added the cold-start "Waiting for telemetry" placeholder, redrew the tyre
+compound marker as a broadcast-style vector ring (removing now-dead
+`TyreCompoundForeground`/`CompoundPalette.ForegroundFor`), and added the race
+fastest-lap strip to the tower - all verified without a live game except the fastest-lap
+strip, which needs a race to confirm it populates.
 
 ## 3. Architecture
 
@@ -1016,6 +1033,11 @@ column**. Only the left-column occupant differs:
   history-less Qualifying Lap Timing instance - the single `LapTiming` widget is used
   everywhere, with the Lap History toggle on by default (Qualifying's old
   "hotlap-focused, no history" rule was dropped for uniformity at the user's request).
+- **Cold start**: before the first packet arrives (default `Unsupported` preset, no data
+  yet) a "Waiting for telemetry" placeholder overlays the whole widget area, so launch
+  doesn't show a bare half-populated layout (§5 twenty-first round). It's gated on
+  `Unsupported preset AND !HasReceivedData`, so it steps aside for a settings-menu
+  preview (forces a concrete preset) and for a live Time Trial (Unsupported but sending).
 
 ### Lap Timing colour convention (real F1 timing-screen convention, confirmed)
 - **Purple** = fastest of the session (any driver).
@@ -1029,7 +1051,11 @@ column**. Only the left-column occupant differs:
 ### Race Position Tower (Race-only, not part of the toggleable catalog)
 - A "LAP X / Y" banner (§5 thirteenth round - tracks the race leader's `CurrentLapNum`
   and `SessionDataPacket.TotalLaps`, not the player's own lap count) sits above the
-  full-field tower shown to the left of everything else in Race: position, livery
+  full-field tower shown to the left of everything else in Race. Directly under it, a
+  broadcast-style purple "FASTEST LAP - {driver} {time}" strip (§5 twenty-first round -
+  `HasRaceFastestLap`/`FastestLapDriver`/`FastestLapTimeText`, sourced from the same
+  `_carBestLapMs` holder the per-row badge uses; hidden until a lap is set). The tower
+  rows themselves show: position, livery
   swatch, driver + team, Interval (gap to car ahead), Gap (to leader), tyre compound
   letter (plain colored text, no background badge - see §5 tenth round), and one shared
   badge slot for either a red "!" pending-penalty badge (§5 twelfth round) or a purple
@@ -1049,8 +1075,10 @@ column**. Only the left-column occupant differs:
   this replaced the old Gaps & Position widget (removed on all presets, not just Race).
 
 ### Widget catalog (toggleable unless noted)
-- **Tyres** — rendered compound icon (FIA colour convention, drawn not captured),
-  tyre age, four-corner wear diagram. NOTE: wear is genuinely per-corner
+- **Tyres** — compound marker drawn as the broadcast-style tyre ring (coloured compound
+  band around a dark tyre body, letter in the band colour; FIA colour convention, all
+  vector - no trademarked Pirelli/F1 artwork, see §5 twenty-first round), tyre age,
+  four-corner wear diagram. NOTE: wear is genuinely per-corner
   (`FrontLeft/FrontRight/RearLeft/RearRight` differ) — must not be collapsed to one
   number.
 - **Car Condition** — quiet checkmark + "No damage" when undamaged (deliberately NOT
@@ -1161,6 +1189,15 @@ before rebuilding a version of this.
   - Open questions before building: whether to include axis gridlines/lap-number
     labels like the real graphic or keep it to just the coloured bar + letter markers,
     and whether the open/current stint needs an explicit "current lap" tick mark.
+- **Tyre age in the Race tower — discussed, placement undecided.** Would cache
+  `CarStatusData.TyresAgeLaps` per car (like `_carTyreCompounds`) and add a small age
+  readout per row. Two placement options were weighed and not resolved: (A) reuse the
+  shared far-right badge column (penalty/fastest-lap badges take priority when active) -
+  zero layout change, but the age sits away from the compound letter and vanishes on the
+  fastest-lap/penalty car; (B) pair the age with the tyre letter itself (stacked or a
+  slightly wider column) - more authentic (compound + age as a unit, matching broadcast)
+  and never hidden, but needs a small column tweak. No decision made; revisit before
+  building.
 - **Car Condition damage threshold — CLOSED, working as intended.** Early on it looked
   like damage fields (wings/floor/gearbox/engine) creep up from race start with no
   collisions, which suggested a minimum-threshold filter was needed. After more live

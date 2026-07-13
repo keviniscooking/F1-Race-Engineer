@@ -11,9 +11,12 @@ namespace F1RaceEngineer.Models
         public string LapTagText { get; set; } = "";
         public bool HasLapTag { get; set; }
 
-        // Only populated on the IN-tagged row (see TelemetryState.RegisterLapTime) - the
-        // pit stop's box time is captured at the same tick that row is created, so there's
-        // no cross-lap staleness risk like there would be reading it later on the OUT row.
+        // Populated on both pit-related rows, by two different mechanisms:
+        //  - OUT row: the total pit-lane time (entry to exit), set at row-creation time in
+        //    RegisterLapTime - it's always finished by the time the OUT lap starts.
+        //  - IN row: the stationary box time, patched in retroactively by
+        //    PatchMostRecentInRowPitTime once the stop actually finishes (it isn't known
+        //    yet when the IN row is first created on line-straddling tracks).
         public string PitStopTimeText { get; set; } = "";
 
         public string Sector1Text { get; set; } = "";

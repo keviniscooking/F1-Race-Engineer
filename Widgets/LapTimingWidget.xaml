@@ -165,8 +165,9 @@
                                         <Border Height="2" Background="{Binding Sector3Brush}" Margin="0,4,0,0" HorizontalAlignment="Stretch"/>
                                     </StackPanel>
 
-                                    <!-- Only populated on the IN row (see TelemetryState.RegisterLapTime) -
-                                         blank everywhere else, same as the tag it sits beside. -->
+                                    <!-- Populated on the two pit-related laps only (blank elsewhere,
+                                         like the tag beside it): the OUT row's total pit-lane time
+                                         and the IN row's box time - see LapHistoryEntry.PitStopTimeText. -->
                                     <TextBlock Grid.Column="5" Text="{Binding PitStopTimeText}" FontSize="14" FontWeight="Bold" Foreground="#79C0FF" FontFamily="Consolas" HorizontalAlignment="Left" VerticalAlignment="Center"/>
 
                                     <!-- Tag gets its own column rather than sharing one with Time -
