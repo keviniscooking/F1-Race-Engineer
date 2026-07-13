@@ -153,6 +153,20 @@ namespace F1RaceEngineer
                 UpdatePresetTabs();
                 UpdateWidgetVisibility();
             }
+            else if (e.PropertyName == nameof(TelemetryState.HasReceivedData))
+            {
+                UpdateWaitingPlaceholder();
+            }
+        }
+
+        // Cold-start empty state (see WaitingPlaceholder in XAML): only while the app is
+        // still at the default Unsupported preset AND no packet has ever arrived. A manual
+        // settings-menu preview forces a concrete preset, and a live Time Trial sets
+        // HasReceivedData - either condition drops the placeholder and reveals the layout.
+        private void UpdateWaitingPlaceholder()
+        {
+            bool waiting = _state.CurrentPreset == PresetType.Unsupported && !_state.HasReceivedData;
+            WaitingPlaceholder.Visibility = waiting ? Visibility.Visible : Visibility.Collapsed;
         }
 
         private void UpdateWidgetVisibility()
@@ -171,6 +185,7 @@ namespace F1RaceEngineer
             PositionList.Visibility = boardPreset ? Visibility.Visible : Visibility.Collapsed;
             RaceTower.Visibility = preset == PresetType.Race ? Visibility.Visible : Visibility.Collapsed;
 
+            UpdateWaitingPlaceholder();
             ApplyCatalogWidgetLayout();
         }
 

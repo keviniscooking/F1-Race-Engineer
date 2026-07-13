@@ -17,13 +17,6 @@ namespace F1RaceEngineer.Models
         public static readonly SolidColorBrush Wet = Freeze(0x2E, 0x6F, 0xE1);
         public static readonly SolidColorBrush Unknown = Freeze(0x6B, 0x76, 0x84);
 
-        // Real FIA badges use white lettering on the saturated compounds (soft/inter/wet)
-        // and dark lettering only on the light ones (medium/hard) - a single dark-text
-        // color for every compound (as this app first shipped with) reads fine on
-        // yellow/white but is low-contrast and wrong on red/green/blue.
-        public static readonly SolidColorBrush DarkForeground = Freeze(0x0D, 0x11, 0x17);
-        public static readonly SolidColorBrush LightForeground = Freeze(0xF5, 0xF7, 0xFA);
-
         private static SolidColorBrush Freeze(byte r, byte g, byte b)
         {
             var brush = new SolidColorBrush(Color.FromRgb(r, g, b));
@@ -52,13 +45,6 @@ namespace F1RaceEngineer.Models
             VisualCompound.F1Inter => "I",
             VisualCompound.F1Wet or VisualCompound.F2Wet or VisualCompound.F1ClassicWet => "W",
             _ => "?"
-        };
-
-        public static SolidColorBrush ForegroundFor(VisualCompound compound) => compound switch
-        {
-            VisualCompound.F1Medium or VisualCompound.F2Medium => DarkForeground,
-            VisualCompound.F1Hard or VisualCompound.F2Hard or VisualCompound.F1ClassicDry => DarkForeground,
-            _ => LightForeground // Soft/Inter/Wet (saturated compounds) and unknown all read best in light text
         };
     }
 }

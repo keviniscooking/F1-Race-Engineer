@@ -158,6 +158,13 @@ namespace F1RaceEngineer.Telemetry
         private PresetType _currentPreset = PresetType.Unsupported;
         public PresetType CurrentPreset { get => _currentPreset; private set => SetProperty(ref _currentPreset, value); }
 
+        // Flips true the first time ANY packet is handled. Lets the UI tell "the game
+        // hasn't started sending yet" (cold start - show a waiting placeholder) apart from
+        // a live Time Trial session, which also sits at the Unsupported preset but IS
+        // sending data. Never resets - once data has ever arrived, it has arrived.
+        private bool _hasReceivedData;
+        public bool HasReceivedData { get => _hasReceivedData; private set => SetProperty(ref _hasReceivedData, value); }
+
         /// <summary>
         /// Preview mode hook: lets the UI be reviewed preset-by-preset without a live
         /// game connection (presets are otherwise only ever driven by real session data).
@@ -194,6 +201,20 @@ namespace F1RaceEngineer.Telemetry
         private byte _totalLaps;
         private string _lapCounterText = "-";
         public string LapCounterText { get => _lapCounterText; private set => SetProperty(ref _lapCounterText, value); }
+
+        // Session's fastest lap, shown as the broadcast's purple "FASTEST LAP" strip in the
+        // race tower. Sourced from _carBestLapMs (already maintained per car), so no extra
+        // tracking - RefreshRaceStandings sets these while it's already finding the holder
+        // for the per-row purple badge. HasRaceFastestLap gates the strip's visibility (no
+        // lap has been set yet at the very start of a race).
+        private bool _hasRaceFastestLap;
+        public bool HasRaceFastestLap { get => _hasRaceFastestLap; private set => SetProperty(ref _hasRaceFastestLap, value); }
+
+        private string _fastestLapDriver = "";
+        public string FastestLapDriver { get => _fastestLapDriver; private set => SetProperty(ref _fastestLapDriver, value); }
+
+        private string _fastestLapTimeText = "";
+        public string FastestLapTimeText { get => _fastestLapTimeText; private set => SetProperty(ref _fastestLapTimeText, value); }
 
         // ---- Lap timing (bindable) ----
         private string _currentLapTimeText = "-:--.---";
@@ -258,9 +279,6 @@ namespace F1RaceEngineer.Telemetry
 
         private SolidColorBrush _tyreCompoundBrush = CompoundPalette.Unknown;
         public SolidColorBrush TyreCompoundBrush { get => _tyreCompoundBrush; private set => SetProperty(ref _tyreCompoundBrush, value); }
-
-        private SolidColorBrush _tyreCompoundForeground = CompoundPalette.LightForeground;
-        public SolidColorBrush TyreCompoundForeground { get => _tyreCompoundForeground; private set => SetProperty(ref _tyreCompoundForeground, value); }
 
         private string _tyreAgeLapsText = "-";
         public string TyreAgeLapsText { get => _tyreAgeLapsText; private set => SetProperty(ref _tyreAgeLapsText, value); }
@@ -370,6 +388,7 @@ namespace F1RaceEngineer.Telemetry
             // thread, so every packet's handling is marshaled here.
             System.Windows.Application.Current?.Dispatcher.BeginInvoke(() =>
             {
+                HasReceivedData = true;
                 switch (packet.PacketType)
                 {
                     case PacketType.Session when packet.TryGetSessionDataPacket(out SessionDataPacket session):
@@ -559,7 +578,6 @@ namespace F1RaceEngineer.Telemetry
 
             TyreCompoundLetter = "?";
             TyreCompoundBrush = CompoundPalette.Unknown;
-            TyreCompoundForeground = CompoundPalette.LightForeground;
             TyreAgeLapsText = "-";
             TyreWearFrontLeftText = TyreWearFrontRightText = TyreWearRearLeftText = TyreWearRearRightText = "-";
 
@@ -743,7 +761,6 @@ namespace F1RaceEngineer.Telemetry
 
             TyreCompoundLetter = CompoundPalette.LetterFor(car.VisualTyreCompound);
             TyreCompoundBrush = CompoundPalette.BrushFor(car.VisualTyreCompound);
-            TyreCompoundForeground = CompoundPalette.ForegroundFor(car.VisualTyreCompound);
             TyreAgeLapsText = car.TyresAgeLaps.ToString();
 
             RefreshPlayerFlag(car.VehicleFiaFlags);
@@ -1047,6 +1064,18 @@ namespace F1RaceEngineer.Telemetry
                 }
             }
 
+            if (fastestLapCarIndex >= 0 && fastestLapMs.HasValue)
+            {
+                GetParticipantInfo(fastestLapCarIndex, out var flName, out _, out _);
+                FastestLapDriver = flName ?? $"Car {fastestLapCarIndex + 1}";
+                FastestLapTimeText = FormatTime(fastestLapMs.Value);
+                HasRaceFastestLap = true;
+            }
+            else
+            {
+                HasRaceFastestLap = false;
+            }
+
             var rows = new List<RaceStanding>();
             byte leaderCurrentLap = 0;
             for (int i = 0; i < span.Length; i++)
@@ -1193,7 +1222,7 @@ namespace F1RaceEngineer.Telemetry
             uint? leaderBestMs = _carBestLapMs.Values.Where(v => v.HasValue).Select(v => v!.Value).DefaultIfEmpty().Min();
             if (leaderBestMs == 0) leaderBestMs = null;
 
-            var rows = new List<CarStanding>();
+            var built = new List<(CarStanding Row, uint SortKey, byte Tiebreak)>();
             for (int i = 0; i < span.Length; i++)
             {
                 var car = span[i];
@@ -1209,19 +1238,31 @@ namespace F1RaceEngineer.Telemetry
                     gapText = bestMs.Value == leaderBestMs.Value ? "-" : FormatDelta((long)bestMs.Value - (long)leaderBestMs.Value);
                 }
 
-                rows.Add(new CarStanding
+                built.Add((new CarStanding
                 {
-                    Position = car.CarPosition,
                     DriverName = name ?? $"Car {i + 1}",
                     TeamName = team ?? "",
                     LiveryBrush = livery ?? TimingColorPalette.NeutralText,
                     BestLapText = bestText,
                     GapText = gapText,
                     IsPlayer = i == _playerCarIndex
-                });
+                },
+                bestMs ?? uint.MaxValue, // cars without a lap yet sink to the bottom
+                car.CarPosition));       // stable tiebreak among no-lap cars
             }
 
-            rows.Sort((a, b) => a.Position.CompareTo(b.Position));
+            // Sort by best lap (fastest first) and number by that rank. This is a TIMING
+            // board, but the game's CarPosition is NOT reliably best-lap order in a
+            // practice session (it can reflect track position), which showed drivers out of
+            // timing order even though their best-lap times/gaps were correct. Cars with no
+            // lap yet fall to the bottom in the game's own position order.
+            var sorted = built.OrderBy(x => x.SortKey).ThenBy(x => x.Tiebreak).ToList();
+            var rows = new List<CarStanding>(sorted.Count);
+            for (int r = 0; r < sorted.Count; r++)
+            {
+                sorted[r].Row.Position = r + 1;
+                rows.Add(sorted[r].Row);
+            }
 
             if (!CollectionUnchanged(PositionList, rows))
             {

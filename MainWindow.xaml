@@ -134,5 +134,24 @@
                 </Grid>
             </Grid>
         </ScrollViewer>
+
+        <!-- Cold-start empty state: overlays the whole widget viewport (Grid.Row 2, on top
+             of the ScrollViewer) until the first telemetry packet arrives, so launch doesn't
+             show a bare, half-populated layout. Placed here rather than inside the
+             ScrollViewer so it centres in the visible window, not within the (much taller)
+             scrollable content. Opaque, so it hides whatever's behind it. Gated in code
+             (UpdateWaitingPlaceholder) on Unsupported preset AND no data yet - so it steps
+             aside both for a manual settings-menu preview (which forces a concrete preset)
+             and for a live Time Trial (Unsupported but with data flowing). -->
+        <Border x:Name="WaitingPlaceholder" Grid.Row="2" Background="#0D1117" Visibility="Collapsed">
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                <TextBlock Text="Waiting for telemetry&#8230;" FontSize="18" FontWeight="SemiBold"
+                           Foreground="#8B98A6" HorizontalAlignment="Center"/>
+                <TextBlock Text="Start a session in F1 25 &#8212; the dashboard appears automatically."
+                           FontSize="12" Foreground="#5A6470" Margin="0,8,0,0" HorizontalAlignment="Center"/>
+                <TextBlock Text="Or preview a layout from the &#9881; settings menu."
+                           FontSize="11" Foreground="#4A5460" Margin="0,4,0,0" HorizontalAlignment="Center"/>
+            </StackPanel>
+        </Border>
     </Grid>
 </Window>

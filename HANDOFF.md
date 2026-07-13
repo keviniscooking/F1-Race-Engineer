@@ -823,14 +823,50 @@ feature authentic (timing colours, compound colours, flag semantics, FIA termino
   re-adding Fuel & ERS - all technically feasible (`CarStatusData.TyresAgeLaps`/
   `DrsAllowed` per car exist) but declined for now.
 
-## 6. Not yet trustworthy / unvalidated
+### Twentieth round (follow-ups from live testing the new per-session layout)
+- **Position/timing board was sorted by the game's `CarPosition`, which isn't reliably
+  best-lap order in Practice** (it can reflect track position), so drivers showed up out
+  of timing order even though their best-lap times/gaps were correct (the gaps come from
+  `_carBestLapMs`, the sort didn't). Fixed in `RefreshPositionList`: it now sorts by best
+  lap (fastest first) and numbers rows by that rank, with cars that haven't set a lap
+  falling to the bottom in the game's own position order. Only affects the Practice/
+  Qualifying board (`PositionListWidget`), not the Race tower (which correctly uses
+  `CarPosition` for race order). Reported live in Practice; the fix needs a live re-check.
+- **Confirmations from live racing:** the Race tower's "PIT" indicator works as intended
+  (moved out of §6); Car Condition damage reads correctly with no threshold needed
+  (§8 decision closed); and the Barcelona pit log confirmed normal-track IN/OUT tagging
+  and the OUT-row pit-lane time both work (the pit-tag bug is Monaco-specific - see §6).
 
-- **Tower "PIT" indicator (§5, nineteenth round) is reasoned from `LapData.PitStatus`,
-  not yet re-confirmed live.** The XAML rendering (blue "PIT", auto-revert on
-  `PitStatus` returning to None) was verified against mock rows, but the exact live
-  behaviour - does `PitStatus` stay non-None for the whole pit-lane traversal, does it
-  flip cleanly on rejoin - hasn't been watched against a real rival pit stop. Watch the
-  next pit stop (own or rival) specifically.
+### Twenty-first round (cold-start polish, realistic tyre marker, race fastest lap)
+- **Cold-start "Waiting for telemetry" placeholder.** Before any packet arrives the app
+  sits at the default `Unsupported` preset, which collapses both the tower and the board
+  and defaults the catalog widgets off - leaving only the always-on Lap Timing card, a
+  bare layout that happened to look like the *old* (pre-board) Practice tab. Added an
+  opaque overlay (`WaitingPlaceholder`, `MainWindow.xaml`, on Grid.Row 2 over the
+  ScrollViewer so it centres in the visible viewport, not the taller scroll content).
+  Gated by `UpdateWaitingPlaceholder()` on **`CurrentPreset == Unsupported` AND
+  `!HasReceivedData`** - so it correctly steps aside for a settings-menu preview (which
+  forces a concrete preset) and for a live **Time Trial** (also `Unsupported`, but data
+  is flowing). `HasReceivedData` is a new one-way latch in `TelemetryState`, set true on
+  the first handled packet. Verified: shows centred at cold start, dismisses on Race
+  preview.
+- **Tyre compound marker is now the broadcast-style ring**, not a flat filled disc:
+  coloured compound band (outer ring) around a dark tyre body with the letter in the
+  band colour (`TyresWidget.xaml`, all vector shapes). Deliberately **not** the real
+  Pirelli/F1 tyre artwork - that's trademarked and can't ship in a public distributed
+  app; the vector lookalike carries no such risk and scales/theme-adapts cleanly. This
+  made `TelemetryState.TyreCompoundForeground` and `CompoundPalette.ForegroundFor`/
+  `DarkForeground`/`LightForeground` dead (the letter now uses the band colour on a dark
+  centre, so no per-compound contrast foreground is needed) - all removed.
+- **Race fastest-lap strip in the tower (audit item #7).** A purple "FASTEST LAP -
+  {driver} {time}" strip under the LAP counter banner (`RacePositionTowerWidget.xaml`),
+  reusing the same purple `#AFA9EC` + stopwatch glyph as the per-row fastest-lap badge.
+  Driven by new `HasRaceFastestLap`/`FastestLapDriver`/`FastestLapTimeText` on
+  `TelemetryState`, set in `RefreshRaceStandings` from the `_carBestLapMs` holder it
+  already computes for the badge (no new tracking). Hidden until someone sets a lap.
+  Builds clean; **needs a live race to confirm the strip populates** (can't show without
+  race data - it's Collapsed at cold start / in preview).
+
 - **Red Flag auto-clear is an untested heuristic.** There is no confirmed "flag
   cleared" event in the API, so it shows on its trigger event and auto-hides after a
   15s timeout. NOT yet tested against a real red flag. Safety Car / VSC, by contrast,
@@ -882,13 +918,13 @@ feature authentic (timing colours, compound colours, flag semantics, FIA termino
   tracks. REMOVE the logging once the fix lands and is confirmed live. The prior
   patch-based theory (below) is superseded by this finding - a forward-store for the
   stop time is now known to be needed for the Monaco case.
-- **OUT row's total pit-lane time (§5, thirteenth round) has no theory to test - not
-  yet re-confirmed live, but for a much more mundane reason (just hasn't been watched
-  yet).** Unlike the IN row, there's no timing ambiguity here: the pit lane is always
-  exited before the OUT lap starts, so the value is always ready in time. Simple
-  forward-store, same shape as the original (superseded) IN-row design. Watch the next
-  pit stop to confirm the number itself is plausible (matches what the game/broadcast
-  would show for total pit lane time, not just that a number appears at all).
+- **OUT row's total pit-lane time (§5, thirteenth round) - CONFIRMED working** on a
+  normal track. The Barcelona pit log (§5 twentieth round) showed the forward-store fire
+  correctly (`STORE_LANE_TIME laneT=19307`), and the OUT row displayed it. Unlike the IN
+  row there's no timing ambiguity - the pit lane is always exited before the OUT lap
+  starts, so the forward-store is always ready in time. (The IN-row stationary stop time
+  is the one still broken on line-straddling tracks like Monaco - see the pit-tag entry
+  above.)
 - **Lap counter banner (§5, thirteenth round) is reasoned from confirmed fields
   (`SessionDataPacket.TotalLaps`, the leader's `LapData.CurrentLapNum`), not yet
   re-confirmed live.** Should track the race's overall lap count correctly regardless
@@ -1125,15 +1161,13 @@ before rebuilding a version of this.
   - Open questions before building: whether to include axis gridlines/lap-number
     labels like the real graphic or keep it to just the coloured bar + letter markers,
     and whether the open/current stint needs an explicit "current lap" tick mark.
-- **Car Condition damage threshold** — confirmed via live testing that damage fields
-  (wings/floor/gearbox/engine) fill in at race start with zero collisions (§5, §6), so
-  low values on their own aren't reliable evidence of a real incident. (Per-corner tyre
-  damage was also in this bucket but is now moot - removed entirely, see §5 third
-  round.) Proposed fix: only surface a component once it crosses a minimum threshold
-  (~10% suggested starting point) instead of the instant it reads non-zero. Two open
-  questions before building: (1) the exact threshold value, (2) whether it applies
-  uniformly across all components or per-component (e.g. wings/floor might creep
-  faster than gearbox).
+- **Car Condition damage threshold — CLOSED, working as intended.** Early on it looked
+  like damage fields (wings/floor/gearbox/engine) creep up from race start with no
+  collisions, which suggested a minimum-threshold filter was needed. After more live
+  racing the user confirmed the widget reads correctly as-is (the earlier "creep" was
+  the background engine-component *wear* fields, which are already excluded - see §5
+  third round / §6), so **no threshold is being added**; a component surfaces the moment
+  it reports non-zero incident damage, which is the intended behaviour.
 - **Proposed alert banners, not yet implemented** — of the 21 `EventType` values, 16
   remain unwired (5 are live - see §7). Draft text/colour/clear-behaviour for each,
   reviewed but not committed to:

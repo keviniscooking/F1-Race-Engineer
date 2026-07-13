@@ -16,13 +16,20 @@
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
-                <!-- Compound + age -->
+                <!-- Compound + age. Drawn as the F1 broadcast tyre marker - a coloured
+                     compound band (outer ring) around a dark tyre body with the compound
+                     letter in the band's colour - rather than a flat filled disc. All vector
+                     shapes (no bundled Pirelli/F1 artwork, which is trademarked and can't
+                     ship in a distributed app); scales crisply and themes cleanly. -->
                 <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                    <Border Width="50" Height="50" CornerRadius="25" Background="{Binding TyreCompoundBrush}" HorizontalAlignment="Center">
-                        <TextBlock Text="{Binding TyreCompoundLetter}" FontSize="22" FontWeight="Bold"
-                                   Foreground="{Binding TyreCompoundForeground}"
+                    <Grid Width="50" Height="50" HorizontalAlignment="Center">
+                        <Ellipse Fill="{Binding TyreCompoundBrush}"/>
+                        <Ellipse Width="37" Height="37" Fill="#15181C"/>
+                        <Ellipse Width="37" Height="37" Stroke="#2A2F36" StrokeThickness="1"/>
+                        <TextBlock Text="{Binding TyreCompoundLetter}" FontSize="19" FontWeight="Bold"
+                                   Foreground="{Binding TyreCompoundBrush}"
                                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                    </Border>
+                    </Grid>
                     <TextBlock FontSize="14" Foreground="#6B7684" HorizontalAlignment="Center" Margin="0,7,0,0">
                         <Run Text="{Binding TyreAgeLapsText, Mode=OneWay}"/><Run Text=" laps"/>
                     </TextBlock>
