@@ -13,6 +13,7 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="26"/>
+                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
@@ -71,6 +72,17 @@
                     <Rectangle Grid.Row="0" Grid.RowSpan="2" Grid.Column="0" Grid.ColumnSpan="2"
                                Height="1" Fill="#232B35" VerticalAlignment="Center" Margin="0"/>
                 </Grid>
+
+                <!-- Player tyre-strategy bar (Race only, broadcast-style): proportional
+                     compound-coloured segments built in code-behind from TelemetryState.TyreStints,
+                     the last segment growing each lap. Sits to the RIGHT of the wear diagram,
+                     filling the widget's spare horizontal space and vertically centred, so it
+                     adds no height to the widget. Collapsed until the first stint exists. -->
+                <StackPanel Grid.Column="3" VerticalAlignment="Center" Margin="28,0,0,0"
+                            Visibility="{Binding HasTyreStints, Converter={StaticResource BoolToVis}}">
+                    <TextBlock Text="TYRE STRATEGY" FontSize="11" Foreground="#6B7684" Margin="0,0,0,8"/>
+                    <Grid x:Name="StintBar" Height="22" MinWidth="120"/>
+                </StackPanel>
             </Grid>
         </StackPanel>
     </Border>

@@ -22,7 +22,14 @@ to alt-tab out of the game mid-session.
   and team-mate-in-pits notifications.
 - **Tyres, Car Condition, Penalties & Flags, Session & Track** — toggleable widgets via
   the gear-icon settings panel, with sensible per-preset defaults. Penalties & Flags
-  reasons are labelled against real FIA terminology, not raw game field names.
+  reasons are labelled against real FIA terminology, not raw game field names. The Tyres
+  widget also shows a live, broadcast-style **tyre-strategy bar** (your stints so far,
+  colour-coded by compound).
+- **Race History** — a clock icon (next to the gear) opens your saved races. Every race
+  is captured automatically when it finishes: a card per Grand Prix (finish, best lap,
+  points, stint bar) opening into a full detail view — final classification, your
+  lap-by-lap, and a tyre-strategy graphic with pit-lap markers. Delete any race, or
+  **export one to a self-contained HTML file** to share. All stored locally on your PC.
 - Automatically switches between **Practice / Qualifying / Race** layouts based on the
   live session type — no manual tab clicking required.
 

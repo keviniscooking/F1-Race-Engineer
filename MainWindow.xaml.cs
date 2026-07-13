@@ -67,6 +67,12 @@ namespace F1RaceEngineer
             };
 
             _state.PropertyChanged += State_PropertyChanged;
+            // If a race is auto-saved while the history overlay happens to be open, refresh it
+            // live; otherwise it'll pick the new race up next time it's opened (Reload on show).
+            _state.RaceSaved += _ => Dispatcher.Invoke(() =>
+            {
+                if (HistoryButton.IsChecked == true) History.Reload();
+            });
             UpdatePresetTabs();
             UpdateWidgetVisibility();
 
@@ -292,6 +298,17 @@ namespace F1RaceEngineer
             PracticeTab.Background = _state.CurrentPreset == PresetType.Practice ? ActiveTabBrush : InactiveTabBrush;
             QualifyingTab.Background = _state.CurrentPreset == PresetType.Qualifying ? ActiveTabBrush : InactiveTabBrush;
             RaceTab.Background = _state.CurrentPreset == PresetType.Race ? ActiveTabBrush : InactiveTabBrush;
+        }
+
+        private void HistoryButton_Checked(object sender, RoutedEventArgs e)
+        {
+            History.Reload(); // pull in any newly-saved races each time it opens
+            History.Visibility = Visibility.Visible;
+        }
+
+        private void HistoryButton_Unchecked(object sender, RoutedEventArgs e)
+        {
+            History.Visibility = Visibility.Collapsed;
         }
 
         private void SettingsButton_Checked(object sender, RoutedEventArgs e)

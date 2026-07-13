@@ -70,9 +70,24 @@
                 </Border>
             </StackPanel>
 
-            <ToggleButton x:Name="SettingsButton" Grid.Column="2" Content="&#9881;" FontSize="16"
-                          Style="{StaticResource IconToggleButtonStyle}" HorizontalAlignment="Right"
-                          Checked="SettingsButton_Checked" Unchecked="SettingsButton_Unchecked"/>
+            <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
+                <!-- Race history: opens the saved-race overlay. Clock-with-back-arrow glyph,
+                     stroke bound to the button's own Foreground so it dims/brightens with the
+                     shared icon-button states. -->
+                <ToggleButton x:Name="HistoryButton" Style="{StaticResource IconToggleButtonStyle}" ToolTip="Race history"
+                              Margin="0,0,6,0" Checked="HistoryButton_Checked" Unchecked="HistoryButton_Unchecked">
+                    <Viewbox Width="15" Height="15">
+                        <Canvas Width="24" Height="24">
+                            <Path Data="M3 12a9 9 0 1 0 3-6.7L3 8" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="1.9" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+                            <Path Data="M3 4v4h4" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="1.9" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+                            <Path Data="M12 8v4l3 2" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="1.9" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+                        </Canvas>
+                    </Viewbox>
+                </ToggleButton>
+                <ToggleButton x:Name="SettingsButton" Content="&#9881;" FontSize="16"
+                              Style="{StaticResource IconToggleButtonStyle}"
+                              Checked="SettingsButton_Checked" Unchecked="SettingsButton_Unchecked"/>
+            </StackPanel>
             <Popup x:Name="SettingsPopup" PlacementTarget="{Binding ElementName=SettingsButton}"
                    Placement="Bottom" StaysOpen="False" Closed="SettingsPopup_Closed">
                 <widgets:SettingsPanel x:Name="SettingsFlyoutContent"/>
@@ -153,5 +168,10 @@
                            FontSize="11" Foreground="#4A5460" Margin="0,4,0,0" HorizontalAlignment="Center"/>
             </StackPanel>
         </Border>
+
+        <!-- Race-history overlay: covers the whole widget viewport (on top of the waiting
+             placeholder too) when the history icon is toggled on. Toggled in code-behind,
+             which reloads the saved races each time it opens. -->
+        <widgets:HistoryPanel x:Name="History" Grid.Row="2" Visibility="Collapsed"/>
     </Grid>
 </Window>

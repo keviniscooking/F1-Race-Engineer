@@ -59,6 +59,25 @@ namespace F1RaceEngineer.Telemetry
         // (driven by LapData) can still read each car's current compound inline.
         private readonly Dictionary<int, VisualCompound> _carTyreCompounds = new();
 
+        // ---- Live player tyre stints (Race only) - drives the Tyres widget's stint bar.
+        // A new stint is pushed when the player's compound changes or their tyre age drops
+        // (fresh set fitted). StartLap is derived as currentLap - age, so the bar reflects
+        // when the tyres were actually fitted even if the app joined the race mid-session.
+        private readonly List<(VisualCompound Compound, int StartLap)> _liveStints = new();
+        private VisualCompound? _liveStintCompound;
+        private int _liveStintAge;
+        private int _playerCurrentLap;
+
+        // ---- Race history capture ----
+        // Persists a completed race (Final Classification + the player's lap-by-lap) to disk.
+        // Raised after a NEW race is saved so the UI can refresh its list. _currentTrack is
+        // cached from Session packets (Final Classification carries no track); the saved-uid
+        // guard stops us rebuilding + re-saving every frame while the game re-sends the packet.
+        private readonly RaceHistoryStore _historyStore = new();
+        public event Action<SavedRace>? RaceSaved;
+        private Track _currentTrack;
+        private ulong? _savedClassificationUid;
+
         // Populated from individual PenaltyIssued events (which carry a specific
         // InfringementType), not from LapData's TotalWarnings (a bare running count
         // with no reason) - lets the Penalties & Flags widget say what each warning was
@@ -283,6 +302,13 @@ namespace F1RaceEngineer.Telemetry
         private string _tyreAgeLapsText = "-";
         public string TyreAgeLapsText { get => _tyreAgeLapsText; private set => SetProperty(ref _tyreAgeLapsText, value); }
 
+        // The player's tyre-strategy bar (broadcast-style), rebuilt from _liveStints. Empty
+        // outside a race. The Tyres widget lays these out as proportional coloured segments.
+        public ObservableCollection<TyreStintSegment> TyreStints { get; } = new();
+
+        private bool _hasTyreStints;
+        public bool HasTyreStints { get => _hasTyreStints; private set => SetProperty(ref _hasTyreStints, value); }
+
         private string _tyreWearFrontLeftText = "-";
         public string TyreWearFrontLeftText { get => _tyreWearFrontLeftText; private set => SetProperty(ref _tyreWearFrontLeftText, value); }
 
@@ -414,6 +440,10 @@ namespace F1RaceEngineer.Telemetry
                     case PacketType.CarDamage when packet.TryGetCarDamageDataPacket(out CarDamageDataPacket carDamage):
                         HandleCarDamage(carDamage);
                         break;
+
+                    case PacketType.FinalClassification when packet.TryGetFinalClassificationDataPacket(out FinalClassificationDataPacket finalClass):
+                        HandleFinalClassification(finalClass);
+                        break;
                 }
             });
         }
@@ -449,6 +479,7 @@ namespace F1RaceEngineer.Telemetry
             }
 
             _totalLaps = session.TotalLaps;
+            _currentTrack = session.Track;
 
             RefreshSessionAndTrack(session);
         }
@@ -586,6 +617,14 @@ namespace F1RaceEngineer.Telemetry
             TyreCompoundBrush = CompoundPalette.Unknown;
             TyreAgeLapsText = "-";
             TyreWearFrontLeftText = TyreWearFrontRightText = TyreWearRearLeftText = TyreWearRearRightText = "-";
+
+            _liveStints.Clear();
+            _liveStintCompound = null;
+            _liveStintAge = 0;
+            _playerCurrentLap = 0;
+            TyreStints.Clear();
+            HasTyreStints = false;
+            _savedClassificationUid = null;
 
             CarConditionIssues.Clear();
             CarConditionIsOk = true;
@@ -769,7 +808,63 @@ namespace F1RaceEngineer.Telemetry
             TyreCompoundBrush = CompoundPalette.BrushFor(car.VisualTyreCompound);
             TyreAgeLapsText = car.TyresAgeLaps.ToString();
 
+            UpdateLiveStints(car.VisualTyreCompound, car.TyresAgeLaps);
+
             RefreshPlayerFlag(car.VehicleFiaFlags);
+        }
+
+        /// <summary>
+        /// Pushes a new stint onto the live tyre-strategy bar when the player's compound
+        /// changes or their tyre age drops (a fresh set fitted). Race only - the bar is
+        /// meaningless in Practice/Qualifying where the player does short unrelated runs.
+        /// </summary>
+        private void UpdateLiveStints(VisualCompound compound, int age)
+        {
+            if (CurrentPreset != PresetType.Race) return;
+
+            bool first = _liveStints.Count == 0;
+            bool compoundChanged = _liveStintCompound.HasValue && compound != _liveStintCompound.Value;
+            bool ageReset = _liveStintCompound.HasValue && age < _liveStintAge; // fresh tyres
+
+            if (first || compoundChanged || ageReset)
+            {
+                // Age counts laps already run on the tyre, so currentLap - age is when it was
+                // fitted - accurate even if the app joined the race mid-session.
+                int startLap = Math.Max(1, _playerCurrentLap - age);
+                var last = _liveStints.Count > 0 ? _liveStints[^1] : default;
+                if (_liveStints.Count == 0 || last.StartLap != startLap || last.Compound != compound)
+                {
+                    _liveStints.Add((compound, startLap));
+                    RebuildTyreStints();
+                }
+            }
+
+            _liveStintCompound = compound;
+            _liveStintAge = age;
+        }
+
+        /// <summary>
+        /// Rebuilds the bindable <see cref="TyreStints"/> segments from <see cref="_liveStints"/>.
+        /// Each stint's lap count is the gap to the next stint's start (the last stint runs to
+        /// the current lap), which is what drives its proportional width in the bar.
+        /// </summary>
+        private void RebuildTyreStints()
+        {
+            TyreStints.Clear();
+            for (int i = 0; i < _liveStints.Count; i++)
+            {
+                int start = _liveStints[i].StartLap;
+                int nextStart = i + 1 < _liveStints.Count ? _liveStints[i + 1].StartLap : _playerCurrentLap + 1;
+                var c = _liveStints[i].Compound;
+                TyreStints.Add(new TyreStintSegment
+                {
+                    LapCount = Math.Max(1, nextStart - start),
+                    Letter = CompoundPalette.LetterFor(c),
+                    Brush = CompoundPalette.BrushFor(c),
+                    TextBrush = CompoundPalette.ForegroundFor(c)
+                });
+            }
+            HasTyreStints = TyreStints.Count > 0;
         }
 
         private void RefreshPlayerFlag(FiaFlag flag)
@@ -1043,6 +1138,14 @@ namespace F1RaceEngineer.Telemetry
                 IsCurrentLapInvalid = playerLap.IsCurrentLapInvalid;
 
                 RefreshPenalties(playerLap);
+
+                // Keep the current lap fresh (used for stint start-lap maths) and grow the
+                // last stint segment once per lap as the race progresses.
+                if (playerLap.CurrentLapNum != _playerCurrentLap)
+                {
+                    _playerCurrentLap = playerLap.CurrentLapNum;
+                    if (_liveStints.Count > 0) RebuildTyreStints();
+                }
             }
 
             RefreshRaceStandings(span);
@@ -1275,6 +1378,172 @@ namespace F1RaceEngineer.Telemetry
                 PositionList.Clear();
                 foreach (var row in rows) PositionList.Add(row);
             }
+        }
+
+        /// <summary>
+        /// Captures a completed race from the Final Classification packet - the full-field
+        /// result plus a snapshot of the player's own lap-by-lap - and persists it via
+        /// RaceHistoryStore. Races/sprints only; deduped per session so the game re-sending
+        /// the packet doesn't re-save. Never confirmed live yet (no real race finish has been
+        /// captured through it) - the field reads are all against the documented API.
+        /// </summary>
+        private void HandleFinalClassification(FinalClassificationDataPacket packet)
+        {
+            if (CurrentPreset != PresetType.Race) return; // only sessions with a finishing order
+
+            ulong uid = packet.Header.SessionUID;
+            if (_savedClassificationUid == uid) return; // already captured this session
+
+            int playerIdx = packet.Header.PlayerCarIndex;
+            var span = packet.ClassificationData.AsSpan();
+            if (playerIdx < 0 || playerIdx >= span.Length) return;
+            int numCars = Math.Min(packet.NumCars, span.Length);
+
+            // Fastest lap of the race = the smallest best-lap across classified cars.
+            uint fastestMs = uint.MaxValue;
+            int fastestIdx = -1;
+            for (int i = 0; i < numCars; i++)
+            {
+                var c = span[i];
+                if (c.Position == 0) continue;
+                if (c.BestLapTimeInMS > 0 && c.BestLapTimeInMS < fastestMs) { fastestMs = c.BestLapTimeInMS; fastestIdx = i; }
+            }
+
+            var player = span[playerIdx];
+            bool playerOut = IsOutStatus(player.ResultStatus);
+
+            var race = new SavedRace
+            {
+                SessionUid = uid,
+                SavedAtUtc = DateTime.UtcNow,
+                GrandPrix = TrackNames.GrandPrixFor(_currentTrack),
+                Circuit = TrackNames.CircuitFor(_currentTrack),
+                Country = TrackNames.CountryCodeFor(_currentTrack),
+                SessionLabel = SessionLabelFor(_lastSeenSessionType),
+                TotalLaps = _totalLaps > 0 ? _totalLaps : player.NumLaps,
+                GridPosition = player.GridPosition,
+                FinishPosition = player.Position,
+                Points = player.Points,
+                PitStops = player.NumPitStops,
+                ResultStatus = ResultStatusLabelFor(player.ResultStatus),
+                ResultReason = playerOut ? Humanize(player.ResultReason.ToString()) : "",
+                RetiredOnLap = playerOut ? player.NumLaps : null,
+                BestLapMs = player.BestLapTimeInMS,
+                TotalRaceTimeSeconds = player.TotalRaceTime,
+                PenaltiesTimeSeconds = player.PenaltiesTime,
+                PlayerHasFastestLap = fastestIdx == playerIdx,
+                PlayerStints = BuildStints(player),
+                Classification = BuildClassification(span, numCars, playerIdx, fastestIdx),
+                PlayerLaps = SnapshotPlayerLaps()
+            };
+
+            _savedClassificationUid = uid;
+            if (_historyStore.Save(race))
+                RaceSaved?.Invoke(race);
+        }
+
+        private static bool IsOutStatus(ResultStatus status) => status is ResultStatus.Retired
+            or ResultStatus.DidNotFinish or ResultStatus.Disqualified or ResultStatus.NotClassified;
+
+        private static string SessionLabelFor(SessionType? type) => type switch
+        {
+            SessionType.Race2 or SessionType.Race3 => "Sprint",
+            _ => "Race"
+        };
+
+        private static string ResultStatusLabelFor(ResultStatus status) => status switch
+        {
+            ResultStatus.Finished => "Finished",
+            ResultStatus.Disqualified => "DSQ",
+            ResultStatus.NotClassified => "Not classified",
+            ResultStatus.Retired or ResultStatus.DidNotFinish => "DNF",
+            _ => "Finished"
+        };
+
+        // "TerminalDamage" -> "Terminal damage" - a light humaniser for the retirement reason.
+        private static string Humanize(string pascal)
+        {
+            if (string.IsNullOrEmpty(pascal)) return "";
+            string result = pascal[0].ToString();
+            for (int i = 1; i < pascal.Length; i++)
+            {
+                char ch = pascal[i];
+                result += char.IsUpper(ch) ? " " + char.ToLower(ch) : ch.ToString();
+            }
+            return result;
+        }
+
+        private static List<SavedStint> BuildStints(FinalClassificationData c)
+        {
+            var stints = new List<SavedStint>();
+            var visual = c.TyreStintsVisual.AsSpan();
+            var endLaps = c.TyreStintsEndLaps.AsSpan();
+            int n = Math.Min(c.NumTyreStints, Math.Min(visual.Length, endLaps.Length));
+            for (int i = 0; i < n; i++)
+                stints.Add(new SavedStint { Compound = CompoundPalette.LetterFor(visual[i]), EndLap = endLaps[i] });
+            return stints;
+        }
+
+        private List<SavedClassificationRow> BuildClassification(Span<FinalClassificationData> span, int numCars, int playerIdx, int fastestIdx)
+        {
+            var rows = new List<SavedClassificationRow>();
+            for (int i = 0; i < numCars; i++)
+            {
+                var c = span[i];
+                if (c.Position == 0) continue;
+                GetParticipantInfo(i, out var name, out var livery, out var team);
+                rows.Add(new SavedClassificationRow
+                {
+                    Position = c.Position,
+                    DriverName = name ?? $"Car {i + 1}",
+                    TeamName = team ?? "",
+                    LiveryHex = ToHex(livery),
+                    BestLapMs = c.BestLapTimeInMS,
+                    PitStops = c.NumPitStops,
+                    IsPlayer = i == playerIdx,
+                    IsOut = IsOutStatus(c.ResultStatus),
+                    HasFastestLap = i == fastestIdx,
+                    Stints = BuildStints(c)
+                });
+            }
+            rows.Sort((a, b) => a.Position.CompareTo(b.Position));
+            return rows;
+        }
+
+        private List<SavedLapRow> SnapshotPlayerLaps()
+        {
+            // LapHistory is newest-first; save oldest-first so a saved race reads top-to-bottom.
+            var laps = new List<SavedLapRow>();
+            for (int i = LapHistory.Count - 1; i >= 0; i--)
+            {
+                var e = LapHistory[i];
+                laps.Add(new SavedLapRow
+                {
+                    LapNumber = ParseLapNumber(e.LapNumberText),
+                    LapTimeText = e.LapTimeText,
+                    LapColorHex = ToHex(e.ColorBrush),
+                    DeltaText = e.DeltaText,
+                    Tag = e.LapTagText,
+                    PitTimeText = e.PitStopTimeText,
+                    S1Text = e.Sector1Text, S1Hex = ToHex(e.Sector1Brush),
+                    S2Text = e.Sector2Text, S2Hex = ToHex(e.Sector2Brush),
+                    S3Text = e.Sector3Text, S3Hex = ToHex(e.Sector3Brush)
+                });
+            }
+            return laps;
+        }
+
+        private static int ParseLapNumber(string lapText)
+        {
+            var digits = new string(lapText.Where(char.IsDigit).ToArray());
+            return int.TryParse(digits, out int n) ? n : 0;
+        }
+
+        private static string ToHex(SolidColorBrush? brush)
+        {
+            if (brush == null) return "#6B7684";
+            var c = brush.Color;
+            return $"#{c.R:X2}{c.G:X2}{c.B:X2}";
         }
 
         private void RegisterSectorTime(int sectorNumber, uint ms, bool isPlayer)

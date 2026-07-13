@@ -884,6 +884,42 @@ feature authentic (timing colours, compound colours, flag semantics, FIA termino
   Builds clean; **needs a live race to confirm the strip populates** (can't show without
   race data - it's Collapsed at cold start / in preview).
 
+### Twenty-second round (Race History + live tyre-strategy bar)
+Designed against an interactive mockup first (approved by the user), then built. Large,
+mostly-new feature; verified in-app with seeded data (screenshots), but the live capture
+path hasn't seen a real race finish yet.
+- **Live tyre-strategy bar in the Tyres widget** - broadcast-style proportional stint
+  segments (compound-coloured, letter on each), sitting to the RIGHT of the wear grid so
+  the widget keeps its original height (`TyresWidget.xaml` + code-behind builds the
+  proportional `Grid` from `TelemetryState.TyreStints`, same approach as `ArrangeWidgets`).
+  Stints tracked in `UpdateLiveStints` (Race only): a new stint on a compound change or a
+  tyre-age drop, `StartLap = currentLap - age` so it's right even if the app joined
+  mid-race. Re-added `CompoundPalette.ForegroundFor`/`DarkForeground`/`LightForeground`
+  (removed as dead in the 21st round) plus new `BrushForLetter`/`ForegroundForLetter` -
+  the stint letters sit on the coloured bands and need the contrast foreground again.
+- **Race capture** - `TelemetryState.HandleFinalClassification` handles the previously-
+  unused `FinalClassification` packet (races/sprints only, deduped per `SessionUID`),
+  building a `SavedRace` (full-field classification incl. tyre stints, plus a snapshot of
+  the player's `LapHistory`) and persisting it via `RaceHistoryStore`. Fires a `RaceSaved`
+  event so an open history panel refreshes. **Not yet confirmed against a real race
+  finish** - all field reads are against the documented API.
+- **Persistence** - `RaceHistoryStore`: one JSON file per race under
+  `%LocalAppData%\F1RaceEngineer\history\` (not the OneDrive project dir - no sync churn;
+  same root as the pit log). All IO defensive (a history feature must never crash the app).
+  `SavedRace`/`SavedRaceView` are plain DTOs (hex strings, not brushes) so they round-trip
+  through `System.Text.Json` and re-render identically in the panel and the HTML export.
+- **History panel** (`HistoryPanel.xaml`, toggled by a new clock icon left of the gear) -
+  a full-viewport overlay (same pattern as the waiting placeholder). List of GP cards
+  (finish + places gained, best lap, points, stint mini-bar, hover export/delete) opening
+  a detail view: final classification, the player's lap-by-lap, and a tyre-strategy bar
+  with **lap-number tick marks at each pit boundary**. Country code (FIA 3-letter, e.g.
+  `GBR`) shown as a badge **before** the GP name (`TrackNames.CountryCodeFor`) - a code,
+  not a flag graphic, so nothing needs bundling. Delete has an in-panel confirm; export
+  writes a self-contained HTML file (`RaceHtmlExporter`, inline CSS, app dark theme).
+  Detail tables use fixed column widths + headers so columns align, sectors/times
+  right-aligned; the IN/OUT tag sits with the pit time (tag kept rightmost so IN and OUT
+  line up), matching the main Lap History widget's pit → tag → time order.
+
 - **Red Flag auto-clear is an untested heuristic.** There is no confirmed "flag
   cleared" event in the API, so it shows on its trigger event and auto-hides after a
   15s timeout. NOT yet tested against a real red flag. Safety Car / VSC, by contrast,

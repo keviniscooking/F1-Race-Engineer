@@ -17,6 +17,12 @@ namespace F1RaceEngineer.Models
         public static readonly SolidColorBrush Wet = Freeze(0x2E, 0x6F, 0xE1);
         public static readonly SolidColorBrush Unknown = Freeze(0x6B, 0x76, 0x84);
 
+        // Letter/text colour for a letter drawn ON a compound-coloured band (e.g. the tyre
+        // stint bar's segments): dark on the light compounds (medium/hard), light on the
+        // saturated ones (soft/inter/wet), so it stays legible on any band.
+        public static readonly SolidColorBrush DarkForeground = Freeze(0x0D, 0x11, 0x17);
+        public static readonly SolidColorBrush LightForeground = Freeze(0xF5, 0xF7, 0xFA);
+
         private static SolidColorBrush Freeze(byte r, byte g, byte b)
         {
             var brush = new SolidColorBrush(Color.FromRgb(r, g, b));
@@ -45,6 +51,26 @@ namespace F1RaceEngineer.Models
             VisualCompound.F1Inter => "I",
             VisualCompound.F1Wet or VisualCompound.F2Wet or VisualCompound.F1ClassicWet => "W",
             _ => "?"
+        };
+
+        public static SolidColorBrush ForegroundFor(VisualCompound compound) => compound switch
+        {
+            VisualCompound.F1Medium or VisualCompound.F2Medium => DarkForeground,
+            VisualCompound.F1Hard or VisualCompound.F2Hard or VisualCompound.F1ClassicDry => DarkForeground,
+            _ => LightForeground // Soft/Inter/Wet (saturated compounds) and unknown all read best in light text
+        };
+
+        // Letter overloads - a saved race (see SavedStint) stores the compound as its already-
+        // resolved letter ("S"/"M"/...), not the enum, so its bars/chips look them up this way.
+        public static SolidColorBrush BrushForLetter(string letter) => letter switch
+        {
+            "S" => Soft, "M" => Medium, "H" => Hard, "I" => Intermediate, "W" => Wet, _ => Unknown
+        };
+
+        public static SolidColorBrush ForegroundForLetter(string letter) => letter switch
+        {
+            "M" or "H" => DarkForeground,
+            _ => LightForeground
         };
     }
 }
