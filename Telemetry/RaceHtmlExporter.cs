@@ -82,7 +82,7 @@ namespace F1RaceEngineer.Telemetry
             sb.Append("</tbody></table></div>");
 
             // ---- lap-by-lap ----
-            sb.Append("<div class=\"card\"><h3>Your lap-by-lap</h3><table class=\"laps\"><thead><tr><th>Lap</th><th class=\"r\">S1</th><th class=\"r\">S2</th><th class=\"r\">S3</th><th class=\"r\">Pit</th><th class=\"r\">Time</th></tr></thead><tbody>");
+            sb.Append("<div class=\"card\"><h3>Your lap-by-lap</h3><table class=\"laps\"><thead><tr><th>Lap</th><th class=\"r\">S1</th><th class=\"r\">S2</th><th class=\"r\">S3</th><th class=\"r\">Pit</th><th class=\"r\">Time</th><th class=\"r\">Delta</th></tr></thead><tbody>");
             foreach (var lap in r.PlayerLaps)
             {
                 string tagHtml = string.IsNullOrEmpty(lap.Tag) ? "" : $"<span class=\"tag\">{Enc(lap.Tag)}</span> ";
@@ -92,7 +92,8 @@ namespace F1RaceEngineer.Telemetry
                 sb.Append($"<td class=\"r num\" style=\"color:{Enc(lap.S2Hex)}\">{Enc(EmDash(lap.S2Text))}</td>");
                 sb.Append($"<td class=\"r num\" style=\"color:{Enc(lap.S3Hex)}\">{Enc(EmDash(lap.S3Text))}</td>");
                 sb.Append($"<td class=\"r num pit\">{tagHtml}{Enc(lap.PitTimeText)}</td>");
-                sb.Append($"<td class=\"r num\" style=\"color:{Enc(lap.LapColorHex)}\">{Enc(EmDash(lap.LapTimeText))}</td></tr>");
+                sb.Append($"<td class=\"r num\" style=\"color:{Enc(lap.LapColorHex)}\">{Enc(EmDash(lap.LapTimeText))}</td>");
+                sb.Append($"<td class=\"r num\" style=\"color:#6B7684\">{Enc(lap.DeltaText)}</td></tr>");
             }
             sb.Append("</tbody></table></div>");
 

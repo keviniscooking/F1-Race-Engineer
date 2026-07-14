@@ -1,0 +1,41 @@
+<UserControl x:Class="F1RaceEngineer.Widgets.LapEventChip"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d">
+    <!-- Renders one LapEvent (its DataContext) as an icon + label. Icon switches by kind:
+         a coloured waved flag for SC/VSC/Red Flag, a mini chequered flag, or an amber "!"
+         badge for a penalty. Reuses the app-wide flag geometries from App.xaml. -->
+    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,14,0">
+        <!-- SC / VSC / Red Flag - coloured waved flag -->
+        <Viewbox Width="13" Height="13" Margin="0,0,5,0" VerticalAlignment="Center"
+                 Visibility="{Binding IsFlag, Converter={StaticResource BoolToVis}}">
+            <Canvas Width="24" Height="24">
+                <Path Data="{StaticResource FlagPoleGeometry}" Stroke="{Binding IconBrush}" StrokeThickness="2.4" StrokeStartLineCap="Round"/>
+                <Path Data="{StaticResource FlagPennantGeometry}" Fill="{Binding IconBrush}"/>
+            </Canvas>
+        </Viewbox>
+
+        <!-- Chequered flag - pole + a 2x2 checker where the pennant sits -->
+        <Viewbox Width="13" Height="13" Margin="0,0,5,0" VerticalAlignment="Center"
+                 Visibility="{Binding IsChequered, Converter={StaticResource BoolToVis}}">
+            <Canvas Width="24" Height="24">
+                <Path Data="{StaticResource FlagPoleGeometry}" Stroke="#9BA7B4" StrokeThickness="2.4" StrokeStartLineCap="Round"/>
+                <Rectangle Canvas.Left="4" Canvas.Top="3" Width="5.5" Height="4" Fill="#E6EDF3"/>
+                <Rectangle Canvas.Left="9.5" Canvas.Top="3" Width="5.5" Height="4" Fill="#0D1117"/>
+                <Rectangle Canvas.Left="4" Canvas.Top="7" Width="5.5" Height="4" Fill="#0D1117"/>
+                <Rectangle Canvas.Left="9.5" Canvas.Top="7" Width="5.5" Height="4" Fill="#E6EDF3"/>
+            </Canvas>
+        </Viewbox>
+
+        <!-- Penalty - amber "!" badge -->
+        <Border Width="15" Height="15" CornerRadius="4" Background="#F0883E" Margin="0,0,5,0" VerticalAlignment="Center"
+                Visibility="{Binding IsPenalty, Converter={StaticResource BoolToVis}}">
+            <TextBlock Text="!" FontSize="11" FontWeight="Bold" Foreground="#0D1117" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-1,0,0"/>
+        </Border>
+
+        <TextBlock Text="{Binding Text}" FontSize="11.5" FontWeight="SemiBold" Foreground="{Binding TextBrush}"
+                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+    </StackPanel>
+</UserControl>

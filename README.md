@@ -10,7 +10,8 @@ to alt-tab out of the game mid-session.
 - **Lap Timing** — current lap (live-coloured), personal best, delta vs personal best
   (updates every sector, not just at the line), three sector boxes, a scrollable
   full-race lap history (12 laps visible, scroll back for earlier laps)
-  with per-sector colour coding, IN/OUT lap tags, and pit stop/pit lane timing.
+  with per-sector colour coding, IN/OUT lap tags, pit stop/pit lane timing, and inline
+  per-lap event markers (Safety Car / VSC, red flag, chequered flag, penalties).
 - **Race Position Tower** — a "LAP X / Y" counter and a broadcast-style purple "fastest
   lap" strip (driver + time) above the full field: position, interval and gap to leader,
   tyre compound, a "PIT" tag while a car is being serviced (auto-reverting to the live

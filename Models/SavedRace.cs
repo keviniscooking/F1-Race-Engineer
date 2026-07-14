@@ -85,5 +85,14 @@ namespace F1RaceEngineer.Models
         public string S2Hex { get; set; } = "#E6EDF3";
         public string S3Text { get; set; } = "";
         public string S3Hex { get; set; } = "#E6EDF3";
+
+        // Notable events on this lap (SC/VSC, red flag, chequered, genuine penalties).
+        public List<SavedLapEvent> Events { get; set; } = new();
+    }
+
+    public class SavedLapEvent
+    {
+        public string Kind { get; set; } = ""; // matches LapEventKind names
+        public string Text { get; set; } = "";
     }
 }

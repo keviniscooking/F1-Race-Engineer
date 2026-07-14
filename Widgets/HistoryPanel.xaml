@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:widgets="clr-namespace:F1RaceEngineer.Widgets"
              mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="600">
 
     <UserControl.Resources>
@@ -349,6 +350,7 @@
                                         <ColumnDefinition Width="64"/>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="82"/>
+                                        <ColumnDefinition Width="78"/>
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Grid.Column="0" Text="LAP" FontSize="10" Foreground="#4A5460"/>
                                     <TextBlock Grid.Column="1" Text="S1" FontSize="10" Foreground="#4A5460" HorizontalAlignment="Right"/>
@@ -356,6 +358,7 @@
                                     <TextBlock Grid.Column="3" Text="S3" FontSize="10" Foreground="#4A5460" HorizontalAlignment="Right"/>
                                     <TextBlock Grid.Column="4" Text="PIT" FontSize="10" Foreground="#4A5460" HorizontalAlignment="Right" Margin="0,0,18,0"/>
                                     <TextBlock Grid.Column="5" Text="TIME" FontSize="10" Foreground="#4A5460" HorizontalAlignment="Right"/>
+                                    <TextBlock Grid.Column="6" Text="DELTA" FontSize="10" Foreground="#4A5460" HorizontalAlignment="Right"/>
                                 </Grid>
 
                                 <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Padding="0,0,6,0">
@@ -370,11 +373,19 @@
                                                         <ColumnDefinition Width="64"/>
                                                         <ColumnDefinition Width="*"/>
                                                         <ColumnDefinition Width="82"/>
+                                                        <ColumnDefinition Width="78"/>
                                                     </Grid.ColumnDefinitions>
                                                     <TextBlock Grid.Column="0" Text="{Binding LapText}" FontFamily="Consolas" FontSize="13" Foreground="#E6EDF3" VerticalAlignment="Center"/>
                                                     <TextBlock Grid.Column="1" Text="{Binding S1Text}" FontFamily="Consolas" FontSize="12" FontWeight="Bold" Foreground="{Binding S1Brush}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                                                     <TextBlock Grid.Column="2" Text="{Binding S2Text}" FontFamily="Consolas" FontSize="12" FontWeight="Bold" Foreground="{Binding S2Brush}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                                                     <TextBlock Grid.Column="3" Text="{Binding S3Text}" FontFamily="Consolas" FontSize="12" FontWeight="Bold" Foreground="{Binding S3Brush}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                                    <!-- EVENTS (left) share the middle gap with the pit/tag (right): SC/VSC, red
+                                                         flag, chequered and penalty chips for this lap. Empty on a green lap. -->
+                                                    <ItemsControl Grid.Column="4" ItemsSource="{Binding Events}" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="30,0,0,0">
+                                                        <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                                                        <ItemsControl.ItemTemplate><DataTemplate><widgets:LapEventChip/></DataTemplate></ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+
                                                     <!-- PIT cell: pit time then the IN/OUT tag, with the TAG kept rightmost (fixed
                                                          width slot) so IN and OUT line up in the same column whether or not a pit
                                                          time is present. Matches the main Lap History widget's pit/tag ordering. -->
@@ -387,6 +398,7 @@
                                                         </Border>
                                                     </StackPanel>
                                                     <TextBlock Grid.Column="5" Text="{Binding LapTimeText}" FontFamily="Consolas" FontSize="14" FontWeight="Bold" Foreground="{Binding LapTimeBrush}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                                    <TextBlock Grid.Column="6" Text="{Binding DeltaText}" FontFamily="Consolas" FontSize="12" Foreground="#6B7684" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                                                 </Grid>
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>

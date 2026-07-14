@@ -1,9 +1,14 @@
+using System.Collections.Generic;
 using System.Windows.Media;
 
 namespace F1RaceEngineer.Models
 {
     public class LapHistoryEntry
     {
+        // Notable events on this lap (SC/VSC, red flag, chequered flag, genuine penalties),
+        // shown as chips in the lap-by-lap "EVENTS" gap. Empty on an ordinary green-flag lap.
+        public List<LapEvent> Events { get; set; } = new();
+
         public string LapNumberText { get; set; } = "";
         public string LapTimeText { get; set; } = "";
         public string DeltaText { get; set; } = "";

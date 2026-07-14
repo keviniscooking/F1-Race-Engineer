@@ -68,6 +68,14 @@ namespace F1RaceEngineer.Telemetry
         private int _liveStintAge;
         private int _playerCurrentLap;
 
+        // ---- Per-lap events (SC/VSC, red flag, chequered, genuine penalties) for the
+        // lap-by-lap EVENTS chips. _lapEventSafetyCar is the caution active during the
+        // current lap (re-set each session packet while SC/VSC persists, reset when the lap
+        // completes); _pendingLapEvents accrues event-driven items until the lap completes
+        // and consumes them.
+        private SafetyCarType _lapEventSafetyCar = SafetyCarType.NoSafetyCar;
+        private readonly List<LapEvent> _pendingLapEvents = new();
+
         // ---- Race history capture ----
         // Persists a completed race (Final Classification + the player's lap-by-lap) to disk.
         // Raised after a NEW race is saved so the UI can refresh its list. _currentTrack is
@@ -479,6 +487,11 @@ namespace F1RaceEngineer.Telemetry
                 RefreshAlertBanner();
             }
 
+            // Remember a caution seen at any point during the current lap so the lap's EVENTS
+            // chip shows it even if the SC/VSC started and ended mid-lap.
+            if (session.SafetyCarStatus is SafetyCarType.FullSafetyCar or SafetyCarType.VirtualSafetyCar)
+                _lapEventSafetyCar = session.SafetyCarStatus;
+
             _totalLaps = session.TotalLaps;
             _currentTrack = session.Track;
             IsTimeTrial = session.SessionType == SessionType.TimeTrial;
@@ -627,6 +640,8 @@ namespace F1RaceEngineer.Telemetry
             TyreStints.Clear();
             HasTyreStints = false;
             _savedClassificationUid = null;
+            _pendingLapEvents.Clear();
+            _lapEventSafetyCar = SafetyCarType.NoSafetyCar;
 
             CarConditionIssues.Clear();
             CarConditionIsOk = true;
@@ -683,6 +698,7 @@ namespace F1RaceEngineer.Telemetry
                 _isRedFlagActive = true;
                 _redFlagTimer.Stop();
                 _redFlagTimer.Start();
+                AddPendingLapEvent(new LapEvent(LapEventKind.RedFlag, "Red Flag"));
                 RefreshAlertBanner();
             }
             else if (eventType == EventType.ChequeredFlag)
@@ -690,6 +706,7 @@ namespace F1RaceEngineer.Telemetry
                 _isChequeredFlagActive = true;
                 _chequeredFlagTimer.Stop();
                 _chequeredFlagTimer.Start();
+                AddPendingLapEvent(new LapEvent(LapEventKind.Chequered, "Chequered"));
                 RefreshAlertBanner();
             }
             else if (eventType == EventType.PenaltyIssued && packet.EventDetails.TryGetPenaltyEvent(out var penalty))
@@ -709,6 +726,11 @@ namespace F1RaceEngineer.Telemetry
                 {
                     _warningReasons.Add(infringement);
                 }
+
+                // Genuine time-costing penalties (not warnings/lap-invalidations) get a
+                // chip on the lap they were issued.
+                var penaltyEvent = PenaltyToLapEvent(penalty.PenaltyType, penalty.Time, infringement);
+                if (penaltyEvent != null) _pendingLapEvents.Add(penaltyEvent);
 
                 _isPenaltyActive = true;
                 _penaltyTimer.Stop();
@@ -734,6 +756,23 @@ namespace F1RaceEngineer.Telemetry
                 RefreshAlertBanner();
             }
         }
+
+        // Red flag / chequered fire once but the event can repeat - only keep one per lap.
+        private void AddPendingLapEvent(LapEvent e)
+        {
+            if (_pendingLapEvents.Any(x => x.Kind == e.Kind)) return;
+            _pendingLapEvents.Add(e);
+        }
+
+        // Only genuine time-costing penalties get a lap chip; warnings and lap-invalidations
+        // are deliberately excluded (per the design discussion).
+        private static LapEvent? PenaltyToLapEvent(PenaltyType type, int timeSeconds, string infringement) => type switch
+        {
+            PenaltyType.TimePenalty => new LapEvent(LapEventKind.Penalty, $"{timeSeconds}s · {infringement}"),
+            PenaltyType.DriveThrough => new LapEvent(LapEventKind.Penalty, $"Drive-through · {infringement}"),
+            PenaltyType.StopGo => new LapEvent(LapEventKind.Penalty, $"Stop-go · {infringement}"),
+            _ => null
+        };
 
         private void RefreshAlertBanner()
         {
@@ -1529,7 +1568,8 @@ namespace F1RaceEngineer.Telemetry
                     PitTimeText = e.PitStopTimeText,
                     S1Text = e.Sector1Text, S1Hex = ToHex(e.Sector1Brush),
                     S2Text = e.Sector2Text, S2Hex = ToHex(e.Sector2Brush),
-                    S3Text = e.Sector3Text, S3Hex = ToHex(e.Sector3Brush)
+                    S3Text = e.Sector3Text, S3Hex = ToHex(e.Sector3Brush),
+                    Events = e.Events.Select(ev => new SavedLapEvent { Kind = ev.Kind.ToString(), Text = ev.Text }).ToList()
                 });
             }
             return laps;
@@ -1670,10 +1710,30 @@ namespace F1RaceEngineer.Telemetry
                 Sector2Text = Sector2Text,
                 Sector2Brush = Sector2TextBrush,
                 Sector3Text = Sector3Text,
-                Sector3Brush = Sector3TextBrush
+                Sector3Brush = Sector3TextBrush,
+                Events = BuildLapEvents()
             });
             // No cap: every lap is kept and stays reachable by scrolling the viewport (a
             // race is <=~78 laps, negligible to hold in memory / render un-virtualized).
+        }
+
+        /// <summary>
+        /// Assembles the completed lap's EVENTS chips - the caution active during it (if any)
+        /// plus the event-driven items accrued since the last lap - then clears that per-lap
+        /// state. An ongoing SC/VSC re-marks the next lap via HandleSession.
+        /// </summary>
+        private List<LapEvent> BuildLapEvents()
+        {
+            var events = new List<LapEvent>();
+            if (_lapEventSafetyCar == SafetyCarType.FullSafetyCar)
+                events.Add(new LapEvent(LapEventKind.SafetyCar, "Safety Car"));
+            else if (_lapEventSafetyCar == SafetyCarType.VirtualSafetyCar)
+                events.Add(new LapEvent(LapEventKind.VirtualSafetyCar, "Virtual SC"));
+            events.AddRange(_pendingLapEvents);
+
+            _pendingLapEvents.Clear();
+            _lapEventSafetyCar = SafetyCarType.NoSafetyCar;
+            return events;
         }
 
         /// <summary>
@@ -1706,7 +1766,8 @@ namespace F1RaceEngineer.Telemetry
                 Sector2Text = mostRecent.Sector2Text,
                 Sector2Brush = mostRecent.Sector2Brush,
                 Sector3Text = mostRecent.Sector3Text,
-                Sector3Brush = mostRecent.Sector3Brush
+                Sector3Brush = mostRecent.Sector3Brush,
+                Events = mostRecent.Events
             };
         }
 

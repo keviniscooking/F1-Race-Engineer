@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:widgets="clr-namespace:F1RaceEngineer.Widgets"
              mc:Ignorable="d" d:DesignWidth="480">
 
     <Border Style="{StaticResource WidgetCardStyle}">
@@ -164,6 +165,13 @@
                                         <TextBlock Text="{Binding Sector3Text}" FontSize="18" FontWeight="Bold" Foreground="{Binding Sector3Brush}" FontFamily="Consolas"/>
                                         <Border Height="2" Background="{Binding Sector3Brush}" Margin="0,4,0,0" HorizontalAlignment="Stretch"/>
                                     </StackPanel>
+
+                                    <!-- EVENTS gap: SC/VSC, red flag, chequered, and genuine
+                                         penalty chips for this lap (empty on a green lap). -->
+                                    <ItemsControl Grid.Column="4" ItemsSource="{Binding Events}" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="44,0,8,0">
+                                        <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate><DataTemplate><widgets:LapEventChip/></DataTemplate></ItemsControl.ItemTemplate>
+                                    </ItemsControl>
 
                                     <!-- Populated on the two pit-related laps only (blank elsewhere,
                                          like the tag beside it): the OUT row's total pit-lane time

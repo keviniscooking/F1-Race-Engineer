@@ -198,6 +198,7 @@ namespace F1RaceEngineer.Models
         public string PitText { get; }
         public string LapTimeText { get; } public SolidColorBrush LapTimeBrush { get; }
         public string DeltaText { get; }
+        public List<LapEvent> Events { get; }
 
         public LapRowView(SavedLapRow r)
         {
@@ -210,6 +211,11 @@ namespace F1RaceEngineer.Models
             LapTimeText = string.IsNullOrEmpty(r.LapTimeText) ? "—" : r.LapTimeText;
             LapTimeBrush = SavedRaceView.BrushFromHex(r.LapColorHex);
             DeltaText = r.DeltaText;
+
+            Events = new List<LapEvent>();
+            foreach (var ev in r.Events)
+                if (System.Enum.TryParse<LapEventKind>(ev.Kind, out var kind))
+                    Events.Add(new LapEvent(kind, ev.Text));
         }
     }
 }

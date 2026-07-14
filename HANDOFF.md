@@ -924,6 +924,31 @@ path hasn't seen a real race finish yet.
   right-aligned; the IN/OUT tag sits with the pit time (tag kept rightmost so IN and OUT
   line up), matching the main Lap History widget's pit → tag → time order.
 
+### Twenty-third round (lap-by-lap EVENTS: SC/VSC, red flag, chequered, penalties + DELTA)
+Designed with the user first (chose inline in the row's empty gap, genuine penalties only,
+one yellow flag icon for SC vs VSC with text distinguishing them). Verified with seeded
+data in both views; the live capture path still needs a real race to confirm.
+- **EVENTS chips** in the lap-by-lap's normally-empty middle gap, in BOTH the live Race
+  Lap History (`LapTimingWidget`) and the saved-race detail (`HistoryPanel`) for
+  consistency. `LapEventChip` (reusable UserControl) renders one `LapEvent`: a coloured
+  waved flag (reusing App.xaml's `FlagPoleGeometry`/`FlagPennantGeometry`) for SC/VSC
+  (yellow) and Red Flag (red), a mini chequered flag for the finish, or an amber "!" badge
+  for a penalty, plus text.
+- **Capture** (`TelemetryState`): SC/VSC from `SafetyCarStatus` (marks every lap the state
+  was active - `_lapEventSafetyCar`, reset per lap, re-set while it persists); Red Flag and
+  Chequered from their events (single lap); genuine penalties from `PenaltyIssued`
+  (`TimePenalty`/`DriveThrough`/`StopGo` only - warnings and lap-invalidations excluded, per
+  the design call). Event-driven items accrue in `_pendingLapEvents` and are consumed when
+  the lap completes (`BuildLapEvents` in `RegisterLapTime`). Snapshotted into
+  `SavedLapRow.Events` (kind+text strings) and re-hydrated in `LapRowView`.
+- **Design notes:** single vs double yellow was deliberately NOT used to distinguish
+  SC/VSC - it's not the real-F1 meaning (double yellow is a local hazard flag) and the
+  telemetry can't distinguish single/double anyway (`VehicleFiaFlags` is just `Yellow`).
+  Red Flag is a point event (one lap), SC/VSC a spanning state (every lap). Events are
+  pushed clear of the sector columns (left margin) per user feedback.
+- **DELTA column** added to the history detail lap-by-lap (the live widget already had it),
+  for full parity with the Race tab.
+
 - **Red Flag auto-clear is an untested heuristic.** There is no confirmed "flag
   cleared" event in the API, so it shows on its trigger event and auto-hides after a
   15s timeout. NOT yet tested against a real red flag. Safety Car / VSC, by contrast,
