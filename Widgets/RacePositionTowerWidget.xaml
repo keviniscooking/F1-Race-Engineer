@@ -163,19 +163,16 @@
 
                                 <!-- 2 decimals (not the app-wide 3, see TelemetryState.FormatDelta
                                      call site) frees up room here to run these up in size -
-                                     still plenty precise for a gap glanced at mid-race. -->
-                                <TextBlock Grid.Column="3" Text="{Binding IntervalText}" FontSize="13" FontFamily="Consolas" HorizontalAlignment="Right" VerticalAlignment="Center">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
-                                            <Setter Property="Foreground" Value="#E6EDF3"/>
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding IsOut}" Value="True">
-                                                    <Setter Property="Foreground" Value="#4A5460"/>
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
+                                     still plenty precise for a gap glanced at mid-race. The
+                                     interval-trend caret sits INSIDE the fixed 58px column, left
+                                     of the right-aligned number, so the numbers stay aligned and
+                                     no extra width is needed. Blank/neutral for everyone but the
+                                     player - IntervalBrush is NeutralText except on the player's
+                                     trending gap (green closing / red opening). -->
+                                <StackPanel Grid.Column="3" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding IntervalCaret}" FontSize="9" Foreground="{Binding IntervalBrush}" VerticalAlignment="Center" Margin="0,0,3,0"/>
+                                    <TextBlock Text="{Binding IntervalText}" FontSize="13" FontFamily="Consolas" Foreground="{Binding IntervalBrush}" VerticalAlignment="Center"/>
+                                </StackPanel>
                                 <TextBlock Grid.Column="5" Text="{Binding GapText}" FontSize="12.5" FontFamily="Consolas" HorizontalAlignment="Right" VerticalAlignment="Center">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">

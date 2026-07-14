@@ -36,6 +36,12 @@ namespace F1RaceEngineer.Models
         public static readonly SolidColorBrush AlertNeutralBg = Freeze(0x1C, 0x27, 0x33);
         public static readonly SolidColorBrush AlertNeutralText = Freeze(0xE6, 0xED, 0xF3);
 
+        // Interval-trend accents for the player's own gap to the car ahead: green when the
+        // gap is closing (catching), red when it's opening (dropping back). Neutral rows use
+        // NeutralText, so a non-trending gap looks exactly as before.
+        public static readonly SolidColorBrush GapClosing = Freeze(0x63, 0xC5, 0x6B);
+        public static readonly SolidColorBrush GapOpening = Freeze(0xE5, 0x70, 0x6B);
+
         // Blue flag ("let a faster car through") - genuinely blue, not a shade of amber.
         // No other alert state uses blue, so it stays visually unambiguous from Safety
         // Car / VSC amber and Yellow caution. Used directly as the flag chip's own

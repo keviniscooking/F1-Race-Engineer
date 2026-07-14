@@ -16,7 +16,8 @@ to alt-tab out of the game mid-session.
   lap" strip (driver + time) above the full field: position, interval and gap to leader,
   tyre compound, a "PIT" tag while a car is being serviced (auto-reverting to the live
   gap when it rejoins), and a shared badge slot for a pending penalty or the session's
-  fastest lap. Race only.
+  fastest lap. Your own interval also shows a trend caret (green = catching the car ahead,
+  red = dropping back). Race only.
 - **Field timing board** — full field with best lap and gap to fastest, shown in both
   Practice and Qualifying (both are timed, leaderboard sessions).
 - **Alert banner** — Safety Car / VSC, Red Flag, Chequered Flag, penalties, retirement,

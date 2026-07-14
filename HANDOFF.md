@@ -949,6 +949,23 @@ data in both views; the live capture path still needs a real race to confirm.
 - **DELTA column** added to the history detail lap-by-lap (the live widget already had it),
   for full parity with the Race tab.
 
+### Twenty-fourth round (interval-trend accent on the tower — first of the "engineer" ideas)
+Out of a "scrutinise it as a race engineer" discussion: the app shows *state* well but a
+real engineer works from *trend*, so the highest-value cheap add is showing whether the
+player's gap to the car ahead is closing or opening. Kept deliberately minimal after the
+user flagged clutter risk.
+- **Player-only interval trend** on the Race tower: the player's Interval gets a caret +
+  colour - green **▲** closing (catching), red **▼** opening (dropping back), nothing when
+  steady. Every other row is untouched. Caret sits INSIDE the fixed 58px Int column (left
+  of the right-aligned number) so nothing widens or misaligns. New `IntervalCaret`/
+  `IntervalBrush` on `RaceStanding` (+ `TimingColorPalette.GapClosing`/`GapOpening`).
+- **Trend maths** (`UpdatePlayerIntervalTrend`): sampled once per lap (no tick jitter), a
+  0.15s/lap deadband so normal fluctuation reads as steady, and a position-change guard so
+  an overtake (car ahead is now a different car) doesn't produce a garbage arrow. Player
+  only, per the design call - the whole field would be clutter; your own battle is what a
+  driver acts on. Needs a live race to confirm it reads sensibly at speed.
+- Convention chosen: **▲ = gaining ground** (momentum reading), not "gap number down".
+
 - **Red Flag auto-clear is an untested heuristic.** There is no confirmed "flag
   cleared" event in the API, so it shows on its trigger event and auto-hides after a
   15s timeout. NOT yet tested against a real red flag. Safety Car / VSC, by contrast,
@@ -1121,7 +1138,9 @@ column**. Only the left-column occupant differs:
   `HasRaceFastestLap`/`FastestLapDriver`/`FastestLapTimeText`, sourced from the same
   `_carBestLapMs` holder the per-row badge uses; hidden until a lap is set). The tower
   rows themselves show: position, livery
-  swatch, driver + team, Interval (gap to car ahead), Gap (to leader), tyre compound
+  swatch, driver + team, Interval (gap to car ahead - the **player's own** Interval also
+  carries a trend caret/colour, green closing / red opening, §5 twenty-fourth round),
+  Gap (to leader), tyre compound
   letter (plain colored text, no background badge - see §5 tenth round), and one shared
   badge slot for either a red "!" pending-penalty badge (§5 twelfth round) or a purple
   stopwatch fastest-lap badge (§5 thirteenth round) - mutually exclusive by design, a

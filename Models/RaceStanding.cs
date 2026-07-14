@@ -13,6 +13,12 @@ namespace F1RaceEngineer.Models
         public string IntervalText { get; set; } = "-";
         public string GapText { get; set; } = "-";
 
+        // Player-only interval-trend accent (blank/neutral for everyone else): a caret (▲/▼)
+        // and colour on the player's gap to the car ahead - green closing (catching), red
+        // opening (dropping back). Set in TelemetryState.RefreshRaceStandings.
+        public string IntervalCaret { get; set; } = "";
+        public SolidColorBrush IntervalBrush { get; set; } = TimingColorPalette.NeutralText;
+
         // Retired/DNF/DSQ/not-classified cars report stale zeroed deltas rather than a
         // meaningful gap (confirmed live: a retired car showed "+0.00" for both interval
         // and gap, which reads as "right next to the leader") - IsOut drives the "Out"
@@ -60,6 +66,8 @@ namespace F1RaceEngineer.Models
             IsPlayer == other.IsPlayer &&
             IntervalText == other.IntervalText &&
             GapText == other.GapText &&
+            IntervalCaret == other.IntervalCaret &&
+            ReferenceEquals(IntervalBrush, other.IntervalBrush) &&
             IsOut == other.IsOut &&
             IsPitting == other.IsPitting &&
             TyreLetter == other.TyreLetter &&
