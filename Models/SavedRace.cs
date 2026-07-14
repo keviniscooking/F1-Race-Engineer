@@ -25,6 +25,15 @@ namespace F1RaceEngineer.Models
         public string SessionLabel { get; set; } = "Race"; // Race / Sprint
         public int TotalLaps { get; set; }
 
+        // Persistent grouping keys the game generates so external apps can link sessions:
+        // WeekendLinkId ties a Sprint and its Race together (one weekend card, two tabs);
+        // SeasonLinkId separates one career/season save from another (per-season sections +
+        // summary). Zero for older saved races (captured only from this version on) and for
+        // one-off/online sessions the game doesn't link - those fall into catch-all buckets.
+        public uint SeasonLinkId { get; set; }
+        public uint WeekendLinkId { get; set; }
+        public uint SessionLinkId { get; set; }
+
         // ---- Player result ----
         public int GridPosition { get; set; }
         public int FinishPosition { get; set; }
@@ -38,6 +47,11 @@ namespace F1RaceEngineer.Models
         public int PenaltiesTimeSeconds { get; set; }
         public bool PlayerHasFastestLap { get; set; }
         public List<SavedStint> PlayerStints { get; set; } = new();
+
+        // Snapshot of the player's final Penalties &amp; Flags list (the same strings the live
+        // widget showed), so the history detail can render a matching penalties card. Empty
+        // for a clean race and for races saved before this was captured.
+        public List<string> Penalties { get; set; } = new();
 
         // ---- Full-field result + the player's own lap detail ----
         public List<SavedClassificationRow> Classification { get; set; } = new();
@@ -68,6 +82,13 @@ namespace F1RaceEngineer.Models
         public bool IsOut { get; set; } // retired / DNF / DSQ / not classified
         public bool HasFastestLap { get; set; }
         public List<SavedStint> Stints { get; set; } = new();
+
+        // Used to compute the gap-to-winner column shown in the history classification.
+        // TotalRaceTime is seconds of racing (excludes pit/penalty adjustments the game
+        // already folds into finishing order); NumLaps distinguishes lapped cars ("+1 LAP").
+        // Zero on races saved before this was captured - those show no gap.
+        public double TotalRaceTimeSeconds { get; set; }
+        public int NumLaps { get; set; }
     }
 
     public class SavedLapRow

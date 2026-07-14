@@ -102,84 +102,134 @@
                            Foreground="#5A6470" FontSize="13" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed"/>
 
                 <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0,0,6,0">
-                    <ItemsControl x:Name="RaceList">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <UniformGrid Columns="2"/>
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
+                    <!-- One section per season (SeasonGroupView): a header with the season's summary
+                         stats, then that season's weekend cards. -->
+                    <ItemsControl x:Name="SeasonList">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Button x:Name="CardBtn" Style="{StaticResource HistoryCardButton}" Margin="0,0,12,12" Click="Card_Click" Tag="{Binding}">
-                                    <Grid Margin="15,14">
-                                        <!-- teal accent bar -->
-                                        <Border HorizontalAlignment="Left" Width="3" Background="#37BEDD" CornerRadius="2"
-                                                Margin="-15,-14,0,-14"/>
-
-                                        <StackPanel>
-                                            <Grid>
-                                                <StackPanel>
-                                                    <StackPanel Orientation="Horizontal">
-                                                        <Border Background="#1C2733" CornerRadius="4" Padding="5,1" VerticalAlignment="Center" Margin="0,0,8,0"
-                                                                Visibility="{Binding HasCountry, Converter={StaticResource BoolToVis}}">
-                                                            <TextBlock Text="{Binding Country}" FontSize="10" FontFamily="Consolas" FontWeight="Bold" Foreground="#9BA7B4"/>
-                                                        </Border>
-                                                        <TextBlock Text="{Binding GrandPrix}" FontSize="16" FontWeight="Bold" Foreground="#E6EDF3" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
-                                                    </StackPanel>
-                                                    <TextBlock Text="{Binding CardSubtitle}" FontSize="11" Foreground="#6B7684" Margin="0,3,0,0"/>
-                                                </StackPanel>
-                                                <StackPanel HorizontalAlignment="Right" VerticalAlignment="Top">
-                                                    <TextBlock Text="{Binding FinishText}" Foreground="{Binding FinishBrush}" FontFamily="Consolas"
-                                                               FontWeight="Bold" FontSize="24" HorizontalAlignment="Right"/>
-                                                    <TextBlock Text="{Binding DeltaText}" Foreground="{Binding DeltaBrush}" FontFamily="Consolas"
-                                                               FontSize="11" HorizontalAlignment="Right" Margin="0,2,0,0"
-                                                               Visibility="{Binding HasDelta, Converter={StaticResource BoolToVis}}"/>
-                                                </StackPanel>
-                                            </Grid>
-
-                                            <StackPanel Orientation="Horizontal" Margin="0,13,0,0" VerticalAlignment="Center">
-                                                <StackPanel Margin="0,0,20,0">
-                                                    <TextBlock Text="BEST LAP" FontSize="9.5" Foreground="#4A5460"/>
-                                                    <TextBlock Text="{Binding BestLapText}" FontSize="13" FontFamily="Consolas" Foreground="{Binding BestLapBrush}"/>
-                                                </StackPanel>
-                                                <StackPanel Margin="0,0,20,0">
-                                                    <TextBlock Text="STOPS" FontSize="9.5" Foreground="#4A5460"/>
-                                                    <TextBlock Text="{Binding StopsText}" FontSize="13" FontFamily="Consolas" Foreground="#E6EDF3"/>
-                                                </StackPanel>
-                                                <TextBlock Text="◷ Fastest lap" Foreground="#AFA9EC" FontSize="10.5" FontWeight="Bold"
-                                                           VerticalAlignment="Center" Margin="0,6,0,0"
-                                                           Visibility="{Binding HasFastestLap, Converter={StaticResource BoolToVis}}"/>
-                                                <StackPanel HorizontalAlignment="Right" Margin="12,0,0,0">
-                                                    <TextBlock Text="{Binding PointsText}" FontSize="15" FontWeight="Bold" FontFamily="Consolas" Foreground="#E6EDF3" HorizontalAlignment="Right"/>
-                                                    <TextBlock Text="POINTS" FontSize="9.5" Foreground="#4A5460" HorizontalAlignment="Right"/>
-                                                </StackPanel>
+                                <StackPanel Margin="0,0,0,18">
+                                    <!-- season header + summary strip -->
+                                    <Grid Margin="2,0,2,12">
+                                        <TextBlock Text="{Binding Label}" FontSize="12" FontWeight="Bold" Foreground="#37BEDD" VerticalAlignment="Bottom"/>
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                            <StackPanel Margin="0,0,20,0">
+                                                <TextBlock Text="{Binding RacesText}" FontSize="15" FontWeight="Bold" FontFamily="Consolas" Foreground="#E6EDF3" HorizontalAlignment="Center"/>
+                                                <TextBlock Text="RACES" FontSize="8.5" Foreground="#4A5460" HorizontalAlignment="Center"/>
                                             </StackPanel>
-
-                                            <!-- mini stint bar (built in code-behind) -->
-                                            <Grid x:Name="CardStint" Height="7" Margin="0,12,0,0" Loaded="CardStint_Loaded" Tag="{Binding}"/>
-                                        </StackPanel>
-
-                                        <!-- hover actions -->
-                                        <StackPanel x:Name="CardActions" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top"
-                                                    Margin="0,-4,-4,0" Opacity="0">
-                                            <Button Style="{StaticResource MiniAction}" Click="Export_Click" Tag="{Binding}" ToolTip="Export as HTML" Margin="0,0,6,0">
-                                                <Path Data="M12,15 V3 M7,8 L12,3 L17,8 M5,15 V19 A2,2 0 0 0 7,21 H17 A2,2 0 0 0 19,19 V15"
-                                                      Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.8"
-                                                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Width="14" Height="14" Stretch="Uniform"/>
-                                            </Button>
-                                            <Button Style="{StaticResource MiniAction}" Click="Delete_Click" Tag="{Binding}" ToolTip="Delete">
-                                                <Path Data="M3,6 H21 M8,6 V4 A1,1 0 0 1 9,3 H15 A1,1 0 0 1 16,4 V6 M18,6 V20 A2,2 0 0 1 16,22 H8 A2,2 0 0 1 6,20 V6"
-                                                      Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.8"
-                                                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Width="14" Height="14" Stretch="Uniform"/>
-                                            </Button>
+                                            <StackPanel Margin="0,0,20,0">
+                                                <TextBlock Text="{Binding WinsText}" FontSize="15" FontWeight="Bold" FontFamily="Consolas" Foreground="#E6EDF3" HorizontalAlignment="Center"/>
+                                                <TextBlock Text="WINS" FontSize="8.5" Foreground="#4A5460" HorizontalAlignment="Center"/>
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,20,0">
+                                                <TextBlock Text="{Binding PodiumsText}" FontSize="15" FontWeight="Bold" FontFamily="Consolas" Foreground="#E6EDF3" HorizontalAlignment="Center"/>
+                                                <TextBlock Text="PODIUMS" FontSize="8.5" Foreground="#4A5460" HorizontalAlignment="Center"/>
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,20,0">
+                                                <TextBlock Text="{Binding PointsText}" FontSize="15" FontWeight="Bold" FontFamily="Consolas" Foreground="#E6EDF3" HorizontalAlignment="Center"/>
+                                                <TextBlock Text="POINTS" FontSize="8.5" Foreground="#4A5460" HorizontalAlignment="Center"/>
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,20,0">
+                                                <TextBlock Text="{Binding BestText}" FontSize="15" FontWeight="Bold" FontFamily="Consolas" Foreground="#E6EDF3" HorizontalAlignment="Center"/>
+                                                <TextBlock Text="BEST" FontSize="8.5" Foreground="#4A5460" HorizontalAlignment="Center"/>
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,20,0">
+                                                <TextBlock Text="{Binding DnfsText}" FontSize="15" FontWeight="Bold" FontFamily="Consolas" Foreground="#E6EDF3" HorizontalAlignment="Center"/>
+                                                <TextBlock Text="DNF" FontSize="8.5" Foreground="#4A5460" HorizontalAlignment="Center"/>
+                                            </StackPanel>
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding AvgText}" FontSize="15" FontWeight="Bold" FontFamily="Consolas" Foreground="#E6EDF3" HorizontalAlignment="Center"/>
+                                                <TextBlock Text="AVG" FontSize="8.5" Foreground="#4A5460" HorizontalAlignment="Center"/>
+                                            </StackPanel>
                                         </StackPanel>
                                     </Grid>
-                                </Button>
-                                <DataTemplate.Triggers>
-                                    <Trigger SourceName="CardBtn" Property="IsMouseOver" Value="True">
-                                        <Setter TargetName="CardActions" Property="Opacity" Value="1"/>
-                                    </Trigger>
-                                </DataTemplate.Triggers>
+                                    <Border Height="1" Background="#1B222C" Margin="2,0,2,12"/>
+
+                                    <!-- weekend cards -->
+                                    <ItemsControl ItemsSource="{Binding Weekends}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate><UniformGrid Columns="2"/></ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Button x:Name="CardBtn" Style="{StaticResource HistoryCardButton}" Margin="0,0,12,12" Click="Card_Click" Tag="{Binding}">
+                                                    <Grid Margin="15,14">
+                                                        <!-- teal accent bar -->
+                                                        <Border HorizontalAlignment="Left" Width="3" Background="#37BEDD" CornerRadius="2"
+                                                                Margin="-15,-14,0,-14"/>
+
+                                                        <StackPanel>
+                                                            <Grid>
+                                                                <StackPanel>
+                                                                    <StackPanel Orientation="Horizontal">
+                                                                        <Border Background="#1C2733" CornerRadius="4" Padding="5,1" VerticalAlignment="Center" Margin="0,0,8,0"
+                                                                                Visibility="{Binding Race.HasCountry, Converter={StaticResource BoolToVis}}">
+                                                                            <TextBlock Text="{Binding Race.Country}" FontSize="10" FontFamily="Consolas" FontWeight="Bold" Foreground="#9BA7B4"/>
+                                                                        </Border>
+                                                                        <TextBlock Text="{Binding Race.GrandPrix}" FontSize="16" FontWeight="Bold" Foreground="#E6EDF3" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                                                                        <!-- Sprint-weekend badge: this card also holds a Sprint session (open to see it). -->
+                                                                        <Border Background="#3A2A12" CornerRadius="4" Padding="5,1" VerticalAlignment="Center" Margin="8,0,0,0"
+                                                                                Visibility="{Binding HasSprint, Converter={StaticResource BoolToVis}}">
+                                                                            <TextBlock Text="SPRINT" FontSize="9" FontFamily="Consolas" FontWeight="Bold" Foreground="#E0A93B"/>
+                                                                        </Border>
+                                                                    </StackPanel>
+                                                                    <TextBlock Text="{Binding Race.CardSubtitle}" FontSize="11" Foreground="#6B7684" Margin="0,3,0,0"/>
+                                                                </StackPanel>
+                                                                <StackPanel HorizontalAlignment="Right" VerticalAlignment="Top">
+                                                                    <TextBlock Text="{Binding Race.FinishText}" Foreground="{Binding Race.FinishBrush}" FontFamily="Consolas"
+                                                                               FontWeight="Bold" FontSize="24" HorizontalAlignment="Right"/>
+                                                                    <TextBlock Text="{Binding Race.DeltaText}" Foreground="{Binding Race.DeltaBrush}" FontFamily="Consolas"
+                                                                               FontSize="11" HorizontalAlignment="Right" Margin="0,2,0,0"
+                                                                               Visibility="{Binding Race.HasDelta, Converter={StaticResource BoolToVis}}"/>
+                                                                </StackPanel>
+                                                            </Grid>
+
+                                                            <StackPanel Orientation="Horizontal" Margin="0,13,0,0" VerticalAlignment="Center">
+                                                                <StackPanel Margin="0,0,20,0">
+                                                                    <TextBlock Text="BEST LAP" FontSize="9.5" Foreground="#4A5460"/>
+                                                                    <TextBlock Text="{Binding Race.BestLapText}" FontSize="13" FontFamily="Consolas" Foreground="{Binding Race.BestLapBrush}"/>
+                                                                </StackPanel>
+                                                                <StackPanel Margin="0,0,20,0">
+                                                                    <TextBlock Text="STOPS" FontSize="9.5" Foreground="#4A5460"/>
+                                                                    <TextBlock Text="{Binding Race.StopsText}" FontSize="13" FontFamily="Consolas" Foreground="#E6EDF3"/>
+                                                                </StackPanel>
+                                                                <TextBlock Text="◷ Fastest lap" Foreground="#AFA9EC" FontSize="10.5" FontWeight="Bold"
+                                                                           VerticalAlignment="Center" Margin="0,6,0,0"
+                                                                           Visibility="{Binding Race.HasFastestLap, Converter={StaticResource BoolToVis}}"/>
+                                                                <StackPanel HorizontalAlignment="Right" Margin="12,0,0,0">
+                                                                    <TextBlock Text="{Binding WeekendPointsText}" FontSize="15" FontWeight="Bold" FontFamily="Consolas" Foreground="#E6EDF3" HorizontalAlignment="Right"/>
+                                                                    <TextBlock Text="POINTS" FontSize="9.5" Foreground="#4A5460" HorizontalAlignment="Right"/>
+                                                                </StackPanel>
+                                                            </StackPanel>
+
+                                                            <!-- mini stint bar (built in code-behind from the main race) -->
+                                                            <Grid x:Name="CardStint" Height="7" Margin="0,12,0,0" Loaded="CardStint_Loaded" Tag="{Binding}"/>
+                                                        </StackPanel>
+
+                                                        <!-- hover actions -->
+                                                        <StackPanel x:Name="CardActions" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                                                    Margin="0,-4,-4,0" Opacity="0">
+                                                            <Button Style="{StaticResource MiniAction}" Click="Export_Click" Tag="{Binding}" ToolTip="Export race as HTML" Margin="0,0,6,0">
+                                                                <Path Data="M12,15 V3 M7,8 L12,3 L17,8 M5,15 V19 A2,2 0 0 0 7,21 H17 A2,2 0 0 0 19,19 V15"
+                                                                      Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.8"
+                                                                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Width="14" Height="14" Stretch="Uniform"/>
+                                                            </Button>
+                                                            <Button Style="{StaticResource MiniAction}" Click="Delete_Click" Tag="{Binding}" ToolTip="Delete">
+                                                                <Path Data="M3,6 H21 M8,6 V4 A1,1 0 0 1 9,3 H15 A1,1 0 0 1 16,4 V6 M18,6 V20 A2,2 0 0 1 16,22 H8 A2,2 0 0 1 6,20 V6"
+                                                                      Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.8"
+                                                                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Width="14" Height="14" Stretch="Uniform"/>
+                                                            </Button>
+                                                        </StackPanel>
+                                                    </Grid>
+                                                </Button>
+                                                <DataTemplate.Triggers>
+                                                    <Trigger SourceName="CardBtn" Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="CardActions" Property="Opacity" Value="1"/>
+                                                    </Trigger>
+                                                </DataTemplate.Triggers>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
@@ -195,14 +245,30 @@
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
-                <Button Grid.Row="0" HorizontalAlignment="Left" Background="Transparent" BorderThickness="0" Cursor="Hand"
-                        Foreground="#9BA7B4" Click="Back_Click" Margin="0,0,0,6">
-                    <StackPanel Orientation="Horizontal">
-                        <Path Data="M15,18 L9,12 L15,6" Stroke="#9BA7B4" StrokeThickness="2.2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
-                              Width="12" Height="12" Stretch="Uniform" Margin="0,0,6,0"/>
-                        <TextBlock Text="All races" FontSize="12" Foreground="#9BA7B4"/>
-                    </StackPanel>
-                </Button>
+                <Grid Grid.Row="0" Margin="0,0,0,6">
+                    <Button HorizontalAlignment="Left" Background="Transparent" BorderThickness="0" Cursor="Hand"
+                            Foreground="#9BA7B4" Click="Back_Click">
+                        <StackPanel Orientation="Horizontal">
+                            <Path Data="M15,18 L9,12 L15,6" Stroke="#9BA7B4" StrokeThickness="2.2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                  Width="12" Height="12" Stretch="Uniform" Margin="0,0,6,0"/>
+                            <TextBlock Text="All races" FontSize="12" Foreground="#9BA7B4"/>
+                        </StackPanel>
+                    </Button>
+
+                    <!-- Race/Sprint switcher, only shown for a Sprint weekend. The two sessions
+                         share this detail view; clicking a tab repopulates it (see ShowSession). -->
+                    <Border x:Name="SessionTabs" HorizontalAlignment="Right" VerticalAlignment="Center"
+                            Background="#11161D" BorderBrush="#232B35" BorderThickness="1" CornerRadius="7" Padding="2" Visibility="Collapsed">
+                        <StackPanel Orientation="Horizontal">
+                            <Border x:Name="RaceTabBtn" CornerRadius="5" Padding="14,5" Background="#1C2733" Cursor="Hand" MouseLeftButtonUp="RaceTab_Click">
+                                <TextBlock Text="RACE" FontSize="11" FontWeight="Bold" Foreground="#E6EDF3"/>
+                            </Border>
+                            <Border x:Name="SprintTabBtn" CornerRadius="5" Padding="14,5" Background="Transparent" Cursor="Hand" MouseLeftButtonUp="SprintTab_Click" Margin="2,0,0,0">
+                                <TextBlock Text="SPRINT" FontSize="11" FontWeight="Bold" Foreground="#6B7684"/>
+                            </Border>
+                        </StackPanel>
+                    </Border>
+                </Grid>
 
                 <!-- header -->
                 <Grid Grid.Row="1" Margin="2,0,2,16">
@@ -218,6 +284,7 @@
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top">
                         <StackPanel Margin="0,0,22,0"><TextBlock Text="FINISH" FontSize="10" Foreground="#4A5460"/><TextBlock x:Name="DFinish" FontFamily="Consolas" FontSize="22" FontWeight="Bold" Foreground="#E6EDF3"/></StackPanel>
                         <StackPanel Margin="0,0,22,0"><TextBlock Text="GRID" FontSize="10" Foreground="#4A5460"/><TextBlock x:Name="DGrid" FontFamily="Consolas" FontSize="22" FontWeight="Bold" Foreground="#E6EDF3"/></StackPanel>
+                        <StackPanel Margin="0,0,22,0"><TextBlock Text="GAINED" FontSize="10" Foreground="#4A5460"/><TextBlock x:Name="DGained" FontFamily="Consolas" FontSize="22" FontWeight="Bold" Foreground="#E6EDF3"/></StackPanel>
                         <StackPanel Margin="0,0,22,0"><TextBlock Text="POINTS" FontSize="10" Foreground="#4A5460"/><TextBlock x:Name="DPoints" FontFamily="Consolas" FontSize="22" FontWeight="Bold" Foreground="#E6EDF3"/></StackPanel>
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                             <Button Style="{StaticResource MiniAction}" Width="34" Height="34" Click="DetailDelete_Click" ToolTip="Delete" Margin="0,0,8,0">
@@ -252,26 +319,32 @@
                         <ColumnDefinition Width="0.95*"/>
                     </Grid.ColumnDefinitions>
 
+                    <!-- LEFT column: final classification (scrolls) with the penalties summary
+                         card beneath it, so the long list sits at the top of the column and the
+                         short summary aligns with the tyre-strategy card on the right. -->
+                    <Grid Grid.Column="0">
+                        <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+
                     <!-- classification. Header + rows share one set of fixed column widths so
                          every column lines up; a right margin on both leaves room for the
                          scrollbar gutter so the header stays aligned with the rows. -->
-                    <Border Grid.Column="0" Background="#161B22" BorderBrush="#232B35" BorderThickness="1" CornerRadius="10" Padding="14">
+                    <Border Grid.Row="0" Background="#161B22" BorderBrush="#232B35" BorderThickness="1" CornerRadius="10" Padding="14">
                         <Grid>
                             <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
                             <TextBlock Grid.Row="0" Text="FINAL CLASSIFICATION" FontSize="11" Foreground="#6B7684" FontWeight="SemiBold" Margin="0,0,0,12"/>
 
                             <Grid Grid.Row="1" Margin="6,0,14,7">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="26"/>
+                                    <ColumnDefinition Width="24"/>
                                     <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="74"/>
-                                    <ColumnDefinition Width="40"/>
-                                    <ColumnDefinition Width="78"/>
+                                    <ColumnDefinition Width="80"/>
+                                    <ColumnDefinition Width="62"/>
+                                    <ColumnDefinition Width="62"/>
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Column="0" Text="#" FontSize="10" Foreground="#4A5460"/>
                                 <TextBlock Grid.Column="1" Text="DRIVER" FontSize="10" Foreground="#4A5460"/>
-                                <TextBlock Grid.Column="2" Text="BEST" FontSize="10" Foreground="#4A5460" HorizontalAlignment="Right" Margin="0,0,12,0"/>
-                                <TextBlock Grid.Column="3" Text="PIT" FontSize="10" Foreground="#4A5460" HorizontalAlignment="Center"/>
+                                <TextBlock Grid.Column="2" Text="GAP" FontSize="10" Foreground="#4A5460" HorizontalAlignment="Right" Margin="0,0,12,0"/>
+                                <TextBlock Grid.Column="3" Text="BEST" FontSize="10" Foreground="#4A5460" HorizontalAlignment="Right" Margin="0,0,12,0"/>
                                 <TextBlock Grid.Column="4" Text="STINTS" FontSize="10" Foreground="#4A5460" Margin="6,0,0,0"/>
                             </Grid>
 
@@ -290,21 +363,32 @@
                                                     </Border.Style>
                                                     <Grid>
                                                         <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="26"/>
+                                                            <ColumnDefinition Width="24"/>
                                                             <ColumnDefinition Width="*"/>
-                                                            <ColumnDefinition Width="74"/>
-                                                            <ColumnDefinition Width="40"/>
-                                                            <ColumnDefinition Width="78"/>
+                                                            <ColumnDefinition Width="80"/>
+                                                            <ColumnDefinition Width="62"/>
+                                                            <ColumnDefinition Width="62"/>
                                                         </Grid.ColumnDefinitions>
-                                                        <TextBlock Grid.Column="0" Text="{Binding PositionText}" FontFamily="Consolas" FontWeight="Bold" FontSize="13" Foreground="#E6EDF3" VerticalAlignment="Center"/>
-                                                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                                                            <Border Width="8" Height="8" CornerRadius="2" Background="{Binding LiveryBrush}" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                                            <TextBlock Text="{Binding DriverName}" FontSize="12.5" Foreground="#E6EDF3" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
-                                                            <TextBlock Text="◷" Foreground="#AFA9EC" FontSize="12" Margin="5,0,0,0" VerticalAlignment="Center"
+                                                        <TextBlock Grid.Column="0" Text="{Binding PositionText}" FontFamily="Consolas" FontWeight="Bold" FontSize="13" Foreground="{Binding PositionBrush}" VerticalAlignment="Center"/>
+                                                        <!-- Driver on one line: dot + surname + fastest-lap mark, then the team
+                                                             name inline to the right (fills the remaining width and trims). Single
+                                                             row height lets all cars fit without a scrollbar. -->
+                                                        <Grid Grid.Column="1" VerticalAlignment="Center">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <Border Grid.Column="0" Width="8" Height="8" CornerRadius="2" Background="{Binding LiveryBrush}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                                            <TextBlock Grid.Column="1" Text="{Binding DriverName}" FontSize="12.5" Foreground="{Binding NameBrush}" VerticalAlignment="Center"/>
+                                                            <TextBlock Grid.Column="2" Text="◷" Foreground="#AFA9EC" FontSize="12" Margin="5,0,0,0" VerticalAlignment="Center"
                                                                        Visibility="{Binding HasFastestLap, Converter={StaticResource BoolToVis}}"/>
-                                                        </StackPanel>
-                                                        <TextBlock Grid.Column="2" Text="{Binding BestLapText}" Foreground="{Binding BestLapBrush}" FontFamily="Consolas" FontSize="12" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,12,0"/>
-                                                        <TextBlock Grid.Column="3" Text="{Binding PitsText}" Foreground="#9BA7B4" FontFamily="Consolas" FontSize="12" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                            <TextBlock Grid.Column="3" Text="{Binding TeamName}" FontSize="10.5" Foreground="{Binding TeamBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="8,1,0,0"
+                                                                       Visibility="{Binding HasTeam, Converter={StaticResource BoolToVis}}"/>
+                                                        </Grid>
+                                                        <TextBlock Grid.Column="2" Text="{Binding GapText}" Foreground="{Binding GapBrush}" FontFamily="Consolas" FontSize="12" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,12,0"/>
+                                                        <TextBlock Grid.Column="3" Text="{Binding BestLapText}" Foreground="{Binding BestLapBrush}" FontFamily="Consolas" FontSize="12" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,12,0"/>
                                                         <ItemsControl Grid.Column="4" ItemsSource="{Binding StintChips}" VerticalAlignment="Center" HorizontalAlignment="Left" Margin="6,0,0,0">
                                                             <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
                                                             <ItemsControl.ItemTemplate>
@@ -324,19 +408,56 @@
                         </Grid>
                     </Border>
 
-                    <!-- strategy + laps -->
-                    <Grid Grid.Column="2">
-                        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+                    <!-- Penalties summary: mirrors the live Penalties &amp; Flags widget (its
+                         penalties half - live flags are dropped, being meaningless post-race).
+                         Same quiet convention: a clean race shows a green tick, not an empty card. -->
+                    <!-- MinHeight fits the penalties list at its cap (6 entries = 3 rows of 2);
+                         the tyre-strategy card opposite carries the same MinHeight so the two
+                         bottom cards stay the same size and aligned. -->
+                    <Border Grid.Row="1" Background="#161B22" BorderBrush="#232B35" BorderThickness="1" CornerRadius="10" Padding="14" Margin="0,16,0,0" MinHeight="156">
+                        <StackPanel>
+                            <TextBlock Text="PENALTIES" FontSize="11" Foreground="#6B7684" FontWeight="SemiBold" Margin="0,0,0,12"/>
 
-                        <Border Grid.Row="0" Background="#161B22" BorderBrush="#232B35" BorderThickness="1" CornerRadius="10" Padding="14" Margin="0,0,0,16">
-                            <StackPanel>
+                            <StackPanel Orientation="Horizontal" Visibility="{Binding NoPenalties, Converter={StaticResource BoolToVis}}">
+                                <Viewbox Width="16" Height="16" Margin="0,0,9,0">
+                                    <Canvas Width="24" Height="24">
+                                        <Path Data="{StaticResource CheckmarkGeometry}" Stroke="#97C459" StrokeThickness="2.4"
+                                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+                                    </Canvas>
+                                </Viewbox>
+                                <TextBlock Text="No penalties" FontSize="13" Foreground="#9BA7B4" VerticalAlignment="Center"/>
+                            </StackPanel>
+
+                            <ItemsControl ItemsSource="{Binding Penalties}" Visibility="{Binding HasPenalties, Converter={StaticResource BoolToVis}}">
+                                <ItemsControl.ItemsPanel><ItemsPanelTemplate><UniformGrid Columns="2"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Background="#412402" CornerRadius="6" Padding="10,7" Margin="0,0,6,6">
+                                            <TextBlock Text="{Binding}" FontSize="12.5" Foreground="#EF9F27" TextTrimming="CharacterEllipsis"/>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+                    </Grid>
+
+                    <!-- RIGHT column: lap-by-lap (scrolls) on top, tyre-strategy card beneath. -->
+                    <Grid Grid.Column="2">
+                        <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+
+                        <Border Grid.Row="1" Background="#161B22" BorderBrush="#232B35" BorderThickness="1" CornerRadius="10" Padding="14" Margin="0,16,0,0" MinHeight="156">
+                            <StackPanel VerticalAlignment="Center">
                                 <TextBlock Text="YOUR TYRE STRATEGY" FontSize="11" Foreground="#6B7684" FontWeight="SemiBold" Margin="0,0,0,12"/>
-                                <Grid x:Name="DetailStintBar" Height="26"/>
-                                <Grid x:Name="DetailStintTicks" Height="16" Margin="0,5,0,0"/>
+                                <Grid Height="26">
+                                    <Border Background="#1C2733" CornerRadius="4"/>
+                                    <Grid x:Name="DetailStintBar"/>
+                                </Grid>
+                                <Canvas x:Name="DetailStintTicks" Height="16" Margin="0,5,0,0"/>
                             </StackPanel>
                         </Border>
 
-                        <Border Grid.Row="1" Background="#161B22" BorderBrush="#232B35" BorderThickness="1" CornerRadius="10" Padding="14">
+                        <Border Grid.Row="0" Background="#161B22" BorderBrush="#232B35" BorderThickness="1" CornerRadius="10" Padding="14">
                             <Grid>
                                 <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
                                 <TextBlock Grid.Row="0" Text="YOUR LAP-BY-LAP" FontSize="11" Foreground="#6B7684" FontWeight="SemiBold" Margin="0,0,0,10"/>

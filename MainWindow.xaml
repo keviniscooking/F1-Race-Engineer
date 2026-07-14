@@ -84,9 +84,21 @@
                         </Canvas>
                     </Viewbox>
                 </ToggleButton>
-                <ToggleButton x:Name="SettingsButton" Content="&#9881;" FontSize="16"
+                <!-- Vector cog (not the ⚙ glyph) so it matches the history icon exactly in
+                     size, stroke weight and centring - same 15x15 Viewbox / 24x24 canvas /
+                     Foreground-bound stroke, so both dim and brighten together. -->
+                <ToggleButton x:Name="SettingsButton"
                               Style="{StaticResource IconToggleButtonStyle}"
-                              Checked="SettingsButton_Checked" Unchecked="SettingsButton_Unchecked"/>
+                              Checked="SettingsButton_Checked" Unchecked="SettingsButton_Unchecked">
+                    <Viewbox Width="15" Height="15">
+                        <Canvas Width="24" Height="24">
+                            <Path Data="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"
+                                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="1.9" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+                            <Path Data="M9 12a3 3 0 1 0 6 0 3 3 0 1 0-6 0"
+                                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="1.9" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+                        </Canvas>
+                    </Viewbox>
+                </ToggleButton>
             </StackPanel>
             <Popup x:Name="SettingsPopup" PlacementTarget="{Binding ElementName=SettingsButton}"
                    Placement="Bottom" StaysOpen="False" Closed="SettingsPopup_Closed">

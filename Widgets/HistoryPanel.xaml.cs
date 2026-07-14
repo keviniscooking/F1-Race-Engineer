@@ -15,30 +15,32 @@ namespace F1RaceEngineer.Widgets
 {
     public partial class HistoryPanel : UserControl
     {
-        private static readonly FontFamily MonoFont = new("Consolas");
-        private static readonly SolidColorBrush TickLine = SavedRaceView.BrushFromHex("#4A5460");
-        private static readonly SolidColorBrush TickText = SavedRaceView.BrushFromHex("#6B7684");
+        private static readonly SolidColorBrush TabActiveBg = SavedRaceView.BrushFromHex("#1C2733");
+        private static readonly SolidColorBrush TabActiveInk = SavedRaceView.BrushFromHex("#E6EDF3");
+        private static readonly SolidColorBrush TabIdleInk = SavedRaceView.BrushFromHex("#6B7684");
 
         private readonly RaceHistoryStore _store = new();
-        private readonly ObservableCollection<SavedRaceView> _races = new();
+        private readonly ObservableCollection<SeasonGroupView> _seasons = new();
         private readonly DispatcherTimer _toastTimer = new() { Interval = TimeSpan.FromSeconds(2.6) };
-        private SavedRaceView? _current;      // race open in the detail view
-        private SavedRaceView? _pendingDelete;
+        private SavedRaceView? _current;            // session shown in the detail view
+        private WeekendCardView? _currentWeekend;   // its weekend (Race + optional Sprint)
+        private List<SavedRace> _pendingDelete = new();
 
         public HistoryPanel()
         {
             InitializeComponent();
-            RaceList.ItemsSource = _races;
+            SeasonList.ItemsSource = _seasons;
             _toastTimer.Tick += (_, _) => { _toastTimer.Stop(); Toast.Visibility = Visibility.Collapsed; };
         }
 
         /// <summary>Reloads the list from disk and returns to the list view. Called each time the panel is opened.</summary>
         public void Reload()
         {
-            _races.Clear();
-            foreach (var r in _store.LoadAll()) _races.Add(new SavedRaceView(r));
-            CountText.Text = _races.Count == 1 ? "1 race" : $"{_races.Count} races";
-            EmptyState.Visibility = _races.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+            _seasons.Clear();
+            foreach (var s in SeasonGroupView.Build(_store.LoadAll())) _seasons.Add(s);
+            int weekends = _seasons.Sum(s => s.Weekends.Count);
+            CountText.Text = weekends == 1 ? "1 race" : $"{weekends} races";
+            EmptyState.Visibility = weekends == 0 ? Visibility.Visible : Visibility.Collapsed;
             ConfirmOverlay.Visibility = Visibility.Collapsed;
             ShowList();
         }
@@ -46,6 +48,7 @@ namespace F1RaceEngineer.Widgets
         private void ShowList()
         {
             _current = null;
+            _currentWeekend = null;
             DetailRoot.Visibility = Visibility.Collapsed;
             ListRoot.Visibility = Visibility.Visible;
         }
@@ -53,17 +56,30 @@ namespace F1RaceEngineer.Widgets
         // ---- list ----
         private void Card_Click(object sender, RoutedEventArgs e)
         {
-            if ((sender as FrameworkElement)?.Tag is SavedRaceView v) OpenDetail(v);
+            if ((sender as FrameworkElement)?.Tag is WeekendCardView w) OpenDetail(w);
         }
 
         private void CardStint_Loaded(object sender, RoutedEventArgs e)
         {
-            if (sender is Grid g && g.Tag is SavedRaceView v)
-                BuildBar(g, v.StintSegments, showLetters: false, gap: 1.5);
+            if (sender is Grid g && g.Tag is WeekendCardView w)
+                StintStripRenderer.Render(g, null, w.Race.StintSegments, w.Race.TotalLaps, showLetters: false, gap: 1.5, cornerRadius: 2);
         }
 
         // ---- detail ----
-        private void OpenDetail(SavedRaceView v)
+        private void OpenDetail(WeekendCardView w)
+        {
+            _currentWeekend = w;
+
+            // Sprint weekends get a Race/Sprint switcher; a plain weekend has just the one session.
+            SessionTabs.Visibility = w.HasSprint ? Visibility.Visible : Visibility.Collapsed;
+            ShowSession(w.Race);
+
+            ListRoot.Visibility = Visibility.Collapsed;
+            DetailRoot.Visibility = Visibility.Visible;
+        }
+
+        // Populates the detail view from one session and marks the matching tab active.
+        private void ShowSession(SavedRaceView v)
         {
             _current = v;
             DName.Text = v.GrandPrix;
@@ -73,78 +89,44 @@ namespace F1RaceEngineer.Widgets
             DFinish.Text = v.FinishText;
             DFinish.Foreground = v.FinishBrush;
             DGrid.Text = v.GridText;
+            DGained.Text = v.DeltaShort;
+            DGained.Foreground = v.DeltaShortBrush;
             DPoints.Text = v.PointsText;
             DnfStrip.Visibility = v.HasDnfDetail ? Visibility.Visible : Visibility.Collapsed;
             DnfText.Text = v.DnfDetail;
             ClassList.ItemsSource = v.Classification;
             LapList.ItemsSource = v.Laps;
-            BuildBar(DetailStintBar, v.StintSegments, showLetters: true, gap: 3);
-            BuildTicks(DetailStintTicks, v);
+            StintStripRenderer.Render(DetailStintBar, DetailStintTicks, v.StintSegments, v.TotalLaps,
+                showLetters: true, gap: 3, cornerRadius: 4);
 
-            ListRoot.Visibility = Visibility.Collapsed;
-            DetailRoot.Visibility = Visibility.Visible;
+            bool isSprint = _currentWeekend?.Sprint == v;
+            StyleTab(RaceTabBtn, !isSprint);
+            StyleTab(SprintTabBtn, isSprint);
+        }
+
+        private static void StyleTab(Border tab, bool active)
+        {
+            tab.Background = active ? TabActiveBg : System.Windows.Media.Brushes.Transparent;
+            if (tab.Child is TextBlock t) t.Foreground = active ? TabActiveInk : TabIdleInk;
+        }
+
+        private void RaceTab_Click(object sender, RoutedEventArgs e)
+        {
+            if (_currentWeekend != null) ShowSession(_currentWeekend.Race);
+        }
+
+        private void SprintTab_Click(object sender, RoutedEventArgs e)
+        {
+            if (_currentWeekend?.Sprint is SavedRaceView s) ShowSession(s);
         }
 
         private void Back_Click(object sender, RoutedEventArgs e) => ShowList();
-
-        /// <summary>Builds a proportional tyre-stint bar into <paramref name="host"/> (star columns weighted by lap count).</summary>
-        private static void BuildBar(Grid host, IReadOnlyList<TyreStintSegment> segs, bool showLetters, double gap)
-        {
-            host.ColumnDefinitions.Clear();
-            host.Children.Clear();
-            for (int i = 0; i < segs.Count; i++)
-                host.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(segs[i].LapCount, GridUnitType.Star) });
-
-            for (int i = 0; i < segs.Count; i++)
-            {
-                var seg = segs[i];
-                var border = new Border
-                {
-                    Background = seg.Brush,
-                    CornerRadius = new CornerRadius(showLetters ? 4 : 2),
-                    Margin = new Thickness(i == 0 ? 0 : gap, 0, 0, 0)
-                };
-                if (showLetters)
-                    border.Child = new TextBlock
-                    {
-                        Text = seg.Letter, Foreground = seg.TextBrush, FontWeight = FontWeights.Bold,
-                        FontSize = 12, FontFamily = MonoFont,
-                        HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center
-                    };
-                Grid.SetColumn(border, i);
-                host.Children.Add(border);
-            }
-        }
-
-        // A lap-number tick at each stint boundary (the lap a pit happened), aligned to the
-        // boundary by reusing the bar's own star columns and right-aligning within each stint
-        // except the last (whose end is the flag, not a pit).
-        private static void BuildTicks(Grid host, SavedRaceView v)
-        {
-            host.ColumnDefinitions.Clear();
-            host.Children.Clear();
-            var segs = v.StintSegments;
-            var stints = v.Source.PlayerStints;
-            if (segs.Count < 2) return;
-
-            for (int i = 0; i < segs.Count; i++)
-                host.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(segs[i].LapCount, GridUnitType.Star) });
-
-            for (int i = 0; i < segs.Count - 1; i++)
-            {
-                var panel = new StackPanel { HorizontalAlignment = HorizontalAlignment.Right };
-                panel.Children.Add(new Border { Width = 1, Height = 5, Background = TickLine, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 0, 0, 2) });
-                panel.Children.Add(new TextBlock { Text = $"L{stints[i].EndLap}", FontSize = 9, FontFamily = MonoFont, Foreground = TickText, HorizontalAlignment = HorizontalAlignment.Right });
-                Grid.SetColumn(panel, i);
-                host.Children.Add(panel);
-            }
-        }
 
         // ---- export ----
         private void Export_Click(object sender, RoutedEventArgs e)
         {
             e.Handled = true; // don't also open the card
-            if ((sender as FrameworkElement)?.Tag is SavedRaceView v) ExportRace(v);
+            if ((sender as FrameworkElement)?.Tag is WeekendCardView w) ExportRace(w.Race);
         }
 
         private void DetailExport_Click(object sender, RoutedEventArgs e)
@@ -178,21 +160,25 @@ namespace F1RaceEngineer.Widgets
         }
 
         // ---- delete ----
+        // From a list card: removes the whole weekend (both sessions of a Sprint weekend).
         private void Delete_Click(object sender, RoutedEventArgs e)
         {
             e.Handled = true;
-            if ((sender as FrameworkElement)?.Tag is SavedRaceView v) ShowDeleteConfirm(v);
+            if ((sender as FrameworkElement)?.Tag is not WeekendCardView w) return;
+            string what = w.HasSprint ? $"“{w.Race.GrandPrix}” weekend (Race + Sprint)" : $"“{w.Race.GrandPrix}”";
+            ShowDeleteConfirm(w.Sessions.Select(s => s.Source).ToList(), what);
         }
 
+        // From the detail view: removes only the session currently shown.
         private void DetailDelete_Click(object sender, RoutedEventArgs e)
         {
-            if (_current != null) ShowDeleteConfirm(_current);
+            if (_current != null) ShowDeleteConfirm(new List<SavedRace> { _current.Source }, $"“{_current.GrandPrix}”");
         }
 
-        private void ShowDeleteConfirm(SavedRaceView v)
+        private void ShowDeleteConfirm(List<SavedRace> races, string what)
         {
-            _pendingDelete = v;
-            ConfirmText.Text = $"Delete “{v.GrandPrix}” from your race history?";
+            _pendingDelete = races;
+            ConfirmText.Text = $"Delete {what} from your race history?";
             ConfirmOverlay.Visibility = Visibility.Visible;
         }
 
@@ -200,10 +186,10 @@ namespace F1RaceEngineer.Widgets
 
         private void ConfirmDelete_Click(object sender, RoutedEventArgs e)
         {
-            if (_pendingDelete == null) return;
-            string gp = _pendingDelete.GrandPrix;
-            _store.Delete(_pendingDelete.Source);
-            _pendingDelete = null;
+            if (_pendingDelete.Count == 0) return;
+            string gp = _pendingDelete[0].GrandPrix;
+            foreach (var r in _pendingDelete) _store.Delete(r);
+            _pendingDelete = new List<SavedRace>();
             Reload();
             ShowToast($"Deleted {gp}");
         }

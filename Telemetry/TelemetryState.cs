@@ -241,6 +241,19 @@ namespace F1RaceEngineer.Telemetry
         private string _lapCounterText = "-";
         public string LapCounterText { get => _lapCounterText; private set => SetProperty(ref _lapCounterText, value); }
 
+        // Grouping keys from SessionDataPacket, cached here and stamped onto the SavedRace so
+        // the history can tie a weekend's sessions together and separate season/career saves.
+        private uint _seasonLinkId;
+        private uint _weekendLinkId;
+        private uint _sessionLinkId;
+
+        // Read by the live Tyres widget to scale its tyre-strategy bar to the whole race
+        // distance (a ghost full-length track that the coloured stints fill lap by lap),
+        // rather than the elapsed distance. _totalLaps is the race length, _playerCurrentLap
+        // the laps run so far. Both are already maintained above for other uses.
+        public int RaceTotalLaps => _totalLaps;
+        public int PlayerCurrentLap => _playerCurrentLap;
+
         // Session's fastest lap, shown as the broadcast's purple "FASTEST LAP" strip in the
         // race tower. Sourced from _carBestLapMs (already maintained per car), so no extra
         // tracking - RefreshRaceStandings sets these while it's already finding the holder
@@ -504,6 +517,9 @@ namespace F1RaceEngineer.Telemetry
 
             _totalLaps = session.TotalLaps;
             _currentTrack = session.Track;
+            _seasonLinkId = session.SeasonLinkIdentifier;
+            _weekendLinkId = session.WeekendLinkIdentifier;
+            _sessionLinkId = session.SessionLinkIdentifier;
             IsTimeTrial = session.SessionType == SessionType.TimeTrial;
 
             RefreshSessionAndTrack(session);
@@ -1512,6 +1528,9 @@ namespace F1RaceEngineer.Telemetry
                 Country = TrackNames.CountryCodeFor(_currentTrack),
                 SessionLabel = SessionLabelFor(_lastSeenSessionType),
                 TotalLaps = _totalLaps > 0 ? _totalLaps : player.NumLaps,
+                SeasonLinkId = _seasonLinkId,
+                WeekendLinkId = _weekendLinkId,
+                SessionLinkId = _sessionLinkId,
                 GridPosition = player.GridPosition,
                 FinishPosition = player.Position,
                 Points = player.Points,
@@ -1524,6 +1543,7 @@ namespace F1RaceEngineer.Telemetry
                 PenaltiesTimeSeconds = player.PenaltiesTime,
                 PlayerHasFastestLap = fastestIdx == playerIdx,
                 PlayerStints = BuildStints(player),
+                Penalties = PenaltiesIssues.ToList(),
                 Classification = BuildClassification(span, numCars, playerIdx, fastestIdx),
                 PlayerLaps = SnapshotPlayerLaps()
             };
@@ -1571,7 +1591,12 @@ namespace F1RaceEngineer.Telemetry
             var endLaps = c.TyreStintsEndLaps.AsSpan();
             int n = Math.Min(c.NumTyreStints, Math.Min(visual.Length, endLaps.Length));
             for (int i = 0; i < n; i++)
-                stints.Add(new SavedStint { Compound = CompoundPalette.LetterFor(visual[i]), EndLap = endLaps[i] });
+            {
+                // The game reports the final stint's end lap as 255 (a "no end yet" sentinel);
+                // clamp to the car's finished lap count so the stint ends at the flag, not lap 255.
+                int end = c.NumLaps > 0 ? Math.Min(endLaps[i], c.NumLaps) : endLaps[i];
+                stints.Add(new SavedStint { Compound = CompoundPalette.LetterFor(visual[i]), EndLap = end });
+            }
             return stints;
         }
 
@@ -1594,7 +1619,9 @@ namespace F1RaceEngineer.Telemetry
                     IsPlayer = i == playerIdx,
                     IsOut = IsOutStatus(c.ResultStatus),
                     HasFastestLap = i == fastestIdx,
-                    Stints = BuildStints(c)
+                    Stints = BuildStints(c),
+                    TotalRaceTimeSeconds = c.TotalRaceTime,
+                    NumLaps = c.NumLaps
                 });
             }
             rows.Sort((a, b) => a.Position.CompareTo(b.Position));

@@ -26,6 +26,8 @@ namespace F1RaceEngineer.Models
         public bool HasDelta { get; }
         public string DeltaText { get; }         // "▲ 2 places" / "▼ 1 place" / "— held P7"
         public SolidColorBrush DeltaBrush { get; }
+        public string DeltaShort { get; }        // compact for the detail header: "▲ 8" / "▼ 1" / "—"
+        public SolidColorBrush DeltaShortBrush { get; }
 
         public string BestLapText { get; }
         public SolidColorBrush BestLapBrush { get; }
@@ -38,8 +40,10 @@ namespace F1RaceEngineer.Models
         public string DnfDetail { get; }          // "Retired on lap 61 — Terminal damage"
 
         public int TotalLaps { get; }
+        public List<string> Penalties { get; }   // mirrors the live Penalties & Flags list
+        public bool HasPenalties { get; }
+        public bool NoPenalties { get; }          // drives the quiet "No penalties" state without an inverse converter
         public List<TyreStintSegment> StintSegments { get; }
-        public List<SavedStintTick> StintTicks { get; }
         public List<ClassRowView> Classification { get; }
         public List<LapRowView> Laps { get; }
 
@@ -68,9 +72,12 @@ namespace F1RaceEngineer.Models
 
             int delta = r.FinishPosition - r.GridPosition; // negative = gained
             HasDelta = !IsDnf;
-            if (delta < 0) { DeltaText = $"▲ {-delta} place{(delta == -1 ? "" : "s")}"; DeltaBrush = Green; }
-            else if (delta > 0) { DeltaText = $"▼ {delta} place{(delta == 1 ? "" : "s")}"; DeltaBrush = Red; }
-            else { DeltaText = $"— held P{r.GridPosition}"; DeltaBrush = Muted; }
+            if (delta < 0) { DeltaText = $"▲ {-delta} place{(delta == -1 ? "" : "s")}"; DeltaBrush = Green; DeltaShort = $"▲ {-delta}"; }
+            else if (delta > 0) { DeltaText = $"▼ {delta} place{(delta == 1 ? "" : "s")}"; DeltaBrush = Red; DeltaShort = $"▼ {delta}"; }
+            else { DeltaText = $"— held P{r.GridPosition}"; DeltaBrush = Muted; DeltaShort = "—"; }
+            // The header stat is blank/neutral for a DNF (grid-to-finish delta is meaningless).
+            if (IsDnf) DeltaShort = "—";
+            DeltaShortBrush = HasDelta ? DeltaBrush : Muted;
 
             HasFastestLap = r.PlayerHasFastestLap;
             BestLapText = FormatTime(r.BestLapMs);
@@ -84,42 +91,52 @@ namespace F1RaceEngineer.Models
                 ? $"Retired on lap {r.RetiredOnLap} of {r.TotalLaps}" + (string.IsNullOrEmpty(r.ResultReason) ? "" : $" — {r.ResultReason}")
                 : "";
 
-            StintSegments = BuildSegments(r.PlayerStints);
-            StintTicks = BuildTicks(r.PlayerStints, r.TotalLaps);
+            StintSegments = BuildSegments(r.PlayerStints, r.TotalLaps);
+
+            // Penalties card: the snapshot the live widget showed. For older saves with no
+            // snapshot, fall back to the stored total penalty time so the card still says
+            // something rather than wrongly reading "No penalties".
+            Penalties = new List<string>(r.Penalties);
+            if (Penalties.Count == 0 && r.PenaltiesTimeSeconds > 0)
+                Penalties.Add($"Time penalties: +{r.PenaltiesTimeSeconds}s");
+            HasPenalties = Penalties.Count > 0;
+            NoPenalties = !HasPenalties;
+
+            // Winner = the classified P1 (rows are position-sorted). Its total race time and lap
+            // count are the reference every other row's gap is measured against.
+            SavedClassificationRow? winner = null;
+            foreach (var row in r.Classification)
+                if (!row.IsOut && row.Position >= 1) { winner = row; break; }
+            double winnerTime = winner?.TotalRaceTimeSeconds ?? 0;
+            int winnerLaps = winner?.NumLaps ?? 0;
+
             Classification = new List<ClassRowView>();
-            foreach (var row in r.Classification) Classification.Add(new ClassRowView(row));
+            foreach (var row in r.Classification) Classification.Add(new ClassRowView(row, winnerTime, winnerLaps));
             Laps = new List<LapRowView>();
             foreach (var lap in r.PlayerLaps) Laps.Add(new LapRowView(lap));
         }
 
-        // Stint end-laps -> proportional segments (laps = gap from the previous end-lap).
-        internal static List<TyreStintSegment> BuildSegments(List<SavedStint> stints)
+        // Stint end-laps -> proportional segments (laps = gap from the previous end-lap). When
+        // totalLaps is known, end-laps are clamped to it: the game reports the final stint's end
+        // as 255 (a "still running / no end" sentinel), which would otherwise render as a giant
+        // phantom stint. Clamping pins the last stint to the finish so the bar fills correctly.
+        internal static List<TyreStintSegment> BuildSegments(List<SavedStint> stints, int totalLaps = 0)
         {
             var segs = new List<TyreStintSegment>();
             int prevEnd = 0;
             foreach (var s in stints)
             {
+                int end = totalLaps > 0 ? Math.Min(s.EndLap, totalLaps) : s.EndLap;
                 segs.Add(new TyreStintSegment
                 {
-                    LapCount = Math.Max(1, s.EndLap - prevEnd),
+                    LapCount = Math.Max(1, end - prevEnd),
                     Letter = s.Compound,
                     Brush = CompoundPalette.BrushForLetter(s.Compound),
                     TextBrush = CompoundPalette.ForegroundForLetter(s.Compound)
                 });
-                prevEnd = s.EndLap;
+                prevEnd = end;
             }
             return segs;
-        }
-
-        // A tick at each stint boundary (the lap a pit happened), positioned as a fraction of
-        // the total race distance. The final stint's end (the flag) gets no tick.
-        internal static List<SavedStintTick> BuildTicks(List<SavedStint> stints, int totalLaps)
-        {
-            var ticks = new List<SavedStintTick>();
-            if (totalLaps <= 0) return ticks;
-            for (int i = 0; i < stints.Count - 1; i++)
-                ticks.Add(new SavedStintTick { Lap = stints[i].EndLap, Fraction = Math.Clamp(stints[i].EndLap / (double)totalLaps, 0, 1) });
-            return ticks;
         }
 
         internal static string FormatTime(uint ms)
@@ -149,42 +166,89 @@ namespace F1RaceEngineer.Models
         }
     }
 
-    public class SavedStintTick
-    {
-        public int Lap { get; set; }
-        public double Fraction { get; set; } // 0..1 position along the bar
-    }
-
     public class ClassRowView
     {
         public int Position { get; }
         public string PositionText { get; }
         public string DriverName { get; }
         public string TeamName { get; }
+        public bool HasTeam { get; }
         public SolidColorBrush LiveryBrush { get; }
         public string BestLapText { get; }
         public SolidColorBrush BestLapBrush { get; }
         public string PitsText { get; }
+        public string GapText { get; }          // winner's total time / "+12.345" / "+1 LAP" / "DNF"
+        public SolidColorBrush GapBrush { get; }
         public bool IsPlayer { get; }
         public bool HasFastestLap { get; }
         public List<TyreStintSegment> StintChips { get; }
 
+        // Retired cars are dimmed across the row and flagged "DNF" in the gap column, mirroring
+        // how the live race tower greys out and marks a driver who's out.
+        public SolidColorBrush PositionBrush { get; }
+        public SolidColorBrush NameBrush { get; }
+        public SolidColorBrush TeamBrush { get; }
+
         private static readonly SolidColorBrush Purple = SavedRaceView.BrushFromHex("#AFA9EC");
         private static readonly SolidColorBrush Ink = SavedRaceView.BrushFromHex("#E6EDF3");
+        private static readonly SolidColorBrush Muted = SavedRaceView.BrushFromHex("#6B7684");
+        private static readonly SolidColorBrush Dim = SavedRaceView.BrushFromHex("#4A5460");     // out: position/name (matches the tower)
+        private static readonly SolidColorBrush DimTeam = SavedRaceView.BrushFromHex("#3A424C"); // out: team
+        private static readonly SolidColorBrush DnfRed = SavedRaceView.BrushFromHex("#E06C6C");
 
-        public ClassRowView(SavedClassificationRow r)
+        public ClassRowView(SavedClassificationRow r, double winnerTime, int winnerLaps)
         {
             Position = r.Position;
             PositionText = r.IsOut ? "—" : r.Position.ToString();
             DriverName = r.DriverName;
             TeamName = r.TeamName;
-            LiveryBrush = SavedRaceView.BrushFromHex(r.LiveryHex);
+            HasTeam = !string.IsNullOrEmpty(r.TeamName);
+            LiveryBrush = r.IsOut ? Dim : SavedRaceView.BrushFromHex(r.LiveryHex);
             BestLapText = SavedRaceView.FormatTime(r.BestLapMs);
-            BestLapBrush = r.HasFastestLap ? Purple : Ink;
+            BestLapBrush = r.IsOut ? Dim : r.HasFastestLap ? Purple : Ink;
             PitsText = r.IsOut ? "—" : r.PitStops.ToString();
+            PositionBrush = r.IsOut ? Dim : Ink;
+            NameBrush = r.IsOut ? Dim : Ink;
+            TeamBrush = r.IsOut ? DimTeam : Muted;
+            (GapText, GapBrush) = BuildGap(r, winnerTime, winnerLaps);
             IsPlayer = r.IsPlayer;
             HasFastestLap = r.HasFastestLap;
             StintChips = SavedRaceView.BuildSegments(r.Stints);
+        }
+
+        // Gap column, F1-classification style: the winner shows their total race time; runners
+        // on the lead lap show "+SS.sss" (or "+M:SS.sss"); lapped cars "+N LAP(S)"; retired
+        // cars a "DNF" flag (like the race tower). Empty when the data wasn't captured (races
+        // saved before this version have winnerTime == 0), so old races show nothing for the
+        // running cars rather than a wrong gap - but DNFs are still marked, since that's known.
+        private static (string, SolidColorBrush) BuildGap(SavedClassificationRow r, double winnerTime, int winnerLaps)
+        {
+            if (r.IsOut) return ("DNF", DnfRed);
+            if (winnerTime <= 0) return ("", Muted); // not captured for this saved race
+
+            if (r.Position == 1 || r.TotalRaceTimeSeconds <= winnerTime)
+                return (FormatRaceTime(r.TotalRaceTimeSeconds > 0 ? r.TotalRaceTimeSeconds : winnerTime), Ink);
+
+            int lapsDown = winnerLaps - r.NumLaps;
+            if (lapsDown > 0) return ($"+{lapsDown} LAP{(lapsDown == 1 ? "" : "S")}", Muted);
+
+            return ("+" + FormatGap(r.TotalRaceTimeSeconds - winnerTime), Muted);
+        }
+
+        private static string FormatRaceTime(double seconds)
+        {
+            var t = TimeSpan.FromSeconds(seconds);
+            return t.Hours > 0
+                ? $"{t.Hours}:{t.Minutes:D2}:{t.Seconds:D2}.{t.Milliseconds:D3}"
+                : $"{t.Minutes}:{t.Seconds:D2}.{t.Milliseconds:D3}";
+        }
+
+        private static string FormatGap(double seconds)
+        {
+            var t = TimeSpan.FromSeconds(seconds);
+            return t.TotalMinutes >= 1
+                ? $"{(int)t.TotalMinutes}:{t.Seconds:D2}.{t.Milliseconds:D3}"
+                : $"{t.Seconds}.{t.Milliseconds:D3}";
         }
     }
 
