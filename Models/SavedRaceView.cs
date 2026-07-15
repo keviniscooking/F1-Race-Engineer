@@ -179,6 +179,7 @@ namespace F1RaceEngineer.Models
         public string PitsText { get; }
         public string GapText { get; }          // winner's total time / "+12.345" / "+1 LAP" / "DNF"
         public SolidColorBrush GapBrush { get; }
+        public bool IsOut { get; }
         public bool IsPlayer { get; }
         public bool HasFastestLap { get; }
         public List<TyreStintSegment> StintChips { get; }
@@ -211,6 +212,7 @@ namespace F1RaceEngineer.Models
             NameBrush = r.IsOut ? Dim : Ink;
             TeamBrush = r.IsOut ? DimTeam : Muted;
             (GapText, GapBrush) = BuildGap(r, winnerTime, winnerLaps);
+            IsOut = r.IsOut;
             IsPlayer = r.IsPlayer;
             HasFastestLap = r.HasFastestLap;
             StintChips = SavedRaceView.BuildSegments(r.Stints);

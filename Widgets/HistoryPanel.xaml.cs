@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -144,7 +145,9 @@ namespace F1RaceEngineer.Widgets
             if (dlg.ShowDialog() != true) return;
             try
             {
-                File.WriteAllText(dlg.FileName, RaceHtmlExporter.Export(v.Source));
+                // Explicit UTF-8 BOM so the em-dashes / arrows / flag glyphs decode correctly no
+                // matter what a consumer assumes, not just when it honours the meta charset.
+                File.WriteAllText(dlg.FileName, RaceHtmlExporter.Export(v), new UTF8Encoding(true));
                 ShowToast($"Exported {Path.GetFileName(dlg.FileName)}");
             }
             catch (Exception ex)
