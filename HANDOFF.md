@@ -37,8 +37,11 @@ and must switch context automatically.
 - **Auto-update via Velopack** (`Velopack` NuGet package). The app checks GitHub
   Releases once at every launch and silently downloads + applies + restarts if a
   newer version is published - no UI, no prompt. This required restructuring the
-  normal WPF startup: `App.xaml` no longer has `StartupUri` (removed), and its build
-  action is `Page` instead of the default `ApplicationDefinition` (`.csproj`), because
+  normal WPF startup: `App.xaml` no longer has `StartupUri` (removed), and it is built as
+  a `Page` instead of the default `ApplicationDefinition` - via
+  `<EnableDefaultApplicationDefinition>false</EnableDefaultApplicationDefinition>` in the
+  `.csproj`, **not** by removing the item after the fact (see §4.7 - doing it the other way
+  caused intermittent CS0017 build failures) - because
   `App.xaml.cs` now defines its own `Main` that calls `VelopackApp.Build().Run()`
   *before* anything else - Velopack briefly re-launches the exe with special
   arguments during install/update/uninstall and needs to intercept that first. Update
@@ -241,6 +244,32 @@ F1 25 game ──UDP──> UdpListenerService (background thread)
    arrive on a background thread; WPF bound properties and `ObservableCollection`
    require the UI thread. Every packet handler runs inside
    `Application.Current.Dispatcher.BeginInvoke`. Do not bypass this.
+7. **Opt App.xaml out of `ApplicationDefinition` with the *property*, never by removing
+   the item.** The `.csproj` sets
+   `<EnableDefaultApplicationDefinition>false</EnableDefaultApplicationDefinition>` so
+   App.xaml is never made the ApplicationDefinition, and the SDK's default `Page` glob
+   (`**/*.xaml`) then picks it up on its own — do NOT also add `<Page Include="App.xaml"/>`,
+   that duplicates it and trips `CheckForDuplicatePageItems`.
+   The project previously did this the intuitive way instead — let the SDK add the default
+   and then `<ApplicationDefinition Remove="App.xaml" />` + `<Page Include="App.xaml" />` —
+   which built fine *most* of the time but intermittently failed with
+   **CS0017 "Program has more than one entry point defined"** pointing at `App.xaml.cs`,
+   "fixable" only by wiping `obj/`. Why: WPF markup-compile pass 2 runs whenever any XAML
+   references a type from this same assembly (ours do — `widgets:HistoryPanel` etc.), and it
+   re-evaluates a *clone* of this project written to the project directory as
+   `F1RaceEngineer_<hash>_wpftmp.csproj` (the source of the stray `*_wpftmp*` files). An
+   item `Remove` in the project body isn't reliably replayed in that clone, so App.xaml
+   became the ApplicationDefinition again and PresentationBuildTasks generated an
+   `App.g.cs` containing its own `Main`, colliding with the Velopack `Main` in
+   `App.xaml.cs`. (`<StartupObject>` would normally make CS0017 impossible by passing
+   `/main:` — that it fired at all is the tell that the temp project doesn't inherit it
+   either.) The SDK adds the item in its `.props` purely on the property's value, and
+   properties do flow to the clone, so the property opt-out closes the hole for good: with
+   the item never created, only one `Main` exists in every configuration.
+   Verified via `dotnet msbuild -getItem:ApplicationDefinition` (empty) and `-getItem:Page`
+   (App.xaml present exactly once). Because the SDK only drops XAML from `None` when the
+   default ApplicationDefinition is enabled, the `.csproj` now also does
+   `<None Remove="**/*.xaml" />` itself.
 
 ## 5. Bugs found via live testing, and their fixes (don't reintroduce these)
 
