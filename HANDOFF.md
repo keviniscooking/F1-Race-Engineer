@@ -112,10 +112,14 @@ and must switch context automatically.
   stop finishes - see §5 thirteenth round) and total pit-lane time on the OUT row
   (forward-stored, no ambiguity), per-sector times each with a colour-coded underline,
   lap time, and delta, one lap per row. Confirmed rendering correctly, including the
-  IN/OUT classification itself — **confirmed live**. The PIT column's OUT-row value
-  (total pit-lane time) is **confirmed live** (Barcelona log, §5 twentieth round); the
-  IN-row box time works on normal tracks but is still broken on line-straddling tracks
-  like Monaco (§6 - the pit-tag bug, deferred until a Monaco pit is captured).
+  IN/OUT classification itself — **confirmed live**. Both PIT column values are
+  **confirmed live across 7 real stops** (pit-log review, §5 twenty-fifth round): the
+  IN row's stationary box time and the OUT row's total pit-lane time. Note the review
+  overturned this section's previous claim that the IN-row time only worked on
+  "normal" tracks: **every stop logged so far straddles the S/F line** (that is the
+  normal case, not a Monaco quirk) and all 7 tagged and patched correctly. The
+  still-unobserved failing geometry is the line being crossed *after* the stop - see
+  the pit-tag entry in §6.
 - **Alert banner** — Safety Car / VSC / Red Flag / Chequered Flag (see caveats in §6).
   Confirmed working live, including VSC.
 - **Practice/Qualifying timing board** (`PositionListWidget`) — full field, livery
@@ -164,11 +168,11 @@ correct overall (round nine, though see the caveat on race-start creep in §6). 
 eleven and thirteen each confirmed a prior visual fix (tyre letter spacing, "Out Out")
 while also catching that the PIT column's IN-row value was STILL broken two rounds
 running - each round ruled out one specific theory rather than finding the fix on the
-first try (see §5/§6 for the full history). Still open: the final-lap registration fix
-(§5 round five), the session-restart fix (§5 round nine), the PIT column's IN-row
-retroactive-patch fix (§5 round thirteen - now on its third attempt), the new OUT-row
-pit-lane time, the new lap counter banner, and the FIA-aligned penalty text (all §5
-round thirteen) - none independently re-verified live yet - plus Car Condition's
+first try (see §5/§6 for the full history); the twenty-fifth round's pit-log review has
+since confirmed that third attempt DOES work, on 7 of 7 real stops. Still open: the
+final-lap registration fix (§5 round five), the session-restart fix (§5 round nine),
+the new lap counter banner, and the FIA-aligned penalty text (both §5 round thirteen) -
+none independently re-verified live yet - plus Car Condition's
 damage-threshold decision (§8). A fourteenth round (§5) merged the connection bar and
 preset tabs into one row and stopped the error-text row from reserving space when
 empty - pure window-chrome layout, verified via screenshot rather than live game data
@@ -880,8 +884,10 @@ feature authentic (timing colours, compound colours, flag semantics, FIA termino
   `CarPosition` for race order). Reported live in Practice; the fix needs a live re-check.
 - **Confirmations from live racing:** the Race tower's "PIT" indicator works as intended
   (moved out of §6); Car Condition damage reads correctly with no threshold needed
-  (§8 decision closed); and the Barcelona pit log confirmed normal-track IN/OUT tagging
-  and the OUT-row pit-lane time both work (the pit-tag bug is Monaco-specific - see §6).
+  (§8 decision closed); and the Barcelona pit log confirmed IN/OUT tagging and the
+  OUT-row pit-lane time both work. (This round called the pit-tag bug "Monaco-specific";
+  the twenty-fifth round's fuller log review showed that framing was wrong - every track
+  straddles the line - see §6.)
 
 ### Twenty-first round (cold-start polish, realistic tyre marker, race fastest lap)
 - **Cold-start "Waiting for telemetry" placeholder.** Before any packet arrives the app
@@ -995,6 +1001,39 @@ user flagged clutter risk.
   driver acts on. Needs a live race to confirm it reads sensibly at speed.
 - Convention chosen: **▲ = gaining ground** (momentum reading), not "gap number down".
 
+### Twenty-fifth round (pit-log review — reading the collected data, no live game needed)
+Read the whole of `%LocalAppData%\F1RaceEngineer\pit-debug.log` (373 lines, 33 sessions,
+**7 real pit stops**) that §6's pit-tag investigation added in v1.0.3, instead of
+continuing to wait on a Monaco race. It overturned two things this document asserted:
+- **Straddling the S/F line is the normal case on every track logged, not a Monaco
+  quirk.** All 7 stops: enter the pit lane on lap N, cross the line 0.9-6.5s later while
+  still in the lane, stop on lap N+1. §2, §5's twentieth round and §6 all described
+  straddling as the exceptional/Monaco case - each is corrected in place.
+- **The IN-row stop time is confirmed working, 7/7** (box times 2.370-2.456s), as is the
+  OUT-row lane time. So §5 round thirteen's third attempt
+  (`PatchMostRecentInRowPitTime`) is proven, not still pending as §2 claimed. It works
+  *because* the line is crossed before the stop: `DriverStatus` is still `InLap` at the
+  line, so the tag is IN, and the IN row already exists when the stop finishes, so the
+  patch has a row to land on.
+- **The Monaco ordering (stop first, status flips to `OutLap`, then the line) appears
+  nowhere in the log**, so that bug stays unreproduced. Don't rewrite `ClassifyLapTag`
+  from theory - the working 7/7 path is exactly what a guessed fix would regress. Keep
+  the logging until a Monaco stop is captured.
+- Two 7.6s stops (vs the usual ~2.4s) were **front-wing changes after damage** -
+  user-confirmed, expected, not a bug. That also explains the near-identical box times
+  (7.630 / 7.601 - a fixed-duration animation) and why those two stops alone report an
+  identical total lane time (26.966s) to the millisecond while every other stop differs.
+- Garage in/outs in Practice correctly log `lane=False` and produce no pit rows - no
+  false positives.
+- Traced end to end against the exported Monza race: the log shows entry lap 7 -> line ->
+  box 2.399 on lap 8 -> lane 24.365, and the saved race renders `Lap 7 IN 2.399` /
+  `Lap 8 OUT 24.365`.
+
+## 6. Known caveats — built, but not yet trustworthy
+
+Everything in this section is shipped and *looks* right, but has either not been verified
+against live game data or is known to have an open edge case. Referenced throughout as "§6".
+
 - **Red Flag auto-clear is an untested heuristic.** There is no confirmed "flag
   cleared" event in the API, so it shows on its trigger event and auto-hides after a
   15s timeout. NOT yet tested against a real red flag. Safety Car / VSC, by contrast,
@@ -1023,9 +1062,10 @@ user flagged clutter risk.
   alongside `SessionType` should catch a same-type restart that a `SessionType`-only
   check misses, but hasn't been independently re-tested against a second deliberate
   restart. Watch the next session restart specifically.
-- **Lap History pit in/out tagging + stop time BREAKS on tracks where a pit stop
-  straddles the S/F line (e.g. Monaco) - confirmed live, under active investigation via
-  diagnostic logging.** Reported live at Monaco: a pit stop produced a **double "OUT"**
+- **Lap History pit in/out tagging + stop time: reported broken at Monaco, still
+  unreproduced. The original "line-straddling tracks" framing was WRONG - see the
+  correction at the end of this entry, read it before acting on the theory below.**
+  Reported live at Monaco: a pit stop produced a **double "OUT"**
   (both the in-lap and the out-lap tagged OUT, no "IN") and the **stationary stop time
   was missing** (only the total pit-lane time on the OUT row appeared). Root cause: the
   lap tag is read from the DriverStatus one tick before the lap completes
@@ -1046,13 +1086,33 @@ user flagged clutter risk.
   tracks. REMOVE the logging once the fix lands and is confirmed live. The prior
   patch-based theory (below) is superseded by this finding - a forward-store for the
   stop time is now known to be needed for the Monaco case.
+  - **CORRECTION (§5 twenty-fifth round, from reviewing the collected log - 7 real
+    stops).** Two things above are wrong and cost the reader a false mental model:
+    1. **Straddling the S/F line is the NORMAL case, not a Monaco quirk.** All 7 logged
+       stops straddle it: the car enters the pit lane on lap N, crosses the line 0.9-6.5s
+       later *while still in the lane*, and does the stop on lap N+1. There is no
+       observed "normal track" where the pit is entered after the line.
+    2. **The IN-row stop time is therefore NOT broken on straddling tracks** - it is
+       confirmed working on 7 of 7 of them (box times 2.370-2.456s, plus two 7.6s stops
+       that were front-wing changes; the OUT-row lane time landed every time too).
+    So the real distinguisher is **not** where the pit entry sits relative to the line -
+    it is **whether the line is crossed BEFORE or AFTER the stationary stop**. Every
+    logged stop is "line first, then stop", which is exactly why it works: `DriverStatus`
+    is still `InLap` at the line (so `ClassifyLapTag` tags IN correctly), and the IN row
+    already exists by the time the stop finishes (so `PatchMostRecentInRowPitTime` has a
+    row to patch). The Monaco report implies the opposite order - stop first, status
+    flips to `OutLap`, *then* the line - which produces the double-OUT. **That ordering
+    appears nowhere in the log**, so the bug is still unreproduced and any fix would be
+    guesswork. Capture a Monaco stop before touching `ClassifyLapTag`; the currently
+    working 7/7 path is the regression risk.
 - **OUT row's total pit-lane time (§5, thirteenth round) - CONFIRMED working** on a
   normal track. The Barcelona pit log (§5 twentieth round) showed the forward-store fire
   correctly (`STORE_LANE_TIME laneT=19307`), and the OUT row displayed it. Unlike the IN
   row there's no timing ambiguity - the pit lane is always exited before the OUT lap
   starts, so the forward-store is always ready in time. (The IN-row stationary stop time
-  is the one still broken on line-straddling tracks like Monaco - see the pit-tag entry
-  above.)
+  is **also confirmed** as of the twenty-fifth round's log review - 7 of 7 stops - so
+  this is no longer the "one still broken" case; see the correction in the pit-tag entry
+  above for what actually remains unproven.)
 - **Lap counter banner (§5, thirteenth round) is reasoned from confirmed fields
   (`SessionDataPacket.TotalLaps`, the leader's `LapData.CurrentLapNum`), not yet
   re-confirmed live.** Should track the race's overall lap count correctly regardless
