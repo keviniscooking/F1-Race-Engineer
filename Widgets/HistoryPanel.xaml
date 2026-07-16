@@ -22,9 +22,16 @@
                             <ContentPresenter/>
                         </Border>
                         <ControlTemplate.Triggers>
+                            <!-- Hover lift: brighter surface/border plus a soft drop shadow so the
+                                 focused card reads as raised off the page. -->
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#171D26"/>
-                                <Setter TargetName="Bd" Property="BorderBrush" Value="#31445C"/>
+                                <Setter TargetName="Bd" Property="Background" Value="#1A212B"/>
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#3A4B60"/>
+                                <Setter TargetName="Bd" Property="Effect">
+                                    <Setter.Value>
+                                        <DropShadowEffect Color="#000000" BlurRadius="18" ShadowDepth="3" Direction="270" Opacity="0.55"/>
+                                    </Setter.Value>
+                                </Setter>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -88,20 +95,25 @@
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
-                <Grid Grid.Row="0" Margin="2,0,2,14">
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Bottom">
-                        <TextBlock Text="RACE HISTORY" FontSize="15" FontWeight="Bold" Foreground="#E6EDF3"/>
-                        <TextBlock x:Name="CountText" FontSize="12" Foreground="#6B7684" Margin="12,0,0,1" VerticalAlignment="Bottom"/>
-                    </StackPanel>
-                    <TextBlock Text="Sorted by most recent" HorizontalAlignment="Right" VerticalAlignment="Bottom"
-                               FontSize="11" Foreground="#6B7684"/>
-                </Grid>
+                <StackPanel Grid.Row="0" Margin="2,0,2,14">
+                    <Grid>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Bottom">
+                            <TextBlock Text="RACE HISTORY" FontSize="15" FontWeight="Bold" Foreground="#E6EDF3"/>
+                            <TextBlock x:Name="CountText" FontSize="12" Foreground="#6B7684" Margin="12,0,0,1" VerticalAlignment="Bottom"/>
+                        </StackPanel>
+                        <TextBlock Text="Sorted by most recent" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                   FontSize="11" Foreground="#6B7684"/>
+                    </Grid>
+                    <!-- Save switcher: filter to one career save, or ALL. Built in code from the
+                         loaded saves; hidden when there's only one. -->
+                    <WrapPanel x:Name="SaveFilterBar" Margin="0,12,0,0" Visibility="Collapsed"/>
+                </StackPanel>
 
                 <TextBlock x:Name="EmptyState" Grid.Row="1" TextWrapping="Wrap" TextAlignment="Center" MaxWidth="360"
                            Text="No saved races yet. Finish a race with the app connected and it appears here automatically."
                            Foreground="#5A6470" FontSize="13" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed"/>
 
-                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0,0,6,0">
+                <ScrollViewer x:Name="ListScroller" Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0,0,6,0" SizeChanged="ListScroller_SizeChanged">
                     <!-- One section per season (SeasonGroupView): a header with the season's summary
                          stats, then that season's weekend cards. -->
                     <ItemsControl x:Name="SeasonList">
@@ -110,7 +122,15 @@
                                 <StackPanel Margin="0,0,0,18">
                                     <!-- season header + summary strip -->
                                     <Grid Margin="2,0,2,12">
-                                        <TextBlock Text="{Binding Label}" FontSize="12" FontWeight="Bold" Foreground="#37BEDD" VerticalAlignment="Bottom"/>
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Bottom">
+                                            <TextBlock Text="{Binding Label}" FontSize="12" FontWeight="Bold" Foreground="#37BEDD"/>
+                                            <!-- which career save: livery dot + team · driver -->
+                                            <StackPanel Orientation="Horizontal" Margin="12,0,0,0" VerticalAlignment="Center"
+                                                        Visibility="{Binding HasIdentity, Converter={StaticResource BoolToVis}}">
+                                                <Border Width="7" Height="7" CornerRadius="3.5" Background="{Binding IdentityBrush}" VerticalAlignment="Center" Margin="0,0,7,0"/>
+                                                <TextBlock Text="{Binding IdentityText}" FontSize="11" Foreground="#8B97A4" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </StackPanel>
                                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                                             <StackPanel Margin="0,0,20,0">
                                                 <TextBlock Text="{Binding RacesText}" FontSize="15" FontWeight="Bold" FontFamily="Consolas" Foreground="#E6EDF3" HorizontalAlignment="Center"/>
@@ -144,65 +164,90 @@
                                     </Grid>
                                     <Border Height="1" Background="#1B222C" Margin="2,0,2,12"/>
 
-                                    <!-- weekend cards -->
+                                    <!-- weekend cards; column count reflows with the panel width -->
                                     <ItemsControl ItemsSource="{Binding Weekends}">
                                         <ItemsControl.ItemsPanel>
+                                            <!-- Columns set in code (ApplyCardColumns) - a RelativeSource binding to the
+                                                 panel doesn't resolve from inside an ItemsPanelTemplate. -->
                                             <ItemsPanelTemplate><UniformGrid Columns="2"/></ItemsPanelTemplate>
                                         </ItemsControl.ItemsPanel>
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
                                                 <Button x:Name="CardBtn" Style="{StaticResource HistoryCardButton}" Margin="0,0,12,12" Click="Card_Click" Tag="{Binding}">
                                                     <Grid Margin="15,14">
-                                                        <!-- teal accent bar -->
-                                                        <Border HorizontalAlignment="Left" Width="3" Background="#37BEDD" CornerRadius="2"
+                                                        <!-- Layered card backdrop: a team-livery wash from the left (identity), the
+                                                             result-tinted glow from the top-right (outcome), then the result-tiered
+                                                             accent rail down the left edge. -->
+                                                        <Border Background="{Binding Race.LiveryHeaderBrush}" CornerRadius="10" Margin="-15,-14"/>
+                                                        <Border Background="{Binding Race.ResultGlowBrush}" CornerRadius="10" Margin="-15,-14"/>
+                                                        <Border HorizontalAlignment="Left" Width="4" Background="{Binding Race.ResultAccentBrush}" CornerRadius="2"
                                                                 Margin="-15,-14,0,-14"/>
 
                                                         <StackPanel>
                                                             <Grid>
                                                                 <StackPanel>
                                                                     <StackPanel Orientation="Horizontal">
+                                                                        <!-- team livery identity dot -->
+                                                                        <Border Width="9" Height="9" CornerRadius="4.5" Background="{Binding Race.TeamLiveryBrush}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                                                        <!-- country flag (vector), with the 3-letter code as a fallback -->
+                                                                        <Border CornerRadius="2.5" VerticalAlignment="Center" Margin="0,0,8,0" BorderBrush="#3A4552" BorderThickness="1"
+                                                                                Visibility="{Binding Race.HasFlag, Converter={StaticResource BoolToVis}}">
+                                                                            <Rectangle Width="21" Height="14" RadiusX="1.5" RadiusY="1.5" Fill="{Binding Race.CountryFlagBrush}"/>
+                                                                        </Border>
                                                                         <Border Background="#1C2733" CornerRadius="4" Padding="5,1" VerticalAlignment="Center" Margin="0,0,8,0"
-                                                                                Visibility="{Binding Race.HasCountry, Converter={StaticResource BoolToVis}}">
+                                                                                Visibility="{Binding Race.ShowCountryCode, Converter={StaticResource BoolToVis}}">
                                                                             <TextBlock Text="{Binding Race.Country}" FontSize="10" FontFamily="Consolas" FontWeight="Bold" Foreground="#9BA7B4"/>
                                                                         </Border>
-                                                                        <TextBlock Text="{Binding Race.GrandPrix}" FontSize="16" FontWeight="Bold" Foreground="#E6EDF3" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                                                                        <TextBlock Text="{Binding Race.GrandPrix}" FontSize="17" FontWeight="Bold" Foreground="#E6EDF3" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
                                                                         <!-- Sprint-weekend badge: this card also holds a Sprint session (open to see it). -->
                                                                         <Border Background="#3A2A12" CornerRadius="4" Padding="5,1" VerticalAlignment="Center" Margin="8,0,0,0"
                                                                                 Visibility="{Binding HasSprint, Converter={StaticResource BoolToVis}}">
                                                                             <TextBlock Text="SPRINT" FontSize="9" FontFamily="Consolas" FontWeight="Bold" Foreground="#E0A93B"/>
                                                                         </Border>
                                                                     </StackPanel>
-                                                                    <TextBlock Text="{Binding Race.CardSubtitle}" FontSize="11" Foreground="#6B7684" Margin="0,3,0,0"/>
+                                                                    <TextBlock Text="{Binding Race.CardSubtitle}" FontSize="11" Foreground="#6B7684" Margin="17,3,0,0"/>
                                                                 </StackPanel>
+                                                                <!-- Result as a medal badge: filled in the tier colour on the podium,
+                                                                     an outlined chip for points/finished, red for a DNF; a gold star
+                                                                     flags a win. -->
                                                                 <StackPanel HorizontalAlignment="Right" VerticalAlignment="Top">
-                                                                    <TextBlock Text="{Binding Race.FinishText}" Foreground="{Binding Race.FinishBrush}" FontFamily="Consolas"
-                                                                               FontWeight="Bold" FontSize="24" HorizontalAlignment="Right"/>
+                                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                                                        <TextBlock Text="★" Foreground="#E9C46A" FontSize="15" VerticalAlignment="Center" Margin="0,0,6,0"
+                                                                                   Visibility="{Binding Race.IsWin, Converter={StaticResource BoolToVis}}"/>
+                                                                        <Border Background="{Binding Race.FinishBadgeBrush}" BorderBrush="{Binding Race.FinishBadgeBorderBrush}"
+                                                                                BorderThickness="1" CornerRadius="8" Padding="11,1,11,3">
+                                                                            <TextBlock Text="{Binding Race.FinishText}" Foreground="{Binding Race.FinishBadgeInk}"
+                                                                                       FontFamily="Consolas" FontWeight="Bold" FontSize="22"/>
+                                                                        </Border>
+                                                                    </StackPanel>
                                                                     <TextBlock Text="{Binding Race.DeltaText}" Foreground="{Binding Race.DeltaBrush}" FontFamily="Consolas"
-                                                                               FontSize="11" HorizontalAlignment="Right" Margin="0,2,0,0"
+                                                                               FontSize="11" HorizontalAlignment="Right" Margin="0,4,2,0"
                                                                                Visibility="{Binding Race.HasDelta, Converter={StaticResource BoolToVis}}"/>
                                                                 </StackPanel>
                                                             </Grid>
 
-                                                            <StackPanel Orientation="Horizontal" Margin="0,13,0,0" VerticalAlignment="Center">
-                                                                <StackPanel Margin="0,0,20,0">
-                                                                    <TextBlock Text="BEST LAP" FontSize="9.5" Foreground="#4A5460"/>
-                                                                    <TextBlock Text="{Binding Race.BestLapText}" FontSize="13" FontFamily="Consolas" Foreground="{Binding Race.BestLapBrush}"/>
+                                                            <!-- Stat row: every block is label-on-top / value-below for consistency.
+                                                                 No fastest-lap badge here - the purple BEST LAP time already signals
+                                                                 it (and the detail classification carries the broadcast badge). -->
+                                                            <Grid Margin="17,13,0,0" VerticalAlignment="Center">
+                                                                <StackPanel Orientation="Horizontal">
+                                                                    <StackPanel Margin="0,0,26,0">
+                                                                        <TextBlock Text="BEST LAP" FontSize="9.5" Foreground="#4A5460"/>
+                                                                        <TextBlock Text="{Binding Race.BestLapText}" FontSize="13" FontFamily="Consolas" Foreground="{Binding Race.BestLapBrush}"/>
+                                                                    </StackPanel>
+                                                                    <StackPanel>
+                                                                        <TextBlock Text="STOPS" FontSize="9.5" Foreground="#4A5460"/>
+                                                                        <TextBlock Text="{Binding Race.StopsText}" FontSize="13" FontFamily="Consolas" Foreground="#E6EDF3"/>
+                                                                    </StackPanel>
                                                                 </StackPanel>
-                                                                <StackPanel Margin="0,0,20,0">
-                                                                    <TextBlock Text="STOPS" FontSize="9.5" Foreground="#4A5460"/>
-                                                                    <TextBlock Text="{Binding Race.StopsText}" FontSize="13" FontFamily="Consolas" Foreground="#E6EDF3"/>
-                                                                </StackPanel>
-                                                                <TextBlock Text="◷ Fastest lap" Foreground="#AFA9EC" FontSize="10.5" FontWeight="Bold"
-                                                                           VerticalAlignment="Center" Margin="0,6,0,0"
-                                                                           Visibility="{Binding Race.HasFastestLap, Converter={StaticResource BoolToVis}}"/>
-                                                                <StackPanel HorizontalAlignment="Right" Margin="12,0,0,0">
-                                                                    <TextBlock Text="{Binding WeekendPointsText}" FontSize="15" FontWeight="Bold" FontFamily="Consolas" Foreground="#E6EDF3" HorizontalAlignment="Right"/>
+                                                                <StackPanel HorizontalAlignment="Right">
                                                                     <TextBlock Text="POINTS" FontSize="9.5" Foreground="#4A5460" HorizontalAlignment="Right"/>
+                                                                    <TextBlock Text="{Binding WeekendPointsText}" FontSize="13" FontFamily="Consolas" Foreground="#E6EDF3" HorizontalAlignment="Right"/>
                                                                 </StackPanel>
-                                                            </StackPanel>
+                                                            </Grid>
 
                                                             <!-- mini stint bar (built in code-behind from the main race) -->
-                                                            <Grid x:Name="CardStint" Height="7" Margin="0,12,0,0" Loaded="CardStint_Loaded" Tag="{Binding}"/>
+                                                            <Grid x:Name="CardStint" Height="7" Margin="17,12,0,0" Loaded="CardStint_Loaded" Tag="{Binding}"/>
                                                         </StackPanel>
 
                                                         <!-- hover actions -->
@@ -382,8 +427,17 @@
                                                             </Grid.ColumnDefinitions>
                                                             <Border Grid.Column="0" Width="8" Height="8" CornerRadius="2" Background="{Binding LiveryBrush}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                                                             <TextBlock Grid.Column="1" Text="{Binding DriverName}" FontSize="12.5" Foreground="{Binding NameBrush}" VerticalAlignment="Center"/>
-                                                            <TextBlock Grid.Column="2" Text="◷" Foreground="#AFA9EC" FontSize="12" Margin="5,0,0,0" VerticalAlignment="Center"
-                                                                       Visibility="{Binding HasFastestLap, Converter={StaticResource BoolToVis}}"/>
+                                                            <!-- Fastest-lap badge, matching the race tower: purple disc + stopwatch glyph. -->
+                                                            <Border Grid.Column="2" Width="15" Height="15" CornerRadius="7.5" Background="#AFA9EC" Margin="6,0,0,0" VerticalAlignment="Center"
+                                                                    Visibility="{Binding HasFastestLap, Converter={StaticResource BoolToVis}}">
+                                                                <Viewbox Width="10" Height="10">
+                                                                    <Canvas Width="24" Height="24">
+                                                                        <Ellipse Canvas.Left="5" Canvas.Top="6" Width="14" Height="14" Stroke="#0D1117" StrokeThickness="2"/>
+                                                                        <Path Data="M12,6 L12,3" Stroke="#0D1117" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                                                                        <Path Data="M12,13 L15,10" Stroke="#0D1117" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                                                                    </Canvas>
+                                                                </Viewbox>
+                                                            </Border>
                                                             <TextBlock Grid.Column="3" Text="{Binding TeamName}" FontSize="10.5" Foreground="{Binding TeamBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="8,1,0,0"
                                                                        Visibility="{Binding HasTeam, Converter={StaticResource BoolToVis}}"/>
                                                         </Grid>

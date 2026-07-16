@@ -45,6 +45,13 @@ namespace F1RaceEngineer.Models
         public string Label { get; }
         public List<WeekendCardView> Weekends { get; }
 
+        // Which career save this section is: the team + driver you ran, livery-coloured. This is
+        // what tells two same-year saves apart (a Ferrari season vs a Williams season). Hidden for
+        // the "Earlier races" catch-all, which can mix races from several pre-link-id saves.
+        public bool HasIdentity { get; }
+        public string IdentityText { get; }              // "Haas · Bearman"
+        public System.Windows.Media.SolidColorBrush IdentityBrush { get; }
+
         public string RacesText { get; }
         public string WinsText { get; }
         public string PodiumsText { get; }
@@ -53,12 +60,21 @@ namespace F1RaceEngineer.Models
         public string DnfsText { get; }
         public string AvgText { get; }
 
-        private SeasonGroupView(string label, List<WeekendCardView> weekends)
+        private SeasonGroupView(string label, List<WeekendCardView> weekends, bool isCatchAll)
         {
             Label = label;
             Weekends = weekends;
 
             var mains = weekends.Select(w => w.Race).ToList();
+
+            // Identity from the most recent race in the section (weekends are newest-first). A
+            // real career save has one team/driver per season, so the newest is representative.
+            var newest = mains[0];
+            IdentityBrush = newest.TeamLiveryBrush;
+            string team = newest.PlayerTeam, driver = newest.PlayerName;
+            IdentityText = string.Join(" · ", new[] { team, driver }.Where(s => !string.IsNullOrWhiteSpace(s)));
+            HasIdentity = !isCatchAll && IdentityText.Length > 0;
+
             var classified = mains.Where(m => !m.IsDnf).ToList();
             int totalPoints = weekends.Sum(w => w.Race.Source.Points + (w.Sprint?.Source.Points ?? 0));
 
@@ -118,7 +134,7 @@ namespace F1RaceEngineer.Models
                     label = $"{label} ({n + 1})"; // two saves in the same year - keep them distinct
                 }
                 else usedLabels[label] = 1;
-                result.Add(new SeasonGroupView(label, g.Weekends));
+                result.Add(new SeasonGroupView(label, g.Weekends, g.Key == 0));
             }
             return result;
         }

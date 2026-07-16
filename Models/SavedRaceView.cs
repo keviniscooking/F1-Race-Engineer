@@ -17,12 +17,31 @@ namespace F1RaceEngineer.Models
         public string GrandPrix { get; }
         public string Country { get; }
         public bool HasCountry { get; }
+        public Brush? CountryFlagBrush { get; }   // vector flag; null when we don't have one drawn
+        public bool HasFlag { get; }
+        public bool ShowCountryCode { get; }       // fallback text badge when there's no flag
         public string CardSubtitle { get; }     // "Barcelona · 13 Jul 2026"
         public string DetailSubtitle { get; }   // "Barcelona · Race · 66 laps"
         public bool IsDnf { get; }
 
         public string FinishText { get; }        // "P4" / "DNF"
         public SolidColorBrush FinishBrush { get; }
+
+        // Result-tiered card styling (win = gold, podium = silver/bronze, points = teal,
+        // out-of-points = muted, DNF = red): a coloured left rail, a filled result badge, and a
+        // soft tinted glow behind the result corner, so a card's outcome reads at a glance.
+        public bool IsWin { get; private set; }
+        public bool IsPodium { get; private set; }
+        public SolidColorBrush ResultAccentBrush { get; private set; } = Muted; // left rail
+        public Brush FinishBadgeBrush { get; private set; } = System.Windows.Media.Brushes.Transparent; // badge fill
+        public SolidColorBrush FinishBadgeInk { get; private set; } = Ink;      // badge text
+        public SolidColorBrush FinishBadgeBorderBrush { get; private set; } = Muted;
+        public Brush ResultGlowBrush { get; private set; } = System.Windows.Media.Brushes.Transparent; // radial wash
+        public SolidColorBrush TeamLiveryBrush { get; private set; } = Muted;   // player's team colour
+        public Brush LiveryHeaderBrush { get; private set; } = System.Windows.Media.Brushes.Transparent; // livery wash behind the header
+        public string PlayerName { get; private set; } = "";   // used to label / tell apart saves
+        public string PlayerTeam { get; private set; } = "";
+
         public bool HasDelta { get; }
         public string DeltaText { get; }         // "▲ 2 places" / "▼ 1 place" / "— held P7"
         public SolidColorBrush DeltaBrush { get; }
@@ -59,6 +78,9 @@ namespace F1RaceEngineer.Models
             GrandPrix = r.GrandPrix;
             Country = r.Country;
             HasCountry = !string.IsNullOrEmpty(r.Country);
+            CountryFlagBrush = FlagPalette.BrushFor(r.Country);
+            HasFlag = CountryFlagBrush != null;
+            ShowCountryCode = HasCountry && !HasFlag;
             string date = r.SavedAtUtc.ToLocalTime().ToString("d MMM yyyy");
             CardSubtitle = string.IsNullOrEmpty(r.Circuit) ? date : $"{r.Circuit}  ·  {date}";
             DetailSubtitle = string.IsNullOrEmpty(r.Circuit)
@@ -69,6 +91,17 @@ namespace F1RaceEngineer.Models
             IsDnf = r.ResultStatus != "Finished";
             FinishText = IsDnf ? r.ResultStatus : $"P{r.FinishPosition}";
             FinishBrush = IsDnf ? Red : Ink;
+
+            // The player's team colour / name / driver (from their own classification row): a
+            // subtle identity accent on the card, and what lets the season header tell one
+            // career save apart from another (a Ferrari season vs a Williams season).
+            string liveryHex = "#37BEDD";
+            foreach (var cr in r.Classification)
+                if (cr.IsPlayer) { liveryHex = cr.LiveryHex; PlayerName = cr.DriverName; PlayerTeam = cr.TeamName; break; }
+            TeamLiveryBrush = BrushFromHex(liveryHex);
+            LiveryHeaderBrush = HeaderWash(BrushFromHex(liveryHex).Color);
+
+            BuildResultTheme(IsDnf, r.FinishPosition);
 
             int delta = r.FinishPosition - r.GridPosition; // negative = gained
             HasDelta = !IsDnf;
@@ -163,6 +196,91 @@ namespace F1RaceEngineer.Models
             var brush = new SolidColorBrush(Color.FromRgb(r, g, b));
             brush.Freeze();
             return brush;
+        }
+
+        private static SolidColorBrush Frozen(Color c)
+        {
+            var brush = new SolidColorBrush(c);
+            brush.Freeze();
+            return brush;
+        }
+
+        // Assigns the result-tiered card theme: an F1-medal palette for the podium (gold / silver
+        // / bronze), the app teal for points, muted grey for a classified-but-no-points finish,
+        // and red for a DNF. Each tier sets the left-rail colour, the result badge (filled on the
+        // podium, an outlined chip otherwise), and a soft radial glow behind the result corner
+        // whose strength tracks how good the result was (brightest on a win, none out of points).
+        private void BuildResultTheme(bool isDnf, int pos)
+        {
+            IsWin = !isDnf && pos == 1;
+            IsPodium = !isDnf && pos >= 1 && pos <= 3;
+
+            if (isDnf)
+            {
+                var red = Color.FromRgb(0xE1, 0x2E, 0x2E);
+                ResultAccentBrush = Frozen(red);
+                FinishBadgeBrush = Frozen(Color.FromRgb(0x3A, 0x14, 0x17));
+                FinishBadgeInk = Frozen(Color.FromRgb(0xFF, 0x80, 0x80));
+                FinishBadgeBorderBrush = Frozen(Color.FromRgb(0x5A, 0x23, 0x23));
+                ResultGlowBrush = Glow(red, 0x18);
+            }
+            else if (pos == 1) ApplyPodium(Color.FromRgb(0xE9, 0xC4, 0x6A), "#F3DA95", 0x3E);      // gold
+            else if (pos == 2) ApplyPodium(Color.FromRgb(0xC6, 0xCC, 0xD6), "#DCE1E8", 0x2E);      // silver
+            else if (pos == 3) ApplyPodium(Color.FromRgb(0xCE, 0x8E, 0x5C), "#E0A87C", 0x2E);      // bronze
+            else if (pos <= 10)                                                                     // points
+            {
+                var teal = Color.FromRgb(0x37, 0xBE, 0xDD);
+                ResultAccentBrush = Frozen(teal);
+                FinishBadgeBrush = System.Windows.Media.Brushes.Transparent;
+                FinishBadgeInk = Ink;
+                FinishBadgeBorderBrush = Frozen(Color.FromRgb(0x2A, 0x4A, 0x56));
+                ResultGlowBrush = Glow(teal, 0x14);
+            }
+            else                                                                                    // classified, no points
+            {
+                ResultAccentBrush = Frozen(Color.FromRgb(0x3A, 0x42, 0x4C));
+                FinishBadgeBrush = System.Windows.Media.Brushes.Transparent;
+                FinishBadgeInk = Muted;
+                FinishBadgeBorderBrush = Frozen(Color.FromRgb(0x2A, 0x31, 0x3B));
+                ResultGlowBrush = System.Windows.Media.Brushes.Transparent;
+            }
+        }
+
+        private void ApplyPodium(Color medal, string borderHex, byte glowAlpha)
+        {
+            ResultAccentBrush = Frozen(medal);
+            FinishBadgeBrush = Frozen(medal);
+            FinishBadgeInk = Frozen(Color.FromRgb(0x12, 0x0D, 0x06)); // dark ink reads on any medal colour
+            FinishBadgeBorderBrush = BrushFromHex(borderHex);
+            ResultGlowBrush = Glow(medal, glowAlpha);
+        }
+
+        // A soft horizontal wash in the team's livery colour, left edge -> transparent, sat behind
+        // the card header so each card carries its team identity (and a save reads as one colour).
+        private static Brush HeaderWash(Color c)
+        {
+            var b = new LinearGradientBrush { StartPoint = new System.Windows.Point(0, 0), EndPoint = new System.Windows.Point(1, 0) };
+            b.GradientStops.Add(new GradientStop(Color.FromArgb(0x38, c.R, c.G, c.B), 0));
+            b.GradientStops.Add(new GradientStop(Color.FromArgb(0x10, c.R, c.G, c.B), 0.35));
+            b.GradientStops.Add(new GradientStop(Color.FromArgb(0x00, c.R, c.G, c.B), 0.72));
+            b.Freeze();
+            return b;
+        }
+
+        // A soft radial wash anchored at the result corner (top-right), fading the tint to nothing.
+        private static Brush Glow(Color c, byte alpha)
+        {
+            var b = new RadialGradientBrush
+            {
+                GradientOrigin = new System.Windows.Point(0.82, 0.10),
+                Center = new System.Windows.Point(0.82, 0.10),
+                RadiusX = 0.85,
+                RadiusY = 1.1
+            };
+            b.GradientStops.Add(new GradientStop(Color.FromArgb(alpha, c.R, c.G, c.B), 0));
+            b.GradientStops.Add(new GradientStop(Color.FromArgb(0, c.R, c.G, c.B), 1));
+            b.Freeze();
+            return b;
         }
     }
 
