@@ -172,7 +172,9 @@ namespace F1RaceEngineer.Widgets
         {
             _current = v;
             DName.Text = v.GrandPrix;
-            DCountry.Visibility = v.HasCountry ? Visibility.Visible : Visibility.Collapsed;
+            DFlag.Visibility = v.HasFlag ? Visibility.Visible : Visibility.Collapsed;
+            DFlagRect.Fill = v.CountryFlagBrush;
+            DCountry.Visibility = v.ShowCountryCode ? Visibility.Visible : Visibility.Collapsed;
             DCountryText.Text = v.Country;
             DSub.Text = v.DetailSubtitle;
             DFinish.Text = v.FinishText;
