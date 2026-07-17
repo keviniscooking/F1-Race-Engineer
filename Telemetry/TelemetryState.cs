@@ -77,16 +77,6 @@ namespace F1RaceEngineer.Telemetry
         private SafetyCarType _lapEventSafetyCar = SafetyCarType.NoSafetyCar;
         private readonly List<LapEvent> _pendingLapEvents = new();
 
-        // ---- Player interval trend (the gap to the car ahead: closing / opening) ----
-        // Sampled once per lap (stable, no tick jitter), with a small deadband so a normal
-        // fluctuation reads as steady. Only shown on the player's own row - see the design
-        // discussion. Skipped on a lap where the player's position changed (the car ahead is
-        // then a different car, so the gap isn't comparable).
-        private enum IntervalTrend { None, Closing, Opening }
-        private long _playerLapInterval = -1;
-        private byte _playerLapPosition;
-        private IntervalTrend _playerIntervalTrend = IntervalTrend.None;
-
         // ---- Race history capture ----
         // Persists a completed race (Final Classification + the player's lap-by-lap) to disk.
         // Raised after a NEW race is saved so the UI can refresh its list. _currentTrack is
@@ -680,9 +670,6 @@ namespace F1RaceEngineer.Telemetry
             _savedClassificationUid = null;
             _pendingLapEvents.Clear();
             _lapEventSafetyCar = SafetyCarType.NoSafetyCar;
-            _playerLapInterval = -1;
-            _playerLapPosition = 0;
-            _playerIntervalTrend = IntervalTrend.None;
 
             CarConditionIssues.Clear();
             CarConditionIsOk = true;
@@ -1191,7 +1178,6 @@ namespace F1RaceEngineer.Telemetry
                     if (isPlayer)
                     {
                         ResetSectorDisplayForNewLap();
-                        UpdatePlayerIntervalTrend(car);
                     }
                 }
 
@@ -1235,30 +1221,6 @@ namespace F1RaceEngineer.Telemetry
 
             RefreshRaceStandings(span);
             RefreshPositionList(span);
-        }
-
-        /// <summary>
-        /// Updates the player's interval-trend once per lap. A deadband keeps a normal lap-to-
-        /// lap fluctuation reading as steady; the trend is dropped when the player's position
-        /// changed (the car ahead is then a different car, so the gap isn't comparable) or when
-        /// leading (no car ahead).
-        /// </summary>
-        private void UpdatePlayerIntervalTrend(LapData player)
-        {
-            long interval = player.DeltaToCarInFrontInMinutes * 60000L + player.DeltaToCarInFrontInMS;
-            if (player.CarPosition > 1 && _playerLapInterval >= 0 && _playerLapPosition == player.CarPosition)
-            {
-                long delta = interval - _playerLapInterval; // negative = the gap closed
-                const long deadbandMs = 150;
-                _playerIntervalTrend = delta < -deadbandMs ? IntervalTrend.Closing
-                    : delta > deadbandMs ? IntervalTrend.Opening : IntervalTrend.None;
-            }
-            else
-            {
-                _playerIntervalTrend = IntervalTrend.None;
-            }
-            _playerLapInterval = interval;
-            _playerLapPosition = player.CarPosition;
         }
 
         /// <summary>
@@ -1356,16 +1318,6 @@ namespace F1RaceEngineer.Telemetry
                 // prioritizes penalty/warning states over purely informational ones.
                 bool isFastestLap = !isOut && !hasPendingPenalty && i == fastestLapCarIndex;
 
-                // Interval trend accent - the player's own gap to the car ahead only (see the
-                // design discussion). Everyone else stays neutral, exactly as before.
-                string intervalCaret = "";
-                SolidColorBrush intervalBrush = TimingColorPalette.NeutralText;
-                if (i == _playerCarIndex && !isLeader && !isOut && !isPitting)
-                {
-                    if (_playerIntervalTrend == IntervalTrend.Closing) { intervalCaret = "▲"; intervalBrush = TimingColorPalette.GapClosing; }
-                    else if (_playerIntervalTrend == IntervalTrend.Opening) { intervalCaret = "▼"; intervalBrush = TimingColorPalette.GapOpening; }
-                }
-
                 rows.Add(new RaceStanding
                 {
                     Position = car.CarPosition,
@@ -1382,8 +1334,6 @@ namespace F1RaceEngineer.Telemetry
                     PositionDeltaBrush = posDeltaBrush,
                     IsPenaltyPending = hasPendingPenalty,
                     IsFastestLap = isFastestLap,
-                    IntervalCaret = intervalCaret,
-                    IntervalBrush = intervalBrush,
                     // 2 decimals here specifically (not the app-wide 3) - frees up column
                     // width in the tower to run the font size up, and 2 decimals is still
                     // plenty precise for a live gap glanced at mid-race.

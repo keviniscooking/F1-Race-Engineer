@@ -1017,6 +1017,15 @@ data in both views; the live capture path still needs a real race to confirm.
   for full parity with the Race tab.
 
 ### Twenty-fourth round (interval-trend accent on the tower — first of the "engineer" ideas)
+> **REMOVED in the thirty-first round.** The player-only interval caret described below was
+> taken out once the thirtieth round added a whole-field ▲/▼ places-gained-vs-grid delta in the
+> position column: two different ▲/▼ meanings a few columns apart (one "gap trend", one "places
+> gained") were redundant and easy to confuse, and the user asked to drop the older one. The
+> `IntervalCaret`/`IntervalBrush` members, the `UpdatePlayerIntervalTrend` maths, and the
+> `IntervalTrend` state are all gone; the interval number itself stays (now a plain brighter-
+> than-Gap column). `GapClosing`/`GapOpening` survive - the position delta reuses them. The rest
+> of this entry is kept for the design reasoning.
+
 Out of a "scrutinise it as a race engineer" discussion: the app shows *state* well but a
 real engineer works from *trend*, so the highest-value cheap add is showing whether the
 player's gap to the car ahead is closing or opening. Kept deliberately minimal after the
@@ -1162,8 +1171,8 @@ All four had been agreed and mocked in prior rounds; this round built them. They
   Blank for an out car, same as the letter. The tyre column grew 20 → 36px.
 - **Position-vs-grid delta inside the position column.** `RaceStanding.PositionDeltaText`/`Brush`,
   computed in `RefreshRaceStandings` as `GridPosition - CarPosition`: "▲2" green (gained), "▼1"
-  red (lost), "–" muted grey (held). Reuses the existing `GapClosing`/`GapOpening` brushes so the
-  carets mean the same thing they do on the player's interval trend. **Guarded**: `GridPosition`
+  red (lost), "–" muted grey (held). Uses the `GapClosing`/`GapOpening` brushes (green/red).
+  **Guarded**: `GridPosition`
   is confirmed to *exist* but was not confirmed populated mid-race, so a `GridPosition == 0` (or
   out) car renders a blank string - the column degrades to looking exactly as before rather than
   showing a bogus "▲0". Whole field, not player-only. The position column grew 24 → 44px (an

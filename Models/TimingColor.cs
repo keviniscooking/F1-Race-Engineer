@@ -36,9 +36,9 @@ namespace F1RaceEngineer.Models
         public static readonly SolidColorBrush AlertNeutralBg = Freeze(0x1C, 0x27, 0x33);
         public static readonly SolidColorBrush AlertNeutralText = Freeze(0xE6, 0xED, 0xF3);
 
-        // Interval-trend accents for the player's own gap to the car ahead: green when the
-        // gap is closing (catching), red when it's opening (dropping back). Neutral rows use
-        // NeutralText, so a non-trending gap looks exactly as before.
+        // Gained/lost accents for the tower's position-vs-grid delta: green (▲) for places
+        // gained since the start, red (▼) for places lost. (Formerly also drove a player-only
+        // interval-trend caret, removed once the whole-field grid delta made it redundant.)
         public static readonly SolidColorBrush GapClosing = Freeze(0x63, 0xC5, 0x6B);
         public static readonly SolidColorBrush GapOpening = Freeze(0xE5, 0x70, 0x6B);
 
