@@ -9,12 +9,12 @@
          MainWindow.xaml) rather than sitting in the layout flow, so showing/hiding it
          never pushes the widgets below around. The drop shadow lifts it off the content
          it overlays so it reads as a floating overlay, not another stacked card.
-         MinHeight 72 makes the opaque strip fully cover the current-lap / PB / delta
-         block underneath it (measured 70 DIP from the top of the timing widget to the
-         bottom of the big lap-time number) so nothing peeks out below the banner - it
-         stops just shy of the SECTORS row (which starts ~84 DIP down). Re-measure if
-         that block's font sizes change. -->
-    <Border Background="{Binding AlertBackgroundBrush}" CornerRadius="6" Padding="16,10" MinHeight="72"
+         The opaque strip fully covers the current-lap / PB / delta block underneath it -
+         deliberate, since during a Safety Car / VSC / red flag those lap times are
+         irrelevant. Its height comes from MainWindow, which binds this control's MinHeight
+         to LapTimingWidget.HeaderExtent (that block's real measured height) - so there's no
+         hand-measured constant here to fall out of sync when font sizes change. -->
+    <Border Background="{Binding AlertBackgroundBrush}" CornerRadius="6" Padding="16,10"
             Visibility="{Binding AlertVisible, Converter={StaticResource BoolToVis}}">
         <Border.Effect>
             <DropShadowEffect Color="#000000" BlurRadius="12" ShadowDepth="3" Opacity="0.5" Direction="270"/>

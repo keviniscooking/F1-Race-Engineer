@@ -212,6 +212,7 @@ namespace F1RaceEngineer.Telemetry
         /// </summary>
         public void DebugForcePreset(PresetType preset) => CurrentPreset = preset;
 
+
         // ---- Alert banner (bindable) ----
         private bool _alertVisible;
         public bool AlertVisible { get => _alertVisible; private set => SetProperty(ref _alertVisible, value); }
@@ -363,6 +364,15 @@ namespace F1RaceEngineer.Telemetry
         // 2-column UniformGrid, so 6 entries fills exactly 3 rows (2+2+2); 7+ shows the
         // 5 most-severe plus a "+N more" summary in the 6th slot.
         private const int IssueListMaxEntries = 6;
+
+        // Penalties & Flags also renders a flag banner ABOVE its list, sized to exactly one grid
+        // row (see PenaltiesFlagsWidget.xaml) - i.e. it consumes 2 of the 6 entry slots. Budgeting
+        // for it here (list capped to 4 while a flag is up) is what keeps that card the same height
+        // as Car Condition instead of growing a row taller and stretching the whole catalog row
+        // with it. It's transient: RefreshPenalties runs on every LapData tick, so the list returns
+        // to the full 6 as soon as the flag clears. Severity ordering means the entries dropped to
+        // make room are always the least important ones.
+        private const int FlagBannerEntryCost = 2;
 
         private bool _carConditionIsOk = true;
         public bool CarConditionIsOk { get => _carConditionIsOk; private set => SetProperty(ref _carConditionIsOk, value); }
@@ -1011,7 +1021,8 @@ namespace F1RaceEngineer.Telemetry
             if (car.EngineSeized) issues.Add((102, "Engine seized"));
 
             CarConditionIsOk = issues.Count == 0;
-            var ordered = CapIssueList(issues.OrderByDescending(i => i.Severity).Select(i => i.Text).ToList());
+            // No banner on this widget, so it always gets the full entry budget.
+            var ordered = CapIssueList(issues.OrderByDescending(i => i.Severity).Select(i => i.Text).ToList(), IssueListMaxEntries);
             if (!CollectionUnchanged(CarConditionIssues, ordered))
             {
                 CarConditionIssues.Clear();
@@ -1020,15 +1031,15 @@ namespace F1RaceEngineer.Telemetry
         }
 
         /// <summary>
-        /// Truncates to IssueListMaxEntries, replacing the last visible slot with a
+        /// Truncates to <paramref name="maxEntries"/>, replacing the last visible slot with a
         /// "+N more" summary so an overflowing list never silently drops information.
         /// Expects the list to already be sorted most-severe-first.
         /// </summary>
-        private static List<string> CapIssueList(List<string> issues)
+        private static List<string> CapIssueList(List<string> issues, int maxEntries)
         {
-            if (issues.Count <= IssueListMaxEntries) return issues;
-            int overflow = issues.Count - (IssueListMaxEntries - 1);
-            var capped = issues.Take(IssueListMaxEntries - 1).ToList();
+            if (issues.Count <= maxEntries) return issues;
+            int overflow = issues.Count - (maxEntries - 1);
+            var capped = issues.Take(maxEntries - 1).ToList();
             capped.Add($"+{overflow} more");
             return capped;
         }
@@ -1425,7 +1436,13 @@ namespace F1RaceEngineer.Telemetry
             if (untrackedWarnings > 0) issues.Add((40, $"+{untrackedWarnings} more warning(s)"));
 
             PenaltiesIsOk = issues.Count == 0;
-            var ordered = CapIssueList(issues.OrderByDescending(i => i.Severity).Select(i => i.Text).ToList());
+            // The flag banner, when shown, sits above this list and eats one grid row (2 entries'
+            // worth), so the list's share of the shared budget shrinks to match - that's what keeps
+            // this card level with Car Condition instead of a row taller. Read live rather than
+            // cached: this runs every LapData tick, so it tracks the flag appearing/clearing on its
+            // own. The list is already severity-sorted, so the entries squeezed out are the mildest.
+            int entryBudget = PlayerFlagVisible ? IssueListMaxEntries - FlagBannerEntryCost : IssueListMaxEntries;
+            var ordered = CapIssueList(issues.OrderByDescending(i => i.Severity).Select(i => i.Text).ToList(), entryBudget);
             if (!CollectionUnchanged(PenaltiesIssues, ordered))
             {
                 PenaltiesIssues.Clear();

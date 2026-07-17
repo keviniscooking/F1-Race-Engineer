@@ -12,11 +12,15 @@
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
+                <!-- Star: Lap History absorbs whatever height is left in the window, so a tall
+                     window shows more laps instead of leaving dead space. It never grows with the
+                     race itself (the viewport scrolls), so the widgets below still never shift. -->
+                <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
-            <!-- Row 0: current lap / personal best / delta -->
-            <Grid Grid.Row="0" Margin="0,0,0,14">
+            <!-- Row 0: current lap / personal best / delta. Named so the Alert banner can size
+                 itself to exactly cover this block (see HeaderExtent in the code-behind). -->
+            <Grid x:Name="HeaderBlock" Grid.Row="0" Margin="0,0,0,14">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="*"/>
@@ -87,16 +91,22 @@
             <Border Grid.Row="2" BorderBrush="#232B35" BorderThickness="0,1,0,0" Margin="0,12,0,10"
                     Visibility="{Binding ShowHistory, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}"/>
 
-            <!-- Row 3: lap history -->
-            <StackPanel Grid.Row="3"
-                        Visibility="{Binding ShowHistory, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}">
-                <TextBlock Text="LAP HISTORY" FontSize="11" Foreground="#6B7684" Margin="0,0,0,8"/>
+            <!-- Row 3: lap history. A Grid (not StackPanel) so the scrolling viewport below can
+                 take the row's leftover height rather than sizing to its content. -->
+            <Grid Grid.Row="3"
+                  Visibility="{Binding ShowHistory, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <TextBlock Grid.Row="0" Text="LAP HISTORY" FontSize="11" Foreground="#6B7684" Margin="0,0,0,8"/>
 
                 <!-- Right margin (14 = 8px scrollbar gutter + 6px breathing room) matches
                      the row content's total right inset below (6px ScrollViewer padding +
                      8px scrollbar), so the right-aligned DELTA header stays lined up with
                      the row deltas whether or not the scrollbar thumb is showing. -->
-                <Grid Margin="0,0,14,6">
+                <Grid Grid.Row="1" Margin="0,0,14,6">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="110"/>
                         <ColumnDefinition Width="100"/>
@@ -117,17 +127,24 @@
                     <TextBlock Grid.Column="8" Text="DELTA" FontSize="11" Foreground="#4A5460" HorizontalAlignment="Right"/>
                 </Grid>
 
-                <!-- Fixed 12-row-tall viewport (589 = 12 * per-row height; tied to the
-                     lap-row template's own sizing, so re-measure if that changes). Fixed
-                     Height (not MaxHeight) keeps the widgets below from ever shifting: a
-                     short race shows its laps with blank space beneath, a full race fills up
-                     and scrolls (every lap is kept - see TelemetryState). Padding right 6
-                     holds the row content clear of the scrollbar; combined with the 8px
-                     scrollbar that's a 14px right inset, matched by the header margin above.
+                <!-- Elastic viewport: takes this row's leftover height, so a tall window shows more
+                     laps rather than dead space, and a short one yields to the catalog widgets
+                     below instead of pushing them off-screen. Deliberately NO MinHeight: this sits
+                     in a star row, which hands out whatever is left regardless of a child's
+                     minimum - so a MinHeight here doesn't reserve anything, it just makes the
+                     viewport overflow and clip (verified: it read as a 6-row "floor" while
+                     actually rendering nothing at a small window). A real floor would have to go
+                     on the RowDefinition, and that space would come straight out of the catalog,
+                     pushing widgets off-screen - the exact failure this layout exists to avoid.
+                     So the priority when height runs out is: current lap + sectors + widgets stay,
+                     history yields. It never sizes to the race's lap count either, so the widgets
+                     below never shift as laps accumulate (every lap is kept - see TelemetryState).
+                     Padding right 6 holds the row content clear of the scrollbar; combined with the
+                     8px scrollbar that's a 14px right inset, matched by the header margin above.
                      Scrollbar visibility is Visible (not Auto) purely to reserve the gutter
                      permanently - the themed ScrollBar in App.xaml hides its own thumb when
-                     there's nothing to scroll, so it only actually appears past 12 laps. -->
-                <ScrollViewer Height="589" Padding="0,0,6,0" VerticalScrollBarVisibility="Visible"
+                     there's nothing to scroll. -->
+                <ScrollViewer Grid.Row="2" Padding="0,0,6,0" VerticalScrollBarVisibility="Visible"
                               HorizontalScrollBarVisibility="Disabled">
                 <ItemsControl ItemsSource="{Binding LapHistory}">
                     <ItemsControl.ItemTemplate>
@@ -196,7 +213,7 @@
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
                 </ScrollViewer>
-            </StackPanel>
+            </Grid>
         </Grid>
     </Border>
 </UserControl>

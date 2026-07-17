@@ -106,7 +106,9 @@ and must switch context automatically.
   best time, delta vs personal best (updates at each sector boundary AND lap end),
   three sector boxes (time + colour), and a lap history list. Colour convention
   confirmed working live.
-- **Lap History** — toggleable (see Settings panel below), shows lap #, an IN/OUT tag
+- **Lap History** — toggleable (see Settings panel below), every lap of the race kept, in
+  an **elastic viewport** that takes whatever height the window leaves over (§5
+  twenty-ninth round - it was a fixed 12-row viewport until then). Shows lap #, an IN/OUT tag
   for in-laps/out-laps (its own dedicated column so Time's start position never shifts),
   a "PIT" column showing the stop time on the IN row (patched in retroactively once the
   stop finishes - see §5 thirteenth round) and total pit-lane time on the OUT row
@@ -157,6 +159,16 @@ and must switch context automatically.
   toggle change, so remaining widgets grow to fill freed space with no blank gaps.
   Widget key order is grouped by content density (denser widgets grouped together,
   compact ones grouped together) so rows sharing a card height don't mismatch as badly.
+  Column count is derived from the available **width** (~400px per card), not the widget
+  count - see §5 twenty-ninth round.
+- **Race History** (`Widgets/HistoryPanel.xaml`, `Models/SavedRaceView.cs`,
+  `Models/HistoryGroups.cs`) — every finished race is auto-saved (§5 twenty-second round)
+  and browsable from the history icon: result-tiered cards (win/podium/points/DNF), the
+  player's team livery, vector country flags (`Models/FlagPalette.cs`), per-season
+  sections with summary stats, Sprint+Race weekends merged into one card, and a
+  save switcher. Opening a card shows the full classification, lap-by-lap, tyre strategy
+  and penalties; it can be exported to a self-contained HTML page. See §5 rounds
+  twenty-sixth to twenty-eighth.
 
 Confirmed working in-game across thirteen full live-testing rounds by this point (see
 §5 for the complete log of what each round found and fixed): lap/sector timing and
@@ -274,6 +286,18 @@ F1 25 game ──UDP──> UdpListenerService (background thread)
    (App.xaml present exactly once). Because the SDK only drops XAML from `None` when the
    default ApplicationDefinition is enabled, the `.csproj` now also does
    `<None Remove="**/*.xaml" />` itself.
+8. **Don't wrap the widget area in a `ScrollViewer` again, and don't put a `MinHeight` on
+   a child of a star row.** Both look harmless and both silently break the layout:
+   - A `ScrollViewer` measures its child with **infinite** height. Star (`*`) rows then have
+     no total to divide, so "take the leftover space" means "take everything": Lap History
+     grows without bound and pushes the catalog widgets off the bottom of the window
+     (observed exactly this). The window's `MinWidth`/`MinHeight` are what make dropping the
+     scroll safe - the layout is guaranteed a floor to lay out in.
+   - `MinHeight` on an element *inside* a star row reserves nothing. The row still gets only
+     its share; the child just overflows and clips. A 295px "6-row floor" on the Lap History
+     viewport read as a guarantee while actually rendering **zero** rows at a small window. A
+     real floor has to go on the `RowDefinition` - and then that space comes straight out of
+     the catalog, which is the failure above. Hence: no floor; history yields, widgets stay.
 
 ## 5. Bugs found via live testing, and their fixes (don't reintroduce these)
 
@@ -833,6 +857,12 @@ F1 25 game ──UDP──> UdpListenerService (background thread)
   screen it scrolls with the content rather than staying fixed. Acceptable for the
   common all-fits case; a truly fixed status bar would need it hoisted out of the
   ScrollViewer with a preset-aware left offset to stay right-column-aligned.)
+  - **Superseded on two points (§5 twenty-ninth round), both still true in spirit:**
+    (1) `MinHeight="72"` is gone - the banner binds to `LapTimingWidget.HeaderExtent`, the
+    *measured* distance to the bottom of that block, so the "re-measure if the font sizes
+    change" caveat no longer applies. It still covers exactly the same block.
+    (2) The outer `ScrollViewer` no longer exists (the window has a MinHeight instead), so
+    the scrolling caveat is moot - the banner is always pinned to the top of the viewport.
 
 ### Nineteenth round (per-session realism, from a full-repo audit + F1 research)
 Came out of a full line-by-line code review + authenticity check against real F1
@@ -1029,6 +1059,94 @@ continuing to wait on a Monaco race. It overturned two things this document asse
   box 2.399 on lap 8 -> lane 24.365, and the saved race renders `Lap 7 IN 2.399` /
   `Lap 8 OUT 24.365`.
 
+### Twenty-sixth round (Race History overhaul + live tyre-strategy bar — shipped v1.1.0)
+From an 8-point user review of the history feature and the live tyre bar.
+- **Live tyre-strategy bar now scales to the whole race.** It previously normalised to the
+  laps *run so far*, so it always looked full - at lights-out the whole bar was already the
+  starting compound. It now draws the compound segments over a full-race-length "ghost"
+  track and fills lap by lap, with a lap axis (labelled majors every 5, faint minors when
+  they'd be readable, accent pit markers). Extracted to `Widgets/StintStripRenderer.cs` and
+  shared with the history detail bar so the two are guaranteed to look and scale identically
+  (the user's actual complaint was that they didn't).
+- **`EndLap = 255` sentinel.** The game reports the final stint's end lap as 255 ("no end
+  yet"). The old star-column maths normalised it away by luck; scaling to race length
+  rendered it literally as a 245-lap phantom stint. Clamped at both the view layer
+  (`SavedRaceView.BuildSegments`, fixes existing saves' display) and at capture
+  (`BuildStints`, fixes stored data).
+- **Capture gained** `SeasonLinkId` / `WeekendLinkId` / `SessionLinkId` (the game's own
+  persistent grouping IDs - see the twenty-eighth round), per-car `TotalRaceTimeSeconds` +
+  `NumLaps` (for the gap column), and a penalties snapshot.
+- **History detail**: gap-to-winner column, team names, DNF rows dimmed + red "DNF" matching
+  the race tower, a penalties card, and a reorganised layout (penalties under the
+  classification, tyre strategy under lap-by-lap, matched card heights).
+- **Settings gear** redrawn as a vector icon so it matches the history icon exactly (it was
+  the `⚙` text glyph, which renders at a different size/weight and sits off-centre).
+- Only races saved from this version on carry the new fields; older saves show a blank gap
+  column and land in an "Earlier races" bucket. Unavoidable - the data was never captured.
+
+### Twenty-seventh round (HTML export parity — shipped v1.1.1)
+- **The exporter had silently drifted a whole version behind.** It re-derived everything from
+  the raw `SavedRace` while the panel rendered `SavedRaceView`, so every history improvement
+  landed in the panel only. It now renders **the same `SavedRaceView`** (brushes converted to
+  hex), which is what stops the two diverging again - the root cause, not the symptom.
+- Brought the export to parity: panel layout, gap column, DNF flags, penalties card, positions
+  gained, the lap axis, and a new Events column (SC/red flag/chequered/penalties) it never had.
+- Writes **UTF-8 with a BOM** - exported pages were decoding as mojibake (`Â·`, `â`).
+
+### Twenty-eighth round (history card redesign — committed, not yet released)
+- **Result-tiered cards**: win = gold (+ star), podium = silver/bronze, points = teal,
+  out-of-points = muted, DNF = red - as a filled medal badge, a coloured left rail, and a
+  soft glow behind the result corner. Driven from the view model, so it themes automatically.
+- **Team livery** as an identity accent (dot + a wash across the card header).
+- **Country flags**: new `Models/FlagPalette.cs` draws all 21 calendar countries as vector
+  `DrawingBrush`es in a 60x40 space, replacing the `ITA`/`NED` text badge (still the fallback
+  for any undrawn country). Vector, not bundled artwork - the project's "drawn, not captured"
+  convention; at ~20px the simplified detail reads correctly.
+- **Multi-save support.** Grouping by `SeasonLinkId` already separated saves correctly; the
+  gap was that every section just said the year. Season headers now carry a livery dot +
+  team·driver, and with the livery wash a whole save reads as one colour - so two same-year
+  careers are tellable apart at a glance. Plus an ALL-default save switcher.
+- **Responsive card columns** (2 at the default window, up to 4 maximised). A `RelativeSource`
+  binding to the panel does **not** resolve from inside an `ItemsPanelTemplate` - the column
+  count is pushed from code instead.
+- Stat row made consistent (label-on-top/value-below); fastest lap in the classification now
+  uses the race tower's purple stopwatch badge instead of a `◷` glyph.
+
+### Twenty-ninth round (app-wide UI audit + layout overhaul — no live game needed)
+A full end-to-end visual audit, driven by temporarily seeding mock telemetry so every widget
+rendered (scaffolding removed afterwards). Findings and fixes:
+- **The default window couldn't render the app.** At the shipped 720x640 the Race tab was
+  broken: the alert clipped mid-word, sector values cut mid-digit, Lap History showed only
+  LAP + S1, and every catalog widget sat below the fold. Every screenshot taken during
+  development had been maximised, which hid it. Now **1500x1000** with a **1150x720 floor**.
+- **Dead space at large sizes** (the inverse problem): the bottom ~30% was empty because Lap
+  History was pinned to a fixed 589px/12-row viewport and nothing else grew. Now elastic
+  (~17 laps maximised). Safe because the catalog's issue lists are already capped
+  (`IssueListMaxEntries`), so its worst-case height is **bounded and known** - it reserves
+  that, history absorbs the rest, and nothing shifts as a race fills up.
+- **Outer `ScrollViewer` removed** - it made star sizing meaningless. See §4.8; it and the
+  window MinHeight are a package, neither works alone.
+- **Catalog columns are now width-derived** (~400px/card) rather than count-derived. Three
+  bugs found by measuring real element bounds via UI Automation rather than eyeballing
+  screenshots: a **stale `ActualWidth`** (arranged while the tower was still hidden, so it
+  used the wrong width), a **1-column collapse** at narrow widths (the *tallest* possible
+  shape, exactly where height is scarcest - it pushed a widget off-screen), and a **lone
+  stretched card** at 1920x1080 (3 tidy cards + one at 1460px). Hence the 2-column floor and
+  the no-orphan rule.
+- **Alert banner** no longer carries a hand-measured `MinHeight="72"`; it binds to
+  `LapTimingWidget.HeaderExtent` (see the eighteenth round's superseded note).
+- **The flag banner is now budgeted against the shared 6-entry cap.** Both widgets always
+  capped at 6, but Penalties rendered its flag banner *on top* of those 6, so it stood a row
+  taller and stretched the whole catalog row. The banner's padding/margin now match an issue
+  chip exactly (one grid row = 2 entries) and the list caps to 4 while a flag is up.
+  Verified: both cards 170px, flag on **and** off.
+- Withdrawn during the audit: the banner covering the lap times during a Safety Car is
+  **deliberate** (they're meaningless when you're delta-limited), and a tyre-wear colour ramp
+  would have **hijacked the game's own tyre colours**, which mean *temperature*, not wear.
+  Tyre temperature colouring was then dropped outright: no tyre-state field exists in the
+  telemetry, the thresholds aren't documented, community figures contradict each other, and
+  they shift with patches - so it could never be guaranteed to match the game.
+
 ## 6. Known caveats — built, but not yet trustworthy
 
 Everything in this section is shipped and *looks* right, but has either not been verified
@@ -1169,21 +1287,24 @@ against live game data or is known to have an open edge case. Referenced through
   as a row-based reflow (not a single fixed-column grid): widgets are packed into rows,
   and the column count *within each row* equals however many widgets are actually in
   that row, so a partial last row stretches evenly across the full width instead of
-  leaving a dead gap. Column count itself scales with total widget count
-  (`ColumnsFor`: 1 → 1 col, 2–4 → 2 cols, 5+ → 3 cols) so the common "Lap Timing + 4
-  others" Race case stays a clean 2×2, while enabling 5+ widgets folds into 3 columns
-  rather than growing a 2-column stack ever taller — keeping row count low so the page
-  stays glanceable without scrolling on a second-screen viewport. Rows are auto-height
+  leaving a dead gap. Column count is derived from the available **width** (`ColumnsFor`:
+  ~400px per card, floored at 2 columns, never leaving a single widget stranded alone on
+  the last row) — **superseded** the original count-based rule (1 → 1 col, 2–4 → 2, 5+ → 3),
+  which sized cards by how many widgets were on rather than how much room they had: at a
+  maximised window that stretched each card to ~800px with its content filling barely half.
+  See §5 twenty-ninth round. Rows are auto-height
   (not stretched), so a short one-line widget (e.g. Car Condition when "OK") hugs its
   own content instead of stretching into an empty-looking card next to a taller
   neighbour.
-- Lap Timing's history list lives in a **fixed-height viewport of 12 rows** (`Height`
-  on its `ScrollViewer`). Its height never changes regardless of lap count: a short
-  race shows its laps with blank space beneath (no filler rows), and past 12 laps the
-  *full race history is retained* and the viewport scrolls (a themed scrollbar - see §5
-  seventeenth round). Fixed height matters because everything stacked below it (the
-  catalog grid) would otherwise shift down lap-by-lap and, past 12 laps, be pushed past
-  the tower. No lap is ever dropped.
+- Lap Timing's history list lives in an **elastic viewport** (a star row; §5 twenty-ninth
+  round **superseded** the original fixed 12-row `Height`). It takes whatever height the
+  window has left after the catalog reserves its own, so a maximised window shows ~17 laps
+  instead of leaving dead space, and a short one yields rather than pushing the widgets
+  below off-screen. It still never sizes to the lap *count* - the viewport scrolls (a
+  themed scrollbar - see §5 seventeenth round) - so the original reason for the fixed
+  height still holds: nothing below it shifts as a race goes long. The full race history
+  is retained; no lap is ever dropped. There is deliberately **no MinHeight** on it - see
+  the twenty-ninth round for why a floor can't work in a star row.
 - Catalog widgets default **on** for Race only. Practice and Qualifying default to just
   their core (the field board + Lap Timing) with everything else off, toggleable if
   wanted. The position board (`PositionListWidget`) shows in both Practice and
@@ -1355,22 +1476,62 @@ before rebuilding a version of this.
     version) - the Race Position Tower (§7) is now the one place full-field rival data
     is shown; this stint timeline should stay player-only rather than duplicating that.
     Race preset only - `TotalLaps` isn't meaningful in Practice/Qualifying.
-  - Layout: Lap History renders in a fixed-height viewport of 12 rows (scrolls past 12,
-    see §5 seventeenth round) so the widget's height never shifts - that fixed height is
-    what makes a single overlaid bar (not duplicated per row) realistic, placed as a
-    sibling element in the same grid cell as the lap rows.
+  - Layout: **re-check this before building - the premise changed.** This was written when
+    Lap History had a fixed 12-row viewport, and leaned on that fixed height to make a
+    single overlaid bar (not duplicated per row) realistic. §5's twenty-ninth round made the
+    viewport elastic, so its height now varies with the window.
+  - **Also note the user has since rejected a per-lap "pace bar" in this gap** (§5
+    twenty-ninth round), so an overlaid graphic here should not be assumed welcome. The
+    alternatives raised and not yet decided were data columns: position that lap, gap to
+    the leader that lap, compound + age, and tyre wear.
   - Open questions before building: whether to include axis gridlines/lap-number
     labels like the real graphic or keep it to just the coloured bar + letter markers,
     and whether the open/current stint needs an explicit "current lap" tick mark.
-- **Tyre age in the Race tower — discussed, placement undecided.** Would cache
-  `CarStatusData.TyresAgeLaps` per car (like `_carTyreCompounds`) and add a small age
-  readout per row. Two placement options were weighed and not resolved: (A) reuse the
-  shared far-right badge column (penalty/fastest-lap badges take priority when active) -
-  zero layout change, but the age sits away from the compound letter and vanishes on the
-  fastest-lap/penalty car; (B) pair the age with the tyre letter itself (stacked or a
-  slightly wider column) - more authentic (compound + age as a unit, matching broadcast)
-  and never hidden, but needs a small column tweak. No decision made; revisit before
-  building.
+- **Tyre age in the Race tower — DECIDED (option B), not yet built.** The user asked to see
+  how old every car's tyres are. Caches `CarStatusData.TyresAgeLaps` per car - free, since
+  `HandleCarStatus` already loops every car in that packet to cache `_carTyreCompounds`.
+  Two placements were weighed: (A) reuse the shared far-right badge column - zero layout
+  change, but the age sits away from the compound letter and vanishes on the
+  fastest-lap/penalty car; **(B) pair the age with the tyre letter itself** (compound + age
+  as a unit, matching the broadcast) - never hidden, needs ~+22px. **B chosen.**
+- **Position change vs grid in the tower — DECIDED (option B), not yet built.** Shows how
+  many places each driver has gained/lost since the start. Four options were mocked: player-only
+  caret (0px, reusing the existing player-only `IntervalCaret` precedent), **inside the position
+  column (`5 ▲8`, ~+16px, whole field - chosen)**, a dedicated `+/-` column (~+36px), and
+  colouring the position number (0px, rejected - green/red already mean "personal best /
+  alert" and reusing them would dilute that signal). `LapData.GridPosition` exists per car;
+  **not yet confirmed it's populated sensibly mid-race** - check before building.
+  - ⚠️ B (+16) plus tyre age (+22) takes the tower **400 → ~438px**, at which point the
+    dedicated `+/-` column (option C) costs about the same - worth re-weighing then.
+- **Shrink the sector boxes — DECIDED, not yet built.** Three numbers currently span the full
+  width at ~70px tall. Confirmed safe: they are *not* coupled to the alert banner (the banner
+  covers the current-lap block *above* them), so shrinking them is free vertical space that
+  Lap History would absorb. This is the only free vertical win left - the window default is
+  already at the ~1040px usable ceiling of a 1080p screen.
+- **Remember window size/position across launches — agreed, not yet built.** It's a
+  second-screen app: you place it on monitor 2 once and it should reopen there. Needs a small
+  settings store (nothing is persisted today - not even the widget toggles).
+- **Pit-stop window widget — agreed in principle, BLOCKED on live data.** `SessionDataPacket`
+  carries `PitStopWindowIdealLap`, `PitStopWindowLatestLap` and `PitStopRejoinPosition`, all
+  currently unused - the most race-engineer data available ("box this lap, rejoin P7"), and a
+  natural 5th catalog widget (a pit-window bar reusing the `StintStripRenderer` idea, plus
+  rejoin position as the hero number). **Do not build before logging these for a real race**:
+  it's unverified that the game populates them outside certain modes, and this project has a
+  history of theories that didn't survive contact with live data (see the pit-tag saga, §6).
+- **DRS indicator — proposed, undecided.** `DrsAllowed`, `DrsActivationDistance` and
+  `DrsFault` are all received and unused.
+- **Weather forecast timeline — proposed, undecided.** Currently a single "next change"
+  callout; a small timeline across the forecast samples would read like a pit-wall rain radar.
+- **Tyre temperature — investigated and REJECTED, don't revisit without new information.**
+  The idea was to colour the tyre corners the way the game's own MFD does (blue = cold, green
+  = in the window, red = overheating). `TyresSurfaceTemperature` / `TyresInnerTemperature` and
+  `ActualTyreCompound` are all received and unused, so the *numbers* are available exactly.
+  The *colour mapping* is not: no tyre-state/colour field exists anywhere in the telemetry,
+  the thresholds aren't officially documented, community figures contradict each other
+  (C3 ≈ 80-90°C vs slicks ≈ 90-105°C), and they shift with patches. The user's rule was
+  "exact or not at all", so this is closed - a guessed ramp would show green while the game
+  showed amber. A wear-based colour ramp is **also** rejected, and worse: it would hijack the
+  game's own colours, which mean temperature, not wear.
 - **Car Condition damage threshold — CLOSED, working as intended.** Early on it looked
   like damage fields (wings/floor/gearbox/engine) creep up from race start with no
   collisions, which suggested a minimum-threshold filter was needed. After more live

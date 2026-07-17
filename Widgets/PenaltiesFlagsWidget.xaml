@@ -9,7 +9,12 @@
         <StackPanel VerticalAlignment="Center">
             <TextBlock Text="PENALTIES &amp; FLAGS" FontSize="11" Foreground="#6B7684" Margin="0,0,0,10"/>
 
-            <Border Background="{Binding PlayerFlagBrush}" CornerRadius="6" Padding="10,6" Margin="0,0,0,10"
+            <!-- Padding/Margin deliberately identical to an issue chip below (10,7 / 0,0,6,4) so this
+                 banner occupies exactly one grid row - i.e. the space of 2 entries in the 2-column
+                 list. TelemetryState budgets for that by capping the list at 4 while a flag is up
+                 (see IssueListMaxEntries), keeping this card the same height as Car Condition
+                 whether or not a flag is showing. Change these and that budget breaks. -->
+            <Border Background="{Binding PlayerFlagBrush}" CornerRadius="6" Padding="10,7" Margin="0,0,6,4"
                     Visibility="{Binding PlayerFlagVisible, Converter={StaticResource BoolToVis}}">
                 <StackPanel Orientation="Horizontal">
                     <Viewbox Width="10" Height="15" Margin="0,0,7,0">

@@ -97,6 +97,11 @@ namespace F1RaceEngineer
 
             SettingsFlyoutContent.PreviewPresetRequested += _state.DebugForcePreset;
 
+            // The catalog's column count is width-derived, so re-evaluate it whenever the grid's
+            // own width changes - not just on toggle changes. Watching the grid (rather than the
+            // window) also catches the width shifting because the tower appeared/disappeared.
+            WidgetGrid.SizeChanged += WidgetGrid_SizeChanged;
+
             _state.Attach(_listener);
 
             // Try once on launch so the common case (game already configured to send to
@@ -217,21 +222,56 @@ namespace F1RaceEngineer
                 if (toggle.IsEnabled) visible.Add(widget);
             }
 
+            _lastCatalogColumns = ColumnsFor(visible.Count, WidgetGrid.ActualWidth);
             ArrangeWidgets(WidgetGrid, _catalogWidgetsByKey.Values, visible);
         }
 
         /// <summary>
-        /// Column count grows with the widget count so a typical "1 main + 4 others"
-        /// Race layout stays a clean 2x2, while 5+ widgets fold into 3 columns instead of
-        /// a taller 2-column stack - fewer rows means less risk of the page not fitting a
-        /// second-screen viewport without scrolling.
+        /// Column count comes from the available WIDTH, not the widget count: a count-based split
+        /// left each card stretched to ~800px at a maximised window with its content filling barely
+        /// half, while the same 2x2 was cramped on a small one. ~400px per card keeps them at a
+        /// sensible size at any window - 4 across maximised, 2x2 around the default width - and
+        /// taking one row instead of two hands the freed height to Lap History above.
         /// </summary>
-        private static int ColumnsFor(int widgetCount) => widgetCount switch
+        // Minimum comfortable card width. Chosen so a card is wide enough for its issue chips to
+        // read without truncating ("Warning - Track limits (x2)" rather than "Warning - Track li..."):
+        // a 1920x1080 window lands on a roomy 2x2 rather than a cramped 4-across. Lower it and more
+        // columns fit at mid widths, at the cost of clipped chip text.
+        private const double TargetCatalogCardWidth = 400;
+
+        // Last column count actually applied, so the WidgetGrid's own SizeChanged can re-arrange
+        // only when the answer really changes. Without reacting to the grid's width specifically,
+        // the arrange can run against a stale ActualWidth (e.g. measured while the Race tower was
+        // still hidden, before it re-took its 400px) and lay out the wrong number of columns.
+        private int _lastCatalogColumns = -1;
+
+        private void WidgetGrid_SizeChanged(object sender, SizeChangedEventArgs e)
         {
-            <= 1 => 1,
-            <= 4 => 2,
-            _ => 3
-        };
+            int visibleCount = 0;
+            foreach (var w in _catalogWidgetsByKey.Values) if (w.Visibility == Visibility.Visible) visibleCount++;
+            if (visibleCount == 0) return;
+            if (ColumnsFor(visibleCount, e.NewSize.Width) != _lastCatalogColumns) ApplyCatalogWidgetLayout();
+        }
+
+        // Never fewer than 2 columns: a single column is the TALLEST possible arrangement, so on a
+        // narrow window - exactly where vertical space is scarcest - it would stack every card and
+        // push the last one off the bottom. Two columns halves that height and still leaves each
+        // card ~360px at the minimum width.
+        private const int MinCatalogColumns = 2;
+
+        private static int ColumnsFor(int widgetCount, double hostWidth)
+        {
+            if (hostWidth <= 0) return Math.Min(widgetCount, MinCatalogColumns); // pre-layout: sane default
+            int byWidth = (int)(hostWidth / TargetCatalogCardWidth);
+            int cols = Math.Min(widgetCount, Math.Max(MinCatalogColumns, byWidth));
+
+            // Never strand a single widget alone on the last row. ArrangeWidgets stretches a row's
+            // widgets across the full width, so a lone leftover renders as one giant card beside a
+            // row of normal ones (4 widgets in 3 columns = 3 tidy cards + 1 stretched to ~1460px).
+            // Dropping a column re-balances it (3+1 -> 2+2) at the cost of one extra row.
+            while (cols > MinCatalogColumns && widgetCount % cols == 1) cols--;
+            return cols;
+        }
 
         /// <summary>
         /// Rebuilds the widget area as a stack of row-Grids, each containing only the
@@ -267,7 +307,7 @@ namespace F1RaceEngineer
 
             host.ColumnDefinitions.Add(new ColumnDefinition());
 
-            int cols = ColumnsFor(n);
+            int cols = ColumnsFor(n, host.ActualWidth);
             int rows = (int)Math.Ceiling(n / (double)cols);
             for (int r = 0; r < rows; r++)
                 host.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
