@@ -42,6 +42,13 @@ namespace F1RaceEngineer.Models
         public static readonly SolidColorBrush GapClosing = Freeze(0x63, 0xC5, 0x6B);
         public static readonly SolidColorBrush GapOpening = Freeze(0xE5, 0x70, 0x6B);
 
+        // The existing label grey (#6B7684), used across the widget headers. Promoted into the
+        // palette so code-built rows can share the frozen instance: the tower's position-delta
+        // column needs it for "held position", which must read as quieter than the ▲/▼ carets
+        // above - across 20 rows most cars are flat, and a loud dash for "nothing happened"
+        // would drown out the handful that actually moved.
+        public static readonly SolidColorBrush MutedText = Freeze(0x6B, 0x76, 0x84);
+
         // Blue flag ("let a faster car through") - genuinely blue, not a shade of amber.
         // No other alert state uses blue, so it stays visually unambiguous from Safety
         // Car / VSC amber and Yellow caution. Used directly as the flag chip's own

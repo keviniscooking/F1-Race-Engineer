@@ -23,6 +23,7 @@ namespace F1RaceEngineer
 
         private readonly UdpListenerService _listener = new();
         private readonly TelemetryState _state = new();
+        private readonly WindowStateStore _windowState = new();
 
         private static readonly SolidColorBrush ActiveTabBrush = new(Color.FromRgb(0x1C, 0x27, 0x33));
         private static readonly SolidColorBrush InactiveTabBrush = Brushes.Transparent;
@@ -35,6 +36,11 @@ namespace F1RaceEngineer
         public MainWindow()
         {
             InitializeComponent();
+
+            // Restore the remembered geometry before the window is shown, so it opens where the
+            // user last left it rather than flashing at the default size first. Falls back to the
+            // XAML defaults if there's nothing saved or the saved spot is now off-screen.
+            RestoreWindowPlacement();
 
             LapTiming.DataContext = _state;
             PositionList.DataContext = _state;
@@ -127,6 +133,56 @@ namespace F1RaceEngineer
 
             int textColor = 0x00F3EDE6; // 0x00BBGGRR for #E6EDF3
             DwmSetWindowAttribute(hwnd, DwmwaTextColor, ref textColor, sizeof(int));
+        }
+
+        private void RestoreWindowPlacement()
+        {
+            var saved = _windowState.Load();
+            if (saved == null) return;
+
+            // Never trust the saved size below the XAML minimums - a corrupt or hand-edited file
+            // shouldn't be able to open the window smaller than the layout can survive.
+            if (saved.Width < MinWidth || saved.Height < MinHeight) return;
+
+            // Guard against a placement saved on a monitor that's since been unplugged: only honour
+            // it if the window's rect still meaningfully overlaps the current virtual desktop.
+            // Otherwise the window would open completely off-screen with no easy way to reach it.
+            var windowRect = new Rect(saved.Left, saved.Top, saved.Width, saved.Height);
+            var virtualScreen = new Rect(
+                SystemParameters.VirtualScreenLeft, SystemParameters.VirtualScreenTop,
+                SystemParameters.VirtualScreenWidth, SystemParameters.VirtualScreenHeight);
+            var overlap = Rect.Intersect(windowRect, virtualScreen);
+            if (overlap.IsEmpty || overlap.Width < 100 || overlap.Height < 100) return;
+
+            WindowStartupLocation = WindowStartupLocation.Manual;
+            Left = saved.Left;
+            Top = saved.Top;
+            Width = saved.Width;
+            Height = saved.Height;
+            // Apply Maximized after the normal-state bounds are set, so the system remembers those
+            // bounds as the restore size when the user un-maximizes.
+            if (saved.Maximized) WindowState = WindowState.Maximized;
+        }
+
+        protected override void OnClosing(CancelEventArgs e)
+        {
+            // RestoreBounds is the normal-state rect even when the window is maximized/minimized,
+            // so un-maximizing next launch returns to a sensible size. Left/Top/Width/Height would
+            // report the maximized frame instead, which isn't what we want to persist.
+            var bounds = RestoreBounds;
+            // Empty only if the window was never actually shown - don't clobber a good saved
+            // placement with zeros in that case.
+            if (bounds.IsEmpty) { base.OnClosing(e); return; }
+            _windowState.Save(new WindowStateStore.WindowPlacement
+            {
+                Left = bounds.Left,
+                Top = bounds.Top,
+                Width = bounds.Width,
+                Height = bounds.Height,
+                Maximized = WindowState == WindowState.Maximized
+            });
+
+            base.OnClosing(e);
         }
 
         /// <summary>

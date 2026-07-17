@@ -146,10 +146,11 @@ and must switch context automatically.
 - **Race Position Tower** (`Widgets/RacePositionTowerWidget.xaml`) — a "LAP X / Y"
   banner (tracks the race leader, §5 thirteenth round) and a purple "FASTEST LAP"
   strip (§5 twenty-first round) above a full-field tower shown only in Race, to the left
-  of everything else: position, livery swatch, driver + team, Interval (gap to car
-  ahead), Gap (to leader), tyre compound letter, a "PIT" indicator while a car is being
-  serviced (§5 nineteenth round, confirmed §5 twentieth), and a shared badge slot for a
-  pending-penalty "!" or the fastest-lap stopwatch. Reads
+  of everything else: position (with a ▲/▼ places-gained-vs-grid delta beside it, §5
+  thirtieth round), livery swatch, driver + team, Interval (gap to car ahead), Gap (to
+  leader), tyre compound letter paired with its age in laps (§5 thirtieth round), a "PIT"
+  indicator while a car is being serviced (§5 nineteenth round, confirmed §5 twentieth),
+  and a shared badge slot for a pending-penalty "!" or the fastest-lap stopwatch. Reads
   `LapData.DeltaToCarInFrontInMS`/`DeltaToRaceLeaderInMS` directly per car - no
   cross-referencing needed, unlike the old Gaps & Position widget it replaced (see §8 for
   why that one was removed). Retired/DNF/DSQ/not-classified cars show a dimmed row and a
@@ -600,7 +601,8 @@ F1 25 game ──UDP──> UdpListenerService (background thread)
   for `IsOut` rows - a retired car has nothing left to serve. Uses the tower's reserved
   column (see eighth/tenth round comments) plus one more real spacer column matching
   the Int-Gap-Tyre spacing, so there's no longer any reserved buffer left - see below.
-  Tower widened 384px → 400px to fit. Not yet tested against a real pending penalty.
+  Tower widened 384px → 400px to fit (later 436, §5 thirtieth round). Not yet tested
+  against a real pending penalty.
 
 ### Thirteenth round (live race - PIT column still showed nothing)
 - **PIT column was still blank on the IN row despite the eleventh round's fix** - the
@@ -876,7 +878,7 @@ feature authentic (timing colours, compound colours, flag semantics, FIA termino
   fastest), confirmed against Formula1.com live-timing coverage - Practice previously
   showed only the player's own Lap Timing. The uniform layout: the **full-field view
   lives in the LEFT column on every preset** (the Race Position Tower in Race, the
-  `PositionListWidget` board in Practice/Qualifying - same 400px column, mutually
+  `PositionListWidget` board in Practice/Qualifying - same 436px column, mutually
   exclusive), with the **same Lap Timing widget filling the RIGHT column everywhere**.
   Previously the board was stacked *below* Lap Timing in the right column on
   Practice/Qualifying; moving it to the left column matches the tower's placement and
@@ -1147,6 +1149,49 @@ rendered (scaffolding removed afterwards). Findings and fixes:
   telemetry, the thresholds aren't documented, community figures contradict each other, and
   they shift with patches - so it could never be guaranteed to match the game.
 
+### Thirtieth round — the four decided-but-unbuilt items, built (previously §8)
+All four had been agreed and mocked in prior rounds; this round built them. They moved out of
+§8 ("agreed, not yet built") into here.
+- **Tyre age paired with the compound letter in the Race tower.** `CarStatusData.TyresAgeLaps`
+  is now cached per car in `_carTyreAge` inside the same `HandleCarStatus` loop that already
+  caches `_carTyreCompounds` (free - no extra iteration), surfaced on `RaceStanding.TyreAgeText`,
+  and rendered *next to* the compound letter as one unit ("M 14"), matching the broadcast. Option
+  B, as decided: the age is never hidden (unlike parking it in the shared far-right badge column,
+  which vanishes on the fastest-lap/penalty car). The age is grey, not the compound colour - the
+  colour already says *which* tyre, and colouring the number too would imply it's colour-coded.
+  Blank for an out car, same as the letter. The tyre column grew 20 → 36px.
+- **Position-vs-grid delta inside the position column.** `RaceStanding.PositionDeltaText`/`Brush`,
+  computed in `RefreshRaceStandings` as `GridPosition - CarPosition`: "▲2" green (gained), "▼1"
+  red (lost), "–" muted grey (held). Reuses the existing `GapClosing`/`GapOpening` brushes so the
+  carets mean the same thing they do on the player's interval trend. **Guarded**: `GridPosition`
+  is confirmed to *exist* but was not confirmed populated mid-race, so a `GridPosition == 0` (or
+  out) car renders a blank string - the column degrades to looking exactly as before rather than
+  showing a bogus "▲0". Whole field, not player-only. The position column grew 24 → 44px (an
+  inner 18px sub-column holds the number so the delta always starts at the same x). Added
+  `TimingColorPalette.MutedText` (the existing `#6B7684` label grey, promoted to a frozen brush)
+  for the "held" dash - it must read quieter than the ▲/▼ carets since most of the field is flat.
+- **Tower width 400 → 436** (measured exactly via UI Automation, not eyeballed). Both the
+  `RaceTower` and the `PositionList` share the left Auto-width column, so both were widened to
+  436 to keep that column identical across all three preset tabs. The header row and the row
+  `DataTemplate` still carry **byte-identical `ColumnDefinitions`** - the two are commented as a
+  paired invariant, since the header only lines up with the rows because the lists match.
+- **Sector boxes shrunk.** Padding 12 → 8 and the big number 24 → 21px (margin 4 → 2) on all
+  three S1/S2/S3 boxes, ~14px per box reclaimed. Sectors are an `Auto` row directly above the
+  `*` Lap History row, so every pixel saved becomes one more pixel of visible lap history before
+  it scrolls. Confirmed safe in the audit: the boxes are not coupled to the alert banner (which
+  covers the current-lap block *above* them).
+- **Window size/position now persists** across launches (`Telemetry/WindowStateStore.cs`, same
+  `%LocalAppData%\F1RaceEngineer\` root and same defensive best-effort IO as `RaceHistoryStore` -
+  a corrupt/missing `window.json` just means "open at the default size", never a crash). This is
+  the **first thing this app persists** besides saved races (widget toggles still don't persist).
+  `RestoreWindowPlacement()` runs in the constructor before the window shows; `OnClosing` saves
+  `RestoreBounds` (the normal-state rect, so un-maximizing next launch returns to a sane size) plus
+  a `Maximized` flag. Two guards: the saved size is ignored if below the XAML `MinWidth`/`MinHeight`,
+  and the placement is ignored if it no longer overlaps the virtual desktop (a monitor unplugged
+  since it was saved) so the window can't open unreachable off-screen. Round-tripped via UI
+  Automation: set to (150,90,1240,860), closed *gracefully* (a force-kill skips `OnClosing`), and
+  it reopened at exactly those bounds.
+
 ## 6. Known caveats — built, but not yet trustworthy
 
 Everything in this section is shipped and *looks* right, but has either not been verified
@@ -1315,7 +1360,8 @@ against live game data or is known to have an open edge case. Referenced through
 
 ### Always-on core (UNIFORM across presets since §5 nineteenth round)
 Every preset has the same two-part structure: a **full-field view in the LEFT column**
-(fixed 400px), and the **same Lap Timing widget (with history) filling the RIGHT
+(fixed 436px, §5 thirtieth round - was 400 before the tower's tyre-age and position-delta
+columns), and the **same Lap Timing widget (with history) filling the RIGHT
 column**. Only the left-column occupant differs:
 - **Race**: the **Race Position Tower** (live interval/gap, tyres, PIT/Out, badges).
 - **Practice / Qualifying**: the **position/timing board** (`PositionListWidget` - best
@@ -1487,30 +1533,13 @@ before rebuilding a version of this.
   - Open questions before building: whether to include axis gridlines/lap-number
     labels like the real graphic or keep it to just the coloured bar + letter markers,
     and whether the open/current stint needs an explicit "current lap" tick mark.
-- **Tyre age in the Race tower — DECIDED (option B), not yet built.** The user asked to see
-  how old every car's tyres are. Caches `CarStatusData.TyresAgeLaps` per car - free, since
-  `HandleCarStatus` already loops every car in that packet to cache `_carTyreCompounds`.
-  Two placements were weighed: (A) reuse the shared far-right badge column - zero layout
-  change, but the age sits away from the compound letter and vanishes on the
-  fastest-lap/penalty car; **(B) pair the age with the tyre letter itself** (compound + age
-  as a unit, matching the broadcast) - never hidden, needs ~+22px. **B chosen.**
-- **Position change vs grid in the tower — DECIDED (option B), not yet built.** Shows how
-  many places each driver has gained/lost since the start. Four options were mocked: player-only
-  caret (0px, reusing the existing player-only `IntervalCaret` precedent), **inside the position
-  column (`5 ▲8`, ~+16px, whole field - chosen)**, a dedicated `+/-` column (~+36px), and
-  colouring the position number (0px, rejected - green/red already mean "personal best /
-  alert" and reusing them would dilute that signal). `LapData.GridPosition` exists per car;
-  **not yet confirmed it's populated sensibly mid-race** - check before building.
-  - ⚠️ B (+16) plus tyre age (+22) takes the tower **400 → ~438px**, at which point the
-    dedicated `+/-` column (option C) costs about the same - worth re-weighing then.
-- **Shrink the sector boxes — DECIDED, not yet built.** Three numbers currently span the full
-  width at ~70px tall. Confirmed safe: they are *not* coupled to the alert banner (the banner
-  covers the current-lap block *above* them), so shrinking them is free vertical space that
-  Lap History would absorb. This is the only free vertical win left - the window default is
-  already at the ~1040px usable ceiling of a 1080p screen.
-- **Remember window size/position across launches — agreed, not yet built.** It's a
-  second-screen app: you place it on monitor 2 once and it should reopen there. Needs a small
-  settings store (nothing is persisted today - not even the widget toggles).
+- **Tyre age in the tower, position-vs-grid delta, tower 400→436, sector-box shrink, and
+  window persistence — all BUILT (§5 thirtieth round).** These five were decided/mocked in
+  earlier rounds and lived here as "agreed, not yet built"; the thirtieth round built them.
+  The design rationale that used to sit in this list (option B for tyre age and for the
+  position delta, the ⚠️ note that B+age would land the tower near 438, the "sector boxes
+  aren't coupled to the banner" safety check) is preserved in that round entry. The one
+  measured surprise: the exact width came out at **436**, not the ~438 estimated here.
 - **Pit-stop window widget — agreed in principle, BLOCKED on live data.** `SessionDataPacket`
   carries `PitStopWindowIdealLap`, `PitStopWindowLatestLap` and `PitStopRejoinPosition`, all
   currently unused - the most race-engineer data available ("box this lap, rejoin P7"), and a

@@ -129,10 +129,12 @@
                      preset: the Race Position Tower in Race, the position/timing board in
                      Practice & Qualifying. Only one is ever visible at a time, so they share
                      this Auto-width column (which collapses to zero, taking its 12px right
-                     margin with it, when neither is shown). 400px on both keeps the left
-                     column exactly the same width across all three tabs. -->
-                <widgets:RacePositionTowerWidget x:Name="RaceTower" Grid.Column="0" Width="400" Margin="0,0,12,0"/>
-                <widgets:PositionListWidget x:Name="PositionList" Grid.Column="0" Width="400" Margin="0,0,12,0"/>
+                     margin with it, when neither is shown). 436px on both keeps the left
+                     column exactly the same width across all three tabs - the tower drives
+                     this number (it needs the room for the grid-delta and tyre-age columns);
+                     the Practice/Qual board just gets the matching width for free. -->
+                <widgets:RacePositionTowerWidget x:Name="RaceTower" Grid.Column="0" Width="436" Margin="0,0,12,0"/>
+                <widgets:PositionListWidget x:Name="PositionList" Grid.Column="0" Width="436" Margin="0,0,12,0"/>
 
                 <!-- The right column's widgets, plus the Alert banner layered on TOP of
                      them (later child = higher Z). The banner floats over the top of this

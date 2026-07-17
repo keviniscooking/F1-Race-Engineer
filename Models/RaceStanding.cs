@@ -40,6 +40,18 @@ namespace F1RaceEngineer.Models
         public string TyreLetter { get; set; } = "";
         public SolidColorBrush TyreBrush { get; set; } = CompoundPalette.Unknown;
 
+        // Laps on the current set, from the same CarStatusData packet as TyreLetter (and cached
+        // per car the same way). Paired with the compound letter rather than parked in a separate
+        // column, matching the broadcast's "compound + age" unit. Blank for an out car, like the
+        // letter itself.
+        public string TyreAgeText { get; set; } = "";
+
+        // Places gained/lost since the start, for the whole field: "▲2" / "▼1" / "–", shown beside
+        // the position number. Blank when the game hasn't given a sensible grid position (or the
+        // car is out) rather than rendering a bogus delta.
+        public string PositionDeltaText { get; set; } = "";
+        public SolidColorBrush PositionDeltaBrush { get; set; } = TimingColorPalette.NeutralText;
+
         // Real F1 broadcast convention: a red "!" badge for a driver with a penalty not
         // yet served (LapData.Penalties = pending time penalty, or an unserved
         // drive-through/stop-go). False for IsOut rows - a retired car has nothing left
@@ -71,6 +83,9 @@ namespace F1RaceEngineer.Models
             IsOut == other.IsOut &&
             IsPitting == other.IsPitting &&
             TyreLetter == other.TyreLetter &&
+            TyreAgeText == other.TyreAgeText &&
+            PositionDeltaText == other.PositionDeltaText &&
+            ReferenceEquals(PositionDeltaBrush, other.PositionDeltaBrush) &&
             IsPenaltyPending == other.IsPenaltyPending &&
             IsFastestLap == other.IsFastestLap &&
             ReferenceEquals(LiveryBrush, other.LiveryBrush) &&

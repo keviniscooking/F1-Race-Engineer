@@ -58,6 +58,7 @@ namespace F1RaceEngineer.Telemetry
         // cached the same way as participant name/team above so RefreshRaceStandings
         // (driven by LapData) can still read each car's current compound inline.
         private readonly Dictionary<int, VisualCompound> _carTyreCompounds = new();
+        private readonly Dictionary<int, int> _carTyreAge = new();
 
         // ---- Live player tyre stints (Race only) - drives the Tyres widget's stint bar.
         // A new stint is pushed when the player's compound changes or their tyre age drops
@@ -617,6 +618,7 @@ namespace F1RaceEngineer.Telemetry
             _carBestLapMs.Clear();
             _carTrackers.Clear(); // stale baselines from the old session would cause spurious sector/lap detections otherwise
             _carTyreCompounds.Clear();
+            _carTyreAge.Clear();
 
             // Empty at the start of a session; the widget's fixed-height viewport
             // (LapTimingWidget.xaml) holds the height steady, so there's no need to pad
@@ -880,6 +882,7 @@ namespace F1RaceEngineer.Telemetry
             for (int i = 0; i < span.Length; i++)
             {
                 _carTyreCompounds[i] = span[i].VisualTyreCompound;
+                _carTyreAge[i] = span[i].TyresAgeLaps;
             }
 
             var car = span[playerIdx];
@@ -1325,6 +1328,22 @@ namespace F1RaceEngineer.Telemetry
                     tyreLetter = CompoundPalette.LetterFor(compound);
                     tyreBrush = CompoundPalette.BrushFor(compound);
                 }
+                // Age rides with the letter (blank for an out car, same as the letter).
+                string tyreAge = !isOut && _carTyreAge.TryGetValue(i, out int age) ? age.ToString() : "";
+
+                // Places gained/lost since the start. GridPosition is 0 when the game hasn't set
+                // one, so treat that as "unknown" and render nothing rather than a bogus "▲0" -
+                // the field is confirmed to exist but NOT yet confirmed to be populated sensibly
+                // mid-race (see HANDOFF §8), and this degrades to blank if it isn't.
+                string posDeltaText = "";
+                SolidColorBrush posDeltaBrush = TimingColorPalette.NeutralText;
+                if (!isOut && car.GridPosition > 0 && car.CarPosition > 0)
+                {
+                    int gained = car.GridPosition - car.CarPosition; // positive = moved up the order
+                    if (gained > 0) { posDeltaText = $"▲{gained}"; posDeltaBrush = TimingColorPalette.GapClosing; }
+                    else if (gained < 0) { posDeltaText = $"▼{-gained}"; posDeltaBrush = TimingColorPalette.GapOpening; }
+                    else { posDeltaText = "–"; posDeltaBrush = TimingColorPalette.MutedText; }
+                }
 
                 // Same fields already used for the player's own Penalties & Flags list
                 // (RefreshPenalties), just generalized to every car here instead of just
@@ -1358,6 +1377,9 @@ namespace F1RaceEngineer.Telemetry
                     IsPitting = isPitting,
                     TyreLetter = tyreLetter,
                     TyreBrush = tyreBrush,
+                    TyreAgeText = tyreAge,
+                    PositionDeltaText = posDeltaText,
+                    PositionDeltaBrush = posDeltaBrush,
                     IsPenaltyPending = hasPendingPenalty,
                     IsFastestLap = isFastestLap,
                     IntervalCaret = intervalCaret,

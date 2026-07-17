@@ -64,24 +64,24 @@
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
 
-                    <Border Grid.Column="0" Background="{Binding Sector1BackgroundBrush}" CornerRadius="6" Padding="0,12">
+                    <Border Grid.Column="0" Background="{Binding Sector1BackgroundBrush}" CornerRadius="6" Padding="0,8">
                         <StackPanel>
                             <TextBlock Text="S1" FontSize="13" FontWeight="Bold" HorizontalAlignment="Center" Foreground="{Binding Sector1TextBrush}"/>
-                            <TextBlock Text="{Binding Sector1Text}" FontSize="24" FontWeight="Bold" HorizontalAlignment="Center" Foreground="{Binding Sector1TextBrush}" FontFamily="Consolas" Margin="0,4,0,0"/>
+                            <TextBlock Text="{Binding Sector1Text}" FontSize="21" FontWeight="Bold" HorizontalAlignment="Center" Foreground="{Binding Sector1TextBrush}" FontFamily="Consolas" Margin="0,2,0,0"/>
                         </StackPanel>
                     </Border>
 
-                    <Border Grid.Column="2" Background="{Binding Sector2BackgroundBrush}" CornerRadius="6" Padding="0,12">
+                    <Border Grid.Column="2" Background="{Binding Sector2BackgroundBrush}" CornerRadius="6" Padding="0,8">
                         <StackPanel>
                             <TextBlock Text="S2" FontSize="13" FontWeight="Bold" HorizontalAlignment="Center" Foreground="{Binding Sector2TextBrush}"/>
-                            <TextBlock Text="{Binding Sector2Text}" FontSize="24" FontWeight="Bold" HorizontalAlignment="Center" Foreground="{Binding Sector2TextBrush}" FontFamily="Consolas" Margin="0,4,0,0"/>
+                            <TextBlock Text="{Binding Sector2Text}" FontSize="21" FontWeight="Bold" HorizontalAlignment="Center" Foreground="{Binding Sector2TextBrush}" FontFamily="Consolas" Margin="0,2,0,0"/>
                         </StackPanel>
                     </Border>
 
-                    <Border Grid.Column="4" Background="{Binding Sector3BackgroundBrush}" CornerRadius="6" Padding="0,12">
+                    <Border Grid.Column="4" Background="{Binding Sector3BackgroundBrush}" CornerRadius="6" Padding="0,8">
                         <StackPanel>
                             <TextBlock Text="S3" FontSize="13" FontWeight="Bold" HorizontalAlignment="Center" Foreground="{Binding Sector3TextBrush}"/>
-                            <TextBlock Text="{Binding Sector3Text}" FontSize="24" FontWeight="Bold" HorizontalAlignment="Center" Foreground="{Binding Sector3TextBrush}" FontFamily="Consolas" Margin="0,4,0,0"/>
+                            <TextBlock Text="{Binding Sector3Text}" FontSize="21" FontWeight="Bold" HorizontalAlignment="Center" Foreground="{Binding Sector3TextBrush}" FontFamily="Consolas" Margin="0,2,0,0"/>
                         </StackPanel>
                     </Border>
                 </Grid>

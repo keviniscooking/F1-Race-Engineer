@@ -46,8 +46,12 @@
             <TextBlock Text="POSITION" FontSize="11" Foreground="#6B7684" Margin="0,0,0,10"/>
 
             <Grid Margin="4,0,4,4">
+                <!-- These ColumnDefinitions are duplicated verbatim in the row DataTemplate
+                     below - the header only lines up with the rows because the two lists are
+                     identical. Change one, change both. -->
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="24"/>
+                    <!-- 44 = number (18) + gap (4) + grid-delta (22). -->
+                    <ColumnDefinition Width="44"/>
                     <ColumnDefinition Width="12"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="58"/>
@@ -57,7 +61,8 @@
                     <ColumnDefinition Width="16"/>
                     <ColumnDefinition Width="58"/>
                     <ColumnDefinition Width="16"/>
-                    <ColumnDefinition Width="20"/>
+                    <!-- 36 = compound letter (13) + gap (4) + age, up to 2 digits (19). -->
+                    <ColumnDefinition Width="36"/>
                     <!-- Same real-spacer treatment as Int-Gap-Tyre, then the pending-
                          penalty badge in what used to be the reserved column. -->
                     <ColumnDefinition Width="16"/>
@@ -91,8 +96,9 @@
                                 </Style>
                             </Border.Style>
                             <Grid>
+                                <!-- Must stay identical to the header's ColumnDefinitions above. -->
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="24"/>
+                                    <ColumnDefinition Width="44"/>
                                     <ColumnDefinition Width="12"/>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="58"/>
@@ -100,24 +106,40 @@
                                     <ColumnDefinition Width="16"/>
                                     <ColumnDefinition Width="58"/>
                                     <ColumnDefinition Width="16"/>
-                                    <ColumnDefinition Width="20"/>
+                                    <ColumnDefinition Width="36"/>
                                     <!-- Spacer + penalty badge - see header row comment. -->
                                     <ColumnDefinition Width="16"/>
                                     <ColumnDefinition Width="20"/>
                                 </Grid.ColumnDefinitions>
 
-                                <TextBlock Grid.Column="0" Text="{Binding Position}" FontSize="13" FontWeight="Bold" FontFamily="Consolas" VerticalAlignment="Center">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
-                                            <Setter Property="Foreground" Value="#E6EDF3"/>
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding IsOut}" Value="True">
-                                                    <Setter Property="Foreground" Value="#4A5460"/>
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
+                                <!-- Position number + places gained/lost vs the grid, as one unit.
+                                     Inner fixed columns (not a StackPanel) so the delta always
+                                     starts at the same x whether the position is 1 or 22, and the
+                                     numbers stay in a clean column down the tower. The delta is
+                                     deliberately small and quiet next to the bold position: it's
+                                     context, not the primary read. Blank string when the game
+                                     hasn't given a usable grid position, so the column simply
+                                     looks like it did before rather than showing a wrong number. -->
+                                <Grid Grid.Column="0" VerticalAlignment="Center">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="18"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="{Binding Position}" FontSize="13" FontWeight="Bold" FontFamily="Consolas" HorizontalAlignment="Right">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Foreground" Value="#E6EDF3"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsOut}" Value="True">
+                                                        <Setter Property="Foreground" Value="#4A5460"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                    <TextBlock Grid.Column="1" Text="{Binding PositionDeltaText}" FontSize="9.5" FontFamily="Consolas"
+                                               Foreground="{Binding PositionDeltaBrush}" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,1,0,0"/>
+                                </Grid>
                                 <Border Grid.Column="1" Width="8" Height="8" CornerRadius="2" VerticalAlignment="Center">
                                     <Border.Style>
                                         <Style TargetType="Border">
@@ -193,7 +215,32 @@
                                     </TextBlock.Style>
                                 </TextBlock>
 
-                                <TextBlock Grid.Column="7" Text="{Binding TyreLetter}" FontSize="13" FontWeight="Bold" Foreground="{Binding TyreBrush}" FontFamily="Consolas" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                <!-- Compound + age read as one unit, the way the broadcast shows
+                                     them ("M 14"): the age is meaningless without the compound, so
+                                     splitting them into separate columns would make the eye do a
+                                     join the graphic should do for it. The age is grey rather than
+                                     the compound colour - the colour already carries "which tyre",
+                                     and repeating it on the number would imply the number is
+                                     colour-coded too. Both blank for an out car. -->
+                                <Grid Grid.Column="7" VerticalAlignment="Center">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="13"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="{Binding TyreLetter}" FontSize="13" FontWeight="Bold" Foreground="{Binding TyreBrush}" FontFamily="Consolas" HorizontalAlignment="Center"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding TyreAgeText}" FontSize="10" FontFamily="Consolas" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,1,0,0">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Foreground" Value="#6B7684"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsOut}" Value="True">
+                                                        <Setter Property="Foreground" Value="#3A424C"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </Grid>
 
                                 <!-- Real F1 broadcast convention: a red "!" badge for a
                                      driver with a penalty they haven't served yet. Shares
