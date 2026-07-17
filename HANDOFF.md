@@ -1201,6 +1201,30 @@ All four had been agreed and mocked in prior rounds; this round built them. They
   Automation: set to (150,90,1240,860), closed *gracefully* (a force-kill skips `OnClosing`), and
   it reopened at exactly those bounds.
 
+### Thirty-first round — removed the player-only interval-trend caret
+The whole-field position-vs-grid delta the thirtieth round added shows ▲/▼ per row in the
+position column; the twenty-fourth round's player-only ▲/▼ on the *interval* column meant
+something different ("your gap to the car ahead is closing/opening"). Two ▲/▼'s a few columns
+apart with different meanings was redundant and easy to misread, and the user asked to drop the
+older one. Removed `IntervalCaret`/`IntervalBrush` from `RaceStanding`, the `IntervalTrend` state
+and `UpdatePlayerIntervalTrend` maths from `TelemetryState`. The interval **number** stays - now a
+plain column, kept a touch brighter (`#E6EDF3`) than Gap-to-leader (`#9BA7B4`) since the gap to the
+car directly ahead is the more actionable figure. `GapClosing`/`GapOpening` survive: the position
+delta reuses them. The twenty-fourth round entry is annotated as removed but kept for its reasoning.
+
+### Thirty-second round — bottom-align the catalog widgets with the Position Tower
+A long-standing niggle the user finally pinned down: the bottom of the catalog widgets didn't line
+up with the bottom of the Position Tower on any tab. **Measured** it with UI Automation (maximized):
+tower bottom 1376, widgets bottom 1370 - a **6px** shortfall. Cause: `ArrangeWidgets` gave every
+catalog widget a symmetric `Thickness(left, 6, right, 6)`. The top 6 pairs with Lap Timing's own 6px
+bottom margin to make the standard 12px gap, but the bottom 6 had nothing below it to pair with - it
+just held the widgets 6px above the column's bottom edge, while the tower (no bottom margin, stretched
+full-height) reached all the way down. Fix: the **last** widget row now gets bottom margin 0 so it
+meets the column's bottom edge and lines up with the tower; earlier rows keep the 6 so wrapped rows
+still sit 12px apart. Verified both layouts via UI Automation: single row (2576px wide) - tower and
+all four widgets bottom at 1376; two rows (1500px, widgets wrap 2×2) - tower and the last row bottom
+at 1016, every inter-row/inter-widget gap a clean 12px.
+
 ## 6. Known caveats — built, but not yet trustworthy
 
 Everything in this section is shipped and *looks* right, but has either not been verified

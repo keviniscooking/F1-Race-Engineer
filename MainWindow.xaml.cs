@@ -377,13 +377,20 @@ namespace F1RaceEngineer
                 for (int c = 0; c < countInRow; c++)
                     rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
+                // The last row carries no bottom margin so the widgets reach the column's
+                // bottom edge and line up with the Position Tower to the left (which has no
+                // bottom margin either and stretches full-height). Earlier rows keep the 6 so a
+                // 6+6=12 gap sits between wrapped rows. The top 6 is uniform: on row 0 it pairs
+                // with Lap Timing's own 6px bottom margin (12 again), on later rows with the 6
+                // from the row above.
+                double bottom = r == rows - 1 ? 0 : 6;
                 for (int c = 0; c < countInRow; c++)
                 {
                     var widget = visibleWidgetsInOrder[start + c];
                     Grid.SetColumn(widget, c);
                     double left = c == 0 ? 0 : 6;
                     double right = c == countInRow - 1 ? 0 : 6;
-                    widget.Margin = new Thickness(left, 6, right, 6);
+                    widget.Margin = new Thickness(left, 6, right, bottom);
                     rowGrid.Children.Add(widget);
                 }
 
