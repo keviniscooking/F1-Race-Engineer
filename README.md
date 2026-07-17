@@ -8,16 +8,15 @@ to alt-tab out of the game mid-session.
 ## Features
 
 - **Lap Timing** — current lap (live-coloured), personal best, delta vs personal best
-  (updates every sector, not just at the line), three sector boxes, a scrollable
-  full-race lap history (12 laps visible, scroll back for earlier laps)
+  (updates every sector, not just at the line), three sector boxes, and a scrollable
+  full-race lap history (its viewport grows with the window; scroll back for earlier laps)
   with per-sector colour coding, IN/OUT lap tags, pit stop/pit lane timing, and inline
   per-lap event markers (Safety Car / VSC, red flag, chequered flag, penalties).
 - **Race Position Tower** — a "LAP X / Y" counter and a broadcast-style purple "fastest
-  lap" strip (driver + time) above the full field: position, interval and gap to leader,
-  tyre compound, a "PIT" tag while a car is being serviced (auto-reverting to the live
-  gap when it rejoins), and a shared badge slot for a pending penalty or the session's
-  fastest lap. Your own interval also shows a trend caret (green = catching the car ahead,
-  red = dropping back). Race only.
+  lap" strip (driver + time) above the full field: position with a ▲/▼ places-gained-vs-grid
+  delta, interval and gap to leader, tyre compound paired with its age in laps, a "PIT" tag
+  while a car is being serviced (auto-reverting to the live gap when it rejoins), and a
+  shared badge slot for a pending penalty or the session's fastest lap. Race only.
 - **Field timing board** — full field with best lap and gap to fastest, shown in both
   Practice and Qualifying (both are timed, leaderboard sessions).
 - **Alert banner** — Safety Car / VSC, Red Flag, Chequered Flag, penalties, retirement,

@@ -197,9 +197,10 @@ A sixteenth round (§5) added the app version to the settings panel - verified v
 Automation rather than a screenshot, since the settings panel is a `Popup` (separate
 top-level window) and this environment's screen capture can't see this app's window
 at all. A seventeenth round (§5) made Lap History retain the whole race in a
-fixed-height, self-scrolling viewport (12 rows visible, scroll for older laps) with an
-app-wide themed scrollbar - pure UI/data-retention work, verified via UI Automation +
-screenshot with temporary seeded-lap scaffolding. An eighteenth round (§5) raised the
+self-scrolling viewport (then a fixed 12 rows; later made elastic in the twenty-ninth
+round, so it now grows with the window) with an app-wide themed scrollbar - pure
+UI/data-retention work, verified via UI Automation + screenshot with temporary
+seeded-lap scaffolding. An eighteenth round (§5) raised the
 issue-list cap to 6 entries, collapsed duplicate warnings into an "(xN)" multiplier,
 and turned the alert banner into a floating overlay (so it no longer pushes the widgets
 below around) - all verified without a live game. A nineteenth round (§5), out of a
@@ -1104,7 +1105,7 @@ From an 8-point user review of the history feature and the live tyre bar.
   gained, the lap axis, and a new Events column (SC/red flag/chequered/penalties) it never had.
 - Writes **UTF-8 with a BOM** - exported pages were decoding as mojibake (`Â·`, `â`).
 
-### Twenty-eighth round (history card redesign — committed, not yet released)
+### Twenty-eighth round (history card redesign — released in v1.2.0)
 - **Result-tiered cards**: win = gold (+ star), podium = silver/bronze, points = teal,
   out-of-points = muted, DNF = red - as a filled medal badge, a coloured left rail, and a
   soft glow behind the result corner. Driven from the view model, so it themes automatically.
@@ -1224,6 +1225,28 @@ meets the column's bottom edge and lines up with the tower; earlier rows keep th
 still sit 12px apart. Verified both layouts via UI Automation: single row (2576px wide) - tower and
 all four widgets bottom at 1376; two rows (1500px, widgets wrap 2×2) - tower and the last row bottom
 at 1016, every inter-row/inter-widget gap a clean 12px.
+
+### Thirty-third round — pre-release audit + one efficiency fix
+A full line-by-line pass over the whole app (all C#, every XAML structure, both docs) before cutting
+a release. **No correctness bugs, crash paths, or security issues surfaced** - the code was uniformly
+defensive (range-guarded packet reads, best-effort IO, frozen brushes, change-diffed collections).
+The audit's real yield was documentation drift, all corrected:
+- README claimed the tower still shows the **interval trend caret** (removed in the thirty-first
+  round) - the most important fix, it's the public-facing description; also updated the tower bullet
+  to the grid-delta + tyre-age, and the "12 laps visible" lap history to "grows with the window".
+- Two `TelemetryState` comments and one `MainWindow` comment still described the **fixed 12-row
+  viewport** / **400px tower**; corrected to elastic / 436.
+- HANDOFF §7 and a §2 narrative still presented the interval caret / fixed viewport as current;
+  annotated.
+
+The one code change - **gate the leaderboard rebuilds by preset.** `HandleLapData` was calling both
+`RefreshRaceStandings` (the Race tower) and `RefreshPositionList` (the Practice/Qual board) every
+tick, though they're mutually exclusive on screen - so the hidden one was built, sorted and thrown
+away 20-60×/s. Now only the visible preset's board rebuilds (neither for Unsupported - Time Trial /
+menus have no field to rank). Safe because both only ever draw on `_carBestLapMs` (maintained in the
+per-car loop regardless) and their outputs (`RaceStandings`/`PositionList`/`LapCounterText`/the
+fastest-lap strip) are bound *only* into their own preset's widget - verified by grepping every
+consumer. Pure CPU/GC saving, no visible behaviour change.
 
 ## 6. Known caveats — built, but not yet trustworthy
 
@@ -1426,11 +1449,10 @@ column**. Only the left-column occupant differs:
   broadcast-style purple "FASTEST LAP - {driver} {time}" strip (§5 twenty-first round -
   `HasRaceFastestLap`/`FastestLapDriver`/`FastestLapTimeText`, sourced from the same
   `_carBestLapMs` holder the per-row badge uses; hidden until a lap is set). The tower
-  rows themselves show: position, livery
-  swatch, driver + team, Interval (gap to car ahead - the **player's own** Interval also
-  carries a trend caret/colour, green closing / red opening, §5 twenty-fourth round),
-  Gap (to leader), tyre compound
-  letter (plain colored text, no background badge - see §5 tenth round), and one shared
+  rows themselves show: position (with a ▲/▼ places-gained-vs-grid delta beside it, §5
+  thirtieth round), livery swatch, driver + team, Interval (gap to car ahead), Gap (to
+  leader), tyre compound letter paired with its age in laps (§5 thirtieth round; the letter
+  is plain colored text, no background badge - see §5 tenth round), and one shared
   badge slot for either a red "!" pending-penalty badge (§5 twelfth round) or a purple
   stopwatch fastest-lap badge (§5 thirteenth round) - mutually exclusive by design, a
   pending penalty always wins if a driver has both (confirmed with the user, matches

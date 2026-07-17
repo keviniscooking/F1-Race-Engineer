@@ -310,9 +310,10 @@ namespace F1RaceEngineer.Telemetry
         public SolidColorBrush Sector3BackgroundBrush { get => _sector3BackgroundBrush; private set => SetProperty(ref _sector3BackgroundBrush, value); }
 
         // Every completed lap is kept here (the whole race). The lap-history widget shows
-        // them in a fixed-height viewport (12 rows) and scrolls once there are more than
-        // fit - see LapTimingWidget.xaml. Nothing is ever dropped, so a full race can be
-        // scrolled back through end to end.
+        // them in an elastic viewport that grows with the window (a star-sized row, see
+        // LapTimingWidget.xaml and HANDOFF §5 twenty-ninth round) and scrolls once there are
+        // more laps than fit. Nothing is ever dropped, so a full race can be scrolled back
+        // through end to end.
         public ObservableCollection<LapHistoryEntry> LapHistory { get; } = new();
 
         private int _lapNumberForHistory = 0;
@@ -610,9 +611,9 @@ namespace F1RaceEngineer.Telemetry
             _carTyreCompounds.Clear();
             _carTyreAge.Clear();
 
-            // Empty at the start of a session; the widget's fixed-height viewport
-            // (LapTimingWidget.xaml) holds the height steady, so there's no need to pad
-            // with placeholder rows - real laps just fill in from the top as they complete.
+            // Empty at the start of a session; the widget's viewport (LapTimingWidget.xaml)
+            // reserves its own space in the layout, so there's no need to pad with placeholder
+            // rows - real laps just fill in from the top as they complete.
             LapHistory.Clear();
 
             PositionList.Clear();
@@ -1219,8 +1220,16 @@ namespace F1RaceEngineer.Telemetry
                 }
             }
 
-            RefreshRaceStandings(span);
-            RefreshPositionList(span);
+            // Only rebuild the leaderboard that's actually on screen for this preset - the tower in
+            // Race, the timing board in Practice/Qualifying (they're mutually exclusive, see
+            // MainWindow.UpdateWidgetVisibility). Building the hidden one every tick was a full
+            // 22-car list + sort + allocations thrown straight away. Both draw on _carBestLapMs,
+            // which is maintained in the loop above regardless, so gating here changes nothing but
+            // the wasted work. Neither runs for Unsupported (Time Trial / menus): no field to rank.
+            if (CurrentPreset == PresetType.Race)
+                RefreshRaceStandings(span);
+            else if (CurrentPreset is PresetType.Practice or PresetType.Qualifying)
+                RefreshPositionList(span);
         }
 
         /// <summary>

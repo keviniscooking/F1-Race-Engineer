@@ -298,7 +298,7 @@ namespace F1RaceEngineer
         // Last column count actually applied, so the WidgetGrid's own SizeChanged can re-arrange
         // only when the answer really changes. Without reacting to the grid's width specifically,
         // the arrange can run against a stale ActualWidth (e.g. measured while the Race tower was
-        // still hidden, before it re-took its 400px) and lay out the wrong number of columns.
+        // still hidden, before it re-took its 436px) and lay out the wrong number of columns.
         private int _lastCatalogColumns = -1;
 
         private void WidgetGrid_SizeChanged(object sender, SizeChangedEventArgs e)
