@@ -136,7 +136,7 @@ namespace F1RaceEngineer.Models
                 ? $"Retired on lap {r.RetiredOnLap} of {r.TotalLaps}" + (string.IsNullOrEmpty(r.ResultReason) ? "" : $" — {r.ResultReason}")
                 : "";
 
-            StintSegments = BuildSegments(r.PlayerStints, r.TotalLaps);
+            StintSegments = BuildSegments(AlignStintsToInLaps(r.PlayerStints, r.PlayerLaps), r.TotalLaps);
 
             // Penalties card: the race's incurred penalties, captured as-issued (see
             // TelemetryState.BuildIncurredPenalties). Races saved before that fix simply show
@@ -180,6 +180,35 @@ namespace F1RaceEngineer.Models
                 prevEnd = end;
             }
             return segs;
+        }
+
+        // The game closes each tyre stint at the last green-flag lap on the compound (its
+        // TyreStintsEndLaps), which is the lap BEFORE you drove into the pit lane - so the strategy
+        // bar's pit marker landed one lap earlier than the lap-by-lap "IN" tag for the very same
+        // stop (marker L6 vs "IN" L7). Realign each stint boundary onto the matching in-lap taken
+        // from the saved IN tags, so the marker sits on the lap you actually pitted - matching the
+        // tag and the broadcast convention. Data-driven (not a blind +1) so it stays correct even
+        // where the pit lane straddles the start/finish line. Only applied when the IN-tag count
+        // matches the number of stint boundaries; otherwise the game's end-laps are left untouched
+        // rather than guessed (e.g. an older save, or the app joined mid-race and missed a tag).
+        internal static List<SavedStint> AlignStintsToInLaps(List<SavedStint> stints, List<SavedLapRow> laps)
+        {
+            var inLaps = new List<int>();
+            foreach (var lap in laps)
+                if (lap.Tag == "IN" && lap.LapNumber > 0) inLaps.Add(lap.LapNumber);
+
+            if (stints.Count < 2 || inLaps.Count != stints.Count - 1) return stints;
+
+            var aligned = new List<SavedStint>(stints.Count);
+            for (int i = 0; i < stints.Count; i++)
+                aligned.Add(new SavedStint
+                {
+                    Compound = stints[i].Compound,
+                    // Every stint but the last ends at its pit stop's in-lap; the final stint keeps
+                    // its own end (the chequered flag, not a pit).
+                    EndLap = i < inLaps.Count ? inLaps[i] : stints[i].EndLap
+                });
+            return aligned;
         }
 
         internal static string FormatTime(uint ms)

@@ -5,10 +5,18 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d" d:DesignWidth="320">
 
+    <!-- Header pinned to the top (Auto row); the readout centered in the space below (star row),
+         so a short widget's title lines up with every other card's title while its content still
+         sits comfortably centered in the shared-height card. -->
     <Border Style="{StaticResource WidgetCardStyle}">
-        <StackPanel VerticalAlignment="Center">
-            <TextBlock Text="CAR CONDITION" FontSize="11" Foreground="#6B7684" Margin="0,0,0,10"/>
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+            <TextBlock Grid.Row="0" Text="CAR CONDITION" FontSize="11" Foreground="#6B7684" Margin="0,0,0,10"/>
 
+            <StackPanel Grid.Row="1" VerticalAlignment="Center">
             <!-- Quiet by design: a healthy car shouldn't compete for attention with a
                  loud banner - just a small confirmation, same visual weight as any other
                  normal readout. Only actual damage (below) should stand out. -->
@@ -36,6 +44,7 @@
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
-        </StackPanel>
+            </StackPanel>
+        </Grid>
     </Border>
 </UserControl>

@@ -1243,8 +1243,9 @@ The one code change - **gate the leaderboard rebuilds by preset.** `HandleLapDat
 `RefreshRaceStandings` (the Race tower) and `RefreshPositionList` (the Practice/Qual board) every
 tick, though they're mutually exclusive on screen - so the hidden one was built, sorted and thrown
 away 20-60×/s. Now only the visible preset's board rebuilds (neither for Unsupported - Time Trial /
-menus have no field to rank). Safe because both only ever draw on `_carBestLapMs` (maintained in the
-per-car loop regardless) and their outputs (`RaceStandings`/`PositionList`/`LapCounterText`/the
+menus have no field to rank). Safe because both only ever draw on `_carBestLapMs` (maintained
+independently - by `HandleSessionHistory` since the thirty-seventh round; was the per-car LapData
+loop when this round was written) and their outputs (`RaceStandings`/`PositionList`/`LapCounterText`/the
 fastest-lap strip) are bound *only* into their own preset's widget - verified by grepping every
 consumer. Pure CPU/GC saving, no visible behaviour change.
 
@@ -1290,9 +1291,11 @@ of the deferred alert banners.
   logged (`SAFETYCAR type=… event=…`, TEMP with the pit log) so its firing can be verified live before
   it's trusted, same discipline the session-type mismatch taught us.
 - **Session-type diagnostic (TEMP)** added in `HandleSession` (`SESSION type=… preset=… totalLaps=…`)
-  to pin down why **Sprint Qualifying isn't ranked by lap time** - the suspected cause is another
-  F1-25-reports-an-unexpected-`SessionType` case (like the sprint/race swap above). Needs one live
-  sprint weekend's log to fix the `PresetMapper` mapping; **still open.**
+  to pin down why **Sprint Qualifying / Practice isn't ranked by lap time.** **Resolved in the
+  thirty-seventh round:** the diagnostic proved the `PresetMapper` mapping was correct all along -
+  the real fault was the best-lap *source* (an accumulator that missed AI laps and counted
+  invalidated ones), now replaced by the `SessionHistory` packet. The diagnostic line is kept (cheap,
+  and F1 25's session types have surprised us more than once), but this item is closed.
 
 ### Thirty-fifth round — v1.3.1 (history readability + lap penalty cap)
 - **Lap-by-lap penalty cap.** A single lap can be issued several penalties for one infringement (a
@@ -1309,6 +1312,47 @@ of the deferred alert banners.
   62→74 - the bigger font was clipping the leading minute digit ("1:37.236" → ":37.236"). Verified by
   rendering: the app fits one screen with no page scroll and no clipping; the export reads clearly and
   its short-race lap-by-lap simply ends after its rows (inherent - a 7-lap sprint has 7 rows).
+
+### Thirty-sixth round — history tyre-marker alignment + widget-header alignment
+- **Tyre-strategy pit marker realigned to the in-lap (history only).** The user saw the strategy
+  bar's pit marker sit a lap earlier than the lap-by-lap "IN" tag for the same stop. Root cause
+  confirmed from the pit-debug log: the two are different sources - the bar's marker comes from the
+  game's `TyreStintsEndLaps` (the last *green-flag* lap on the compound, L6), while the IN/OUT tags
+  come from live `DriverStatus` (the lap you drove into the pit lane, L7). Both correct, off by one
+  by definition. **The live race-tab bar was already aligned** (it's built from live lap counts, not
+  `TyreStintsEndLaps`) - the user confirmed only history differed, which is exactly the path fixed.
+  `SavedRaceView.AlignStintsToInLaps` now moves each stint boundary onto the matching in-lap taken
+  from the saved IN tags (data-driven, not a blind +1, so it survives pit-lane/start-line geometry),
+  applied only when the IN-tag count matches the boundary count (else the game's end-laps are left
+  as-is). Feeds both the in-app bar and the HTML export. Verified: Madrid's two stops now mark L7 and
+  L19, matching the IN tags (were L6/L18).
+- **All widget headers pinned to the top.** The catalog widgets (Tyres, Car Condition, Penalties &
+  Flags, Session & Track) and the two short history cards (Penalties, Your Tyre Strategy) wrapped
+  everything in a `VerticalAlignment="Center"` StackPanel, so on a tall shared-height card the *title*
+  floated to the middle. Restructured each to a two-row Grid: header in an `Auto` row at the top, the
+  readout in a centered `*` row below - so every card's title lines up while its content stays
+  vertically centred. (The classification / lap-by-lap history cards already used a header-on-top
+  grid.) Verified by rendering the Race catalog and the history detail.
+
+### Thirty-seventh round — best-lap source switched to SessionHistory; Safety Car confirmed
+Two long-running open items closed off the same debug log the user sent back.
+- **Safety Car banners CONFIRMED live.** The `SAFETYCAR` diagnostic captured a real caution firing
+  the full sequence: `VirtualSafetyCar Deployed` → `FullSafetyCar Deployed` → `Returning` →
+  `Returned` → `ResumeRace`. All four `SafetyCarEventType` values fire as documented, so the state
+  machine (§8) is trusted and the temp `SAFETYCAR` log line is removed.
+- **Practice/Qualifying board sort - root cause found and fixed.** The user reported the timing board
+  not ranking by fastest lap (first "sprint qualifying", now practice too). The `SESSION` diagnostic
+  **cleared the preset theory**: `Practice1→Practice`, `ShortSprintShootout→Qualifying`,
+  `ShortQualifying→Qualifying` - the mapping was right all along. The real fault was the **best-lap
+  source**: `_carBestLapMs` was accumulated from each car's `LapData.LastLapTimeInMS`, which (a)
+  depended on catching every AI car's lap boundary and (b) **included invalidated laps**, so the app
+  could rank a car by an off-track lap the game's own screen discards. Switched to the game's
+  `SessionHistoryDataPacket` (`BestLapTimeLapNum` → the lap history's best `LapTimeInMS`) - the exact
+  per-car best the in-game timing screen uses, sent round-robin, needing no accumulation and
+  respecting lap validity. Now the sole feed for `_carBestLapMs`; benefits the Practice board, both
+  Qualifying boards, and the Race tower's fastest-lap marker. The `LapData` accumulator is removed.
+  **Not yet re-verified live** (needs a session with a full field) - but it's the authoritative
+  source, so the board should now match the game's timing screen exactly.
 
 ## 6. Known caveats — built, but not yet trustworthy
 
@@ -1607,9 +1651,10 @@ before rebuilding a version of this.
 - **`Collision` was implemented then removed** — the user judged it only matters when
   it results in a penalty, which the Penalty banner already covers on its own. Don't
   reintroduce it as a separate banner.
-- Of the 21 `EventType` values, only 5 drive a banner so far (Red Flag, Chequered Flag,
-  Penalty, Retirement, Team-mate in pits). Most of the rest were reviewed and left
-  unwired -
+- Of the 21 `EventType` values, 6 drive a banner (Red Flag, Chequered Flag, Penalty,
+  Retirement, Team-mate in pits, and Safety Car - the last via the event state machine added
+  in the thirty-fourth round, on top of the `SafetyCarStatus` poll). Most of the rest were
+  reviewed and left unwired -
   see §8 (Proposed alert banners, not yet implemented) for the full draft-text pass.
 
 ### Identity in the position list
@@ -1685,15 +1730,16 @@ before rebuilding a version of this.
   the background engine-component *wear* fields, which are already excluded - see §5
   third round / §6), so **no threshold is being added**; a component surfaces the moment
   it reports non-zero incident damage, which is the intended behaviour.
-- **Proposed alert banners, not yet implemented** — of the 21 `EventType` values, 16
-  remain unwired (5 are live - see §7). Draft text/colour/clear-behaviour for each,
-  reviewed but not committed to:
+- **Proposed alert banners, not yet implemented** — of the 21 `EventType` values, 15
+  remain unwired (6 are live - see §7, now including Safety Car). Draft text/colour/clear-behaviour
+  for each, reviewed but not committed to (the Safety Car entry below is now BUILT):
   - **Safety Car event state machine — BUILT (§5 thirty-fourth round).** Implemented as a layer
     over the `SafetyCarStatus` poll (not a replacement - the poll keeps driving the steady
     "deployed" state, the `SafetyCarEvent` adds the transitions): Returning+Full → "Safety car in
     this lap - peel off" and Returning+Virtual → "Virtual safety car ending" (both sticky);
-    Returned → "Safety car in the pits" (5s); ResumeRace → "Racing resumes" (green, 4s). **Awaiting
-    live confirmation the events fire** - see the round entry and the TEMP `SAFETYCAR` log.
+    Returned → "Safety car in the pits" (5s); ResumeRace → "Racing resumes" (green, 4s). **CONFIRMED
+    live (§5 thirty-seventh round):** a real safety car fired the full Deployed → Returning → Returned
+    → ResumeRace sequence exactly as designed; the temp `SAFETYCAR` diagnostic has been removed.
   - **DRS Disabled** (`DrsDisabledReason`): WetTrack → "DRS disabled - wet track"
     (event-based, pairs with `DRSEnabled`); SafetyCarDeployed / RedFlag → likely
     redundant, those banners already show; MinLapNotReached → "DRS disabled - minimum

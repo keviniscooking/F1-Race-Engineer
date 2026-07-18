@@ -5,10 +5,17 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d" d:DesignWidth="320">
 
+    <!-- Header pinned to the top (Auto row); content centered in the space below (star row) - see
+         the note in CarConditionWidget. -->
     <Border Style="{StaticResource WidgetCardStyle}">
-        <StackPanel VerticalAlignment="Center">
-            <TextBlock Text="PENALTIES &amp; FLAGS" FontSize="11" Foreground="#6B7684" Margin="0,0,0,10"/>
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+            <TextBlock Grid.Row="0" Text="PENALTIES &amp; FLAGS" FontSize="11" Foreground="#6B7684" Margin="0,0,0,10"/>
 
+            <StackPanel Grid.Row="1" VerticalAlignment="Center">
             <!-- Padding/Margin deliberately identical to an issue chip below (10,7 / 0,0,6,4) so this
                  banner occupies exactly one grid row - i.e. the space of 2 entries in the 2-column
                  list. TelemetryState budgets for that by capping the list at 4 while a flag is up
@@ -53,6 +60,7 @@
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
-        </StackPanel>
+            </StackPanel>
+        </Grid>
     </Border>
 </UserControl>

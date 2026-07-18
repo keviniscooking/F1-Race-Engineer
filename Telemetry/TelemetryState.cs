@@ -46,7 +46,10 @@ namespace F1RaceEngineer.Telemetry
         private uint[]? _personalBestLapCumulativeSplitsMs;
         private uint _cumulativeThisLapMs;
 
-        // ---- Best-lap tracking (whole field, for the qualifying position list) ----
+        // ---- Best-lap per car (whole field) ---- fed from the game's SessionHistory packet
+        // (HandleSessionHistory), which is authoritative and excludes invalidated laps - the same
+        // best lap the in-game timing screen ranks by. Drives the Practice/Qualifying board sort
+        // (and its gap-to-fastest) and the Race tower's fastest-lap marker.
         private readonly Dictionary<int, uint?> _carBestLapMs = new();
 
         // ---- Participant identity cache ----
@@ -507,6 +510,10 @@ namespace F1RaceEngineer.Telemetry
                         HandleCarDamage(carDamage);
                         break;
 
+                    case PacketType.SessionHistory when packet.TryGetSessionHistoryDataPacket(out SessionHistoryDataPacket history):
+                        HandleSessionHistory(history);
+                        break;
+
                     case PacketType.FinalClassification when packet.TryGetFinalClassificationDataPacket(out FinalClassificationDataPacket finalClass):
                         HandleFinalClassification(finalClass);
                         break;
@@ -866,15 +873,11 @@ namespace F1RaceEngineer.Telemetry
         /// The dedicated SafetyCarEvent transitions, layered on top of the steady _safetyCarStatus
         /// poll (which still drives the "deployed" banner). Deployed just clears any stale transient;
         /// Returning raises the sticky peel-off warning; Returned and ResumeRace are brief timed
-        /// banners. Untested against a real safety car yet - the raw event is logged (TEMP, see the
-        /// pit log) so its firing can be confirmed live before this is trusted, same discipline the
-        /// session-type mismatch taught us.
+        /// banners. Confirmed live: a real safety car fired the full Deployed → Returning → Returned
+        /// → ResumeRace sequence and drove the banners as intended.
         /// </summary>
         private void HandleSafetyCarEvent(SafetyCarEvent sc)
         {
-            LogPitEvent(0, DriverStatus.InGarage, PitStatus.None, false, 0, 0, 0,
-                $"SAFETYCAR type={sc.SafetyCarType} event={sc.EventType}");
-
             switch (sc.EventType)
             {
                 case SafetyCarEventType.Deployed:
@@ -1336,11 +1339,9 @@ namespace F1RaceEngineer.Telemetry
                     RegisterLapTime(car.LastLapTimeInMS, sector1Ms, sector2Ms, sector3Ms, isPlayer, lapTag, tracker.PendingPitLaneTimeMs);
                     tracker.PendingPitLaneTimeMs = 0; // consumed - don't let it leak onto a later unrelated OUT lap
 
-                    // Track best lap per car (whole field) for the qualifying position list
-                    if (!_carBestLapMs.TryGetValue(i, out var best) || best == null || car.LastLapTimeInMS < best)
-                    {
-                        _carBestLapMs[i] = car.LastLapTimeInMS;
-                    }
+                    // Per-car best lap is no longer accumulated here from LastLapTimeInMS - it now
+                    // comes straight from the game's SessionHistory packet (HandleSessionHistory),
+                    // which is authoritative and, unlike this, excludes invalidated laps.
 
                     tracker.LastSeenLastLapTimeMs = car.LastLapTimeInMS;
                 }
@@ -1607,6 +1608,27 @@ namespace F1RaceEngineer.Telemetry
                 PenaltiesIssues.Clear();
                 foreach (var issue in ordered) PenaltiesIssues.Add(issue);
             }
+        }
+
+        /// <summary>
+        /// Records one car's session-best lap from the game's SessionHistory packet (sent per car,
+        /// round-robin). <see cref="SessionHistoryDataPacket.BestLapTimeLapNum"/> is the game's own
+        /// pick of that car's best lap - a 1-based index into its lap history (0 = no lap set yet) -
+        /// so it excludes invalidated laps and needs no accumulation on our side. This is the sole
+        /// feed for <see cref="_carBestLapMs"/>; see that field. Cleared per session in
+        /// ResetSessionScopedState, then repopulated as each car's history packet arrives.
+        /// </summary>
+        private void HandleSessionHistory(SessionHistoryDataPacket packet)
+        {
+            byte bestLapNum = packet.BestLapTimeLapNum;
+            if (bestLapNum == 0) return; // no lap set yet this session
+
+            var laps = packet.LapHistoryData.AsSpan();
+            int idx = bestLapNum - 1;
+            if (idx < 0 || idx >= laps.Length) return;
+
+            uint bestMs = laps[idx].LapTimeInMS;
+            if (bestMs > 0) _carBestLapMs[packet.CarIndex] = bestMs;
         }
 
         private void RefreshPositionList(Span<LapData> span)

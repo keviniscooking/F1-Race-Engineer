@@ -5,11 +5,17 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d" d:DesignWidth="320">
 
+    <!-- Header pinned to the top (Auto row); content centered in the space below (star row) - see
+         the note in CarConditionWidget. -->
     <Border Style="{StaticResource WidgetCardStyle}">
-        <StackPanel VerticalAlignment="Center">
-            <TextBlock Text="TYRES" FontSize="11" Foreground="#6B7684" Margin="0,0,0,10"/>
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+            <TextBlock Grid.Row="0" Text="TYRES" FontSize="11" Foreground="#6B7684" Margin="0,0,0,10"/>
 
-            <Grid>
+            <Grid Grid.Row="1" VerticalAlignment="Center">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="26"/>
@@ -90,6 +96,6 @@
                     <Canvas x:Name="StintTicks" Height="16" Margin="0,3,0,0"/>
                 </StackPanel>
             </Grid>
-        </StackPanel>
+        </Grid>
     </Border>
 </UserControl>
