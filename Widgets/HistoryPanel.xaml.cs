@@ -187,6 +187,10 @@ namespace F1RaceEngineer.Widgets
             DnfText.Text = v.DnfDetail;
             ClassList.ItemsSource = v.Classification;
             LapList.ItemsSource = v.Laps;
+            // The penalties card is the one binding-driven part of this otherwise imperatively
+            // populated detail view, so it needs the view model as its DataContext (see the note
+            // in HistoryPanel.xaml). Without this its bindings fail and it always reads "No penalties".
+            PenaltiesCard.DataContext = v;
             StintStripRenderer.Render(DetailStintBar, DetailStintTicks, v.StintSegments, v.TotalLaps,
                 showLetters: true, gap: 3, cornerRadius: 4);
 

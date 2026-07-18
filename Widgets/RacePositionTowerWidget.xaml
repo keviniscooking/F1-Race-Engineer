@@ -137,8 +137,12 @@
                                             </Style>
                                         </TextBlock.Style>
                                     </TextBlock>
-                                    <TextBlock Grid.Column="1" Text="{Binding PositionDeltaText}" FontSize="9.5" FontFamily="Consolas"
-                                               Foreground="{Binding PositionDeltaBrush}" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,1,0,0"/>
+                                    <!-- Right margin nudges the right-aligned delta left so it clears
+                                         the livery swatch in the next column. Font is bumped for
+                                         legibility but kept under the 13px position number, so the
+                                         row height (driven by that number) is unchanged. -->
+                                    <TextBlock Grid.Column="1" Text="{Binding PositionDeltaText}" FontSize="11" FontFamily="Consolas"
+                                               Foreground="{Binding PositionDeltaBrush}" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,1,4,0"/>
                                 </Grid>
                                 <Border Grid.Column="1" Width="8" Height="8" CornerRadius="2" VerticalAlignment="Center">
                                     <Border.Style>
@@ -224,7 +228,7 @@
                                         <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Grid.Column="0" Text="{Binding TyreLetter}" FontSize="13" FontWeight="Bold" Foreground="{Binding TyreBrush}" FontFamily="Consolas" HorizontalAlignment="Center"/>
-                                    <TextBlock Grid.Column="1" Text="{Binding TyreAgeText}" FontSize="10" FontFamily="Consolas" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,1,0,0">
+                                    <TextBlock Grid.Column="1" Text="{Binding TyreAgeText}" FontSize="12" FontFamily="Consolas" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,1,0,0">
                                         <TextBlock.Style>
                                             <Style TargetType="TextBlock">
                                                 <Setter Property="Foreground" Value="#6B7684"/>

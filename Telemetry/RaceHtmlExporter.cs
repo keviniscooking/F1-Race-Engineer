@@ -208,7 +208,7 @@ body{margin:0;background:#0D1117;color:#E6EDF3;font-family:'Segoe UI',system-ui,
 .mut{color:#6B7684}
 .dnf{background:#1A1113;border:1px solid #5A2323;border-radius:10px;padding:12px 14px;font-size:13px;color:#9BA7B4;margin-bottom:18px}
 .dnf b{color:#FF8080}
-.grid2{display:grid;grid-template-columns:1.05fr .95fr;gap:16px;align-items:stretch}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:stretch}
 .col{display:flex;flex-direction:column;gap:16px}
 .col .card:first-child{flex:1}
 .card{background:#161B22;border:1px solid #232B35;border-radius:10px;padding:16px}

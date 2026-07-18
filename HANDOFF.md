@@ -1248,6 +1248,52 @@ per-car loop regardless) and their outputs (`RaceStandings`/`PositionList`/`LapC
 fastest-lap strip) are bound *only* into their own preset's widget - verified by grepping every
 consumer. Pure CPU/GC saving, no visible behaviour change.
 
+### Thirty-fourth round — v1.3.0 batch (user-reported fixes + Safety Car banners)
+A run of user-reported issues, all verified against real saved data / rendered output, plus the first
+of the deferred alert banners.
+- **History Race/Sprint swap fix.** A saved US GP weekend showed the *sprint* under the "Race" tab and
+  vice-versa. Root cause proven from the saved JSON: the 7-lap session was labelled "Race" and the
+  20-lap one "Sprint" - F1 25 reports the **sprint as `SessionType.Race` and the feature race as
+  `Race2`**, inverting the naive type→label mapping (the same class of enum-semantics surprise as the
+  sprint-qualifying one below). Fix: `HistoryGroups` now picks main-vs-sprint by **lap count** (the
+  feature race is always longer), ignoring the unreliable label, and `SavedRaceView.ApplyWeekendRole`
+  stamps the correct display word - which fixes already-saved races too. Verified live: the US "Race"
+  tab now opens the 20-lap race.
+- **Race/Sprint toggle centered** on its row in the detail view (was tucked top-right), only shown for
+  sprint weekends.
+- **Tower tweaks:** position-delta font 9.5→11 with a right margin so it clears the livery swatch;
+  tyre-age font 10→12. Both kept under the 13px position number / tyre letter, so row (and tower)
+  height is unchanged - tower still measures 436.
+- **Penalties tab - two bugs.** (1) *Display was never wired*: the detail view is populated
+  imperatively, but the penalties card is the one part driven by `{Binding}`, and nothing set its
+  `DataContext` - so it **always** read "No penalties" regardless of the data (even stored warnings
+  never showed). Fixed by setting `PenaltiesCard.DataContext` in `ShowSession`; verified live (Madrid's
+  two warnings now render). (2) *Served penalties weren't captured*: the saved list was a finish-line
+  snapshot of the live widget, which only holds what's still *outstanding* - empty once everything's
+  served. Now every penalty is recorded **as issued** into `_penaltiesIncurred` and saved via
+  `BuildIncurredPenalties`, which mirrors the live widget exactly: `(xN)` grouping, **severity-sorted**
+  (stop-go > drive-through > time > warning), and **capped to `IssueListMaxEntries`** with a "+N more"
+  overflow. Forward-only by the user's choice - no retroactive reconstruction. HTML export was
+  unaffected (it read the data correctly all along; only the in-app card binding was broken).
+- **Equal history/export columns.** The detail view and the HTML export used a `1.05 / 0.95` column
+  split (left ~10% wider), which read as lopsided. Measured the export precisely (heights were always
+  equal; only width differed - 701 vs 635), then changed both to `1 : 1`. Now all four cards are the
+  same width (export 668×668 / 668×156, rendered and measured; app balanced, no name truncation).
+- **Safety Car event state machine — first of the deferred alert banners (§8 Tier 1).** The dedicated
+  `SafetyCarEvent` (Deployed/Returning/Returned/ResumeRace) now layers on the `SafetyCarStatus` poll:
+  the poll still drives the steady "deployed" banner (reliable, self-clearing), while the event adds
+  the two moments a poll can't express - **"Safety car in this lap - peel off"** / "Virtual safety car
+  ending" (sticky until it returns / resumes / poll clears), **"Safety car in the pits"** (5s), and the
+  green **"Racing resumes"** go-signal (4s, new `AlertGreen` palette, highest priority in the SC
+  group). Priority slot unchanged (below Red Flag/Retirement/Penalty, above Team-mate/Chequered); all
+  SC event state resets per session. **Not yet confirmed against a real safety car** - the raw event is
+  logged (`SAFETYCAR type=… event=…`, TEMP with the pit log) so its firing can be verified live before
+  it's trusted, same discipline the session-type mismatch taught us.
+- **Session-type diagnostic (TEMP)** added in `HandleSession` (`SESSION type=… preset=… totalLaps=…`)
+  to pin down why **Sprint Qualifying isn't ranked by lap time** - the suspected cause is another
+  F1-25-reports-an-unexpected-`SessionType` case (like the sprint/race swap above). Needs one live
+  sprint weekend's log to fix the `PresetMapper` mapping; **still open.**
+
 ## 6. Known caveats — built, but not yet trustworthy
 
 Everything in this section is shipped and *looks* right, but has either not been verified
@@ -1626,14 +1672,12 @@ before rebuilding a version of this.
 - **Proposed alert banners, not yet implemented** — of the 21 `EventType` values, 16
   remain unwired (5 are live - see §7). Draft text/colour/clear-behaviour for each,
   reviewed but not committed to:
-  - **Safety Car event state machine** (would replace the current coarse
-    `SessionDataPacket.SafetyCarStatus` poll with the dedicated `SafetyCarEvent`,
-    which has a real Deployed/Returning/Returned/ResumeRace sequence): Deployed+Full →
-    "Safety car deployed - no overtaking" (event-based); Deployed+Virtual → "Virtual
-    safety car - hold your delta" (event-based); Returning+Full → "Safety car in this
-    lap - peel off" (event-based); Returning+Virtual → "Virtual safety car ending"
-    (event-based); Returned (either) → "Safety car in the pits" (timed, 5s);
-    ResumeRace → "Racing resumes" (timed, 4s).
+  - **Safety Car event state machine — BUILT (§5 thirty-fourth round).** Implemented as a layer
+    over the `SafetyCarStatus` poll (not a replacement - the poll keeps driving the steady
+    "deployed" state, the `SafetyCarEvent` adds the transitions): Returning+Full → "Safety car in
+    this lap - peel off" and Returning+Virtual → "Virtual safety car ending" (both sticky);
+    Returned → "Safety car in the pits" (5s); ResumeRace → "Racing resumes" (green, 4s). **Awaiting
+    live confirmation the events fire** - see the round entry and the TEMP `SAFETYCAR` log.
   - **DRS Disabled** (`DrsDisabledReason`): WetTrack → "DRS disabled - wet track"
     (event-based, pairs with `DRSEnabled`); SafetyCarDeployed / RedFlag → likely
     redundant, those banners already show; MinLapNotReached → "DRS disabled - minimum

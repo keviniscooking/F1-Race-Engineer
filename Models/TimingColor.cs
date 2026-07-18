@@ -35,6 +35,10 @@ namespace F1RaceEngineer.Models
         public static readonly SolidColorBrush AlertAmberText = Freeze(0xFA, 0xC7, 0x75);
         public static readonly SolidColorBrush AlertNeutralBg = Freeze(0x1C, 0x27, 0x33);
         public static readonly SolidColorBrush AlertNeutralText = Freeze(0xE6, 0xED, 0xF3);
+        // Green flag / "racing resumes" go-signal - green is the universal restart colour, and no
+        // other alert state uses it, so it reads unambiguously as "go" after the amber SC banners.
+        public static readonly SolidColorBrush AlertGreenBg = Freeze(0x14, 0x3A, 0x1C);
+        public static readonly SolidColorBrush AlertGreenText = Freeze(0x9B, 0xE0, 0xA5);
 
         // Gained/lost accents for the tower's position-vs-grid delta: green (▲) for places
         // gained since the start, red (▼) for places lost. (Formerly also drove a player-only

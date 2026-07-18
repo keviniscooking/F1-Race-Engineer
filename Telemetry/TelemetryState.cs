@@ -93,6 +93,16 @@ namespace F1RaceEngineer.Telemetry
         // actually for.
         private readonly List<string> _warningReasons = new();
 
+        // Every penalty the player was ISSUED this session, accumulated as it happens (see
+        // HandleEvent) - a permanent historical record, unlike the live Penalties & Flags list
+        // which shows only what's currently *outstanding* (unserved pens, pending time). That
+        // live list is empty by the finish line once everything's been served, so the saved race
+        // reads from THIS instead, giving the history a penalties tab that matches the lap-by-lap
+        // (a served drive-through/stop-go/time penalty is history the moment it's issued). Each
+        // carries a severity so the saved list can be ranked most-severe-first and capped exactly
+        // like the live widget (see BuildIncurredPenalties).
+        private readonly List<(int Severity, string Text)> _penaltiesIncurred = new();
+
         private class CarLapTracker
         {
             public byte LastSeenLapNum;
@@ -161,6 +171,19 @@ namespace F1RaceEngineer.Telemetry
         private readonly DispatcherTimer _redFlagTimer = new() { Interval = TimeSpan.FromSeconds(15) };
         private readonly DispatcherTimer _chequeredFlagTimer = new() { Interval = TimeSpan.FromSeconds(8) };
 
+        // ---- Safety Car event transitions (layered on the _safetyCarStatus poll above) ----
+        // The poll gives reliable steady state (deployed/active, and it self-clears - confirmed
+        // live). What a poll can't express are the two most actionable moments of any SC period -
+        // the car coming in and the restart - so the dedicated SafetyCarEvent supplies those.
+        // "Returning" is sticky (the SC can take a whole lap to come in, and the peel-off warning
+        // should stay up that whole time); "Returned"/"ResumeRace" are brief timed transients.
+        private bool _scReturning;
+        private SafetyCarType _scReturningType = SafetyCarType.NoSafetyCar;
+        private bool _scReturnedActive;
+        private bool _scResumeActive;
+        private readonly DispatcherTimer _scReturnedTimer = new() { Interval = TimeSpan.FromSeconds(5) };
+        private readonly DispatcherTimer _scResumeTimer = new() { Interval = TimeSpan.FromSeconds(4) };
+
         // Retirement ends the player's session, so there's nothing further to reset it -
         // it just stays up (no timer) until the next session change.
         private bool _isRetirementActive;
@@ -180,6 +203,8 @@ namespace F1RaceEngineer.Telemetry
             _chequeredFlagTimer.Tick += (_, _) => { _chequeredFlagTimer.Stop(); _isChequeredFlagActive = false; RefreshAlertBanner(); };
             _penaltyTimer.Tick += (_, _) => { _penaltyTimer.Stop(); _isPenaltyActive = false; RefreshAlertBanner(); };
             _teamMateInPitsTimer.Tick += (_, _) => { _teamMateInPitsTimer.Stop(); _isTeamMateInPitsActive = false; RefreshAlertBanner(); };
+            _scReturnedTimer.Tick += (_, _) => { _scReturnedTimer.Stop(); _scReturnedActive = false; RefreshAlertBanner(); };
+            _scResumeTimer.Tick += (_, _) => { _scResumeTimer.Stop(); _scResumeActive = false; RefreshAlertBanner(); };
         }
 
         // ---- Session / preset ----
@@ -493,7 +518,8 @@ namespace F1RaceEngineer.Telemetry
             // attempt, producing a misaligned lap count. SessionUID uniquely identifies
             // each session *instance*, so it changes on a restart even when SessionType
             // doesn't - checking both catches a restart a SessionType-only check misses.
-            if (_lastSeenSessionType != session.SessionType || _lastSeenSessionUID != session.Header.SessionUID)
+            bool sessionChanged = _lastSeenSessionType != session.SessionType || _lastSeenSessionUID != session.Header.SessionUID;
+            if (sessionChanged)
             {
                 ResetSessionScopedState();
                 _lastSeenSessionType = session.SessionType;
@@ -501,6 +527,15 @@ namespace F1RaceEngineer.Telemetry
             }
 
             var preset = PresetMapper.FromSessionType(session.SessionType);
+
+            // TEMP diagnostic (remove with the pit log): capture the raw SessionType F1 25 sends for
+            // each session, since the enum's intended semantics don't match observed data - the
+            // sprint race came through as SessionType.Race, not Race2 (see SavedRaceView), and this
+            // is the likely reason Sprint Qualifying isn't ranking by lap time (it may map to a
+            // non-Qualifying preset). One line per session change tells us exactly what to map.
+            if (sessionChanged)
+                LogPitEvent(0, DriverStatus.InGarage, PitStatus.None, false, 0, 0, session.TotalLaps,
+                    $"SESSION type={session.SessionType} preset={preset} totalLaps={session.TotalLaps}");
             if (preset != CurrentPreset)
             {
                 CurrentPreset = preset;
@@ -509,6 +544,9 @@ namespace F1RaceEngineer.Telemetry
             if (session.SafetyCarStatus != _safetyCarStatus)
             {
                 _safetyCarStatus = session.SafetyCarStatus;
+                // Poll says the SC period is over - drop any sticky "returning" phase that a
+                // SafetyCarEvent left up, in case no Returned/ResumeRace event arrived to clear it.
+                if (_safetyCarStatus == SafetyCarType.NoSafetyCar) _scReturning = false;
                 RefreshAlertBanner();
             }
 
@@ -655,6 +693,14 @@ namespace F1RaceEngineer.Telemetry
             _isTeamMateInPitsActive = false;
             _penaltyTimer.Stop();
             _teamMateInPitsTimer.Stop();
+            // Safety Car event transitions are per-session too - don't let a peel-off / resume
+            // banner from the old session carry over. (_safetyCarStatus itself is re-established
+            // by the next Session poll, so it isn't reset here.)
+            _scReturning = false;
+            _scReturnedActive = false;
+            _scResumeActive = false;
+            _scReturnedTimer.Stop();
+            _scResumeTimer.Stop();
             RefreshAlertBanner();
 
             TyreCompoundLetter = "?";
@@ -678,6 +724,7 @@ namespace F1RaceEngineer.Telemetry
             PenaltiesIssues.Clear();
             PenaltiesIsOk = true;
             _warningReasons.Clear();
+            _penaltiesIncurred.Clear();
             PlayerFlagVisible = false;
             PlayerFlagText = "";
 
@@ -756,6 +803,12 @@ namespace F1RaceEngineer.Telemetry
                     _warningReasons.Add(infringement);
                 }
 
+                // Permanent record for the saved race's penalties tab (see _penaltiesIncurred):
+                // capture the meaningful penalties as issued, so served ones survive to the history
+                // instead of vanishing from the live list once the race is over.
+                var incurredLine = PenaltyHistoryLine(penalty.PenaltyType, penalty.Time, infringement);
+                if (incurredLine.HasValue) _penaltiesIncurred.Add(incurredLine.Value);
+
                 // Genuine time-costing penalties (not warnings/lap-invalidations) get a
                 // chip on the lap they were issued.
                 var penaltyEvent = PenaltyToLapEvent(penalty.PenaltyType, penalty.Time, infringement);
@@ -784,6 +837,44 @@ namespace F1RaceEngineer.Telemetry
                 _teamMateInPitsTimer.Start();
                 RefreshAlertBanner();
             }
+            else if (eventType == EventType.SafetyCar && packet.EventDetails.TryGetSafetyCarEvent(out var safetyCar))
+            {
+                HandleSafetyCarEvent(safetyCar);
+            }
+        }
+
+        /// <summary>
+        /// The dedicated SafetyCarEvent transitions, layered on top of the steady _safetyCarStatus
+        /// poll (which still drives the "deployed" banner). Deployed just clears any stale transient;
+        /// Returning raises the sticky peel-off warning; Returned and ResumeRace are brief timed
+        /// banners. Untested against a real safety car yet - the raw event is logged (TEMP, see the
+        /// pit log) so its firing can be confirmed live before this is trusted, same discipline the
+        /// session-type mismatch taught us.
+        /// </summary>
+        private void HandleSafetyCarEvent(SafetyCarEvent sc)
+        {
+            LogPitEvent(0, DriverStatus.InGarage, PitStatus.None, false, 0, 0, 0,
+                $"SAFETYCAR type={sc.SafetyCarType} event={sc.EventType}");
+
+            switch (sc.EventType)
+            {
+                case SafetyCarEventType.Deployed:
+                    _scReturning = false; _scReturnedActive = false; _scResumeActive = false;
+                    break;
+                case SafetyCarEventType.Returning:
+                    _scReturning = true; _scReturningType = sc.SafetyCarType;
+                    _scReturnedActive = false; _scResumeActive = false;
+                    break;
+                case SafetyCarEventType.Returned:
+                    _scReturning = false; _scResumeActive = false;
+                    _scReturnedActive = true; _scReturnedTimer.Stop(); _scReturnedTimer.Start();
+                    break;
+                case SafetyCarEventType.ResumeRace:
+                    _scReturning = false; _scReturnedActive = false;
+                    _scResumeActive = true; _scResumeTimer.Stop(); _scResumeTimer.Start();
+                    break;
+            }
+            RefreshAlertBanner();
         }
 
         // Red flag / chequered fire once but the event can repeat - only keep one per lap.
@@ -802,6 +893,37 @@ namespace F1RaceEngineer.Telemetry
             PenaltyType.StopGo => new LapEvent(LapEventKind.Penalty, $"Stop-go · {infringement}"),
             _ => null
         };
+
+        // One (severity, line) for the saved race's penalties tab. Covers the meaningful penalties -
+        // the three time-costing ones the lap-by-lap also chips, plus warnings (which the lap-by-lap
+        // omits but the penalties tab has always listed). Everything else (lap-time invalidations
+        // etc.) is deliberately skipped, same "real penalties only" call PenaltyToLapEvent makes.
+        // Severities mirror the live Penalties & Flags widget (RefreshPenalties) so the saved list
+        // ranks the same way: stop-go > drive-through > time penalty > warning.
+        private static (int Severity, string Text)? PenaltyHistoryLine(PenaltyType type, int timeSeconds, string infringement) => type switch
+        {
+            PenaltyType.StopGo => (100, $"Stop-go - {infringement}"),
+            PenaltyType.DriveThrough => (90, $"Drive-through - {infringement}"),
+            PenaltyType.TimePenalty => (80, $"+{timeSeconds}s - {infringement}"),
+            PenaltyType.Warning => (50, $"Warning - {infringement}"),
+            _ => null
+        };
+
+        // The saved race's penalties list: every penalty issued this race, ranked and capped to
+        // match the live Penalties & Flags widget exactly. Identical penalties collapse into an
+        // "(xN)" multiplier (so three track-limit warnings read as one line), the list is ordered
+        // most-severe-first, then capped to IssueListMaxEntries with a "+N more" overflow so a
+        // heavily-penalised race can't outgrow the card - the same CapIssueList the live widget uses.
+        private List<string> BuildIncurredPenalties()
+        {
+            var ranked = _penaltiesIncurred
+                .GroupBy(p => p.Text)
+                .Select(g => (Severity: g.Max(x => x.Severity), Count: g.Count(), Text: g.Key))
+                .OrderByDescending(g => g.Severity)
+                .Select(g => g.Count > 1 ? $"{g.Text} (x{g.Count})" : g.Text)
+                .ToList();
+            return CapIssueList(ranked, IssueListMaxEntries);
+        }
 
         private void RefreshAlertBanner()
         {
@@ -823,6 +945,33 @@ namespace F1RaceEngineer.Telemetry
             {
                 AlertVisible = true;
                 AlertText = _penaltyBannerText;
+                AlertBackgroundBrush = TimingColorPalette.AlertAmberBg;
+                AlertTextBrush = TimingColorPalette.AlertAmberText;
+            }
+            // Safety Car group, in lifecycle order so the most time-critical moment wins: the green
+            // "racing resumes" go-signal, then the peel-off warning while it's coming in, then the
+            // brief "in the pits", then the steady deployed state from the poll. Resume/Returning/
+            // Returned come from the SafetyCarEvent; the two Deployed states from the poll.
+            else if (_scResumeActive)
+            {
+                AlertVisible = true;
+                AlertText = "Racing resumes";
+                AlertBackgroundBrush = TimingColorPalette.AlertGreenBg;
+                AlertTextBrush = TimingColorPalette.AlertGreenText;
+            }
+            else if (_scReturning)
+            {
+                AlertVisible = true;
+                AlertText = _scReturningType == SafetyCarType.VirtualSafetyCar
+                    ? "Virtual safety car ending"
+                    : "Safety car in this lap - peel off";
+                AlertBackgroundBrush = TimingColorPalette.AlertAmberBg;
+                AlertTextBrush = TimingColorPalette.AlertAmberText;
+            }
+            else if (_scReturnedActive)
+            {
+                AlertVisible = true;
+                AlertText = "Safety car in the pits";
                 AlertBackgroundBrush = TimingColorPalette.AlertAmberBg;
                 AlertTextBrush = TimingColorPalette.AlertAmberText;
             }
@@ -1541,7 +1690,7 @@ namespace F1RaceEngineer.Telemetry
                 PenaltiesTimeSeconds = player.PenaltiesTime,
                 PlayerHasFastestLap = fastestIdx == playerIdx,
                 PlayerStints = BuildStints(player),
-                Penalties = PenaltiesIssues.ToList(),
+                Penalties = BuildIncurredPenalties(),
                 Classification = BuildClassification(span, numCars, playerIdx, fastestIdx),
                 PlayerLaps = SnapshotPlayerLaps()
             };

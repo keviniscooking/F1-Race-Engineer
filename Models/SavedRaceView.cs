@@ -21,7 +21,21 @@ namespace F1RaceEngineer.Models
         public bool HasFlag { get; }
         public bool ShowCountryCode { get; }       // fallback text badge when there's no flag
         public string CardSubtitle { get; }     // "Barcelona · 13 Jul 2026"
-        public string DetailSubtitle { get; }   // "Barcelona · Race · 66 laps"
+
+        // "Barcelona · Race · 66 laps". Computed (not stored) so ApplyWeekendRole can correct the
+        // Race/Sprint word after the weekend's roles are resolved by lap count - see that method.
+        private string _sessionLabel;
+        public string DetailSubtitle => string.IsNullOrEmpty(Source.Circuit)
+            ? $"{_sessionLabel} · {TotalLaps} laps"
+            : $"{Source.Circuit}  ·  {_sessionLabel} · {TotalLaps} laps";
+
+        // The stored SessionLabel is unreliable on a sprint weekend: F1 25 was observed reporting
+        // the sprint as SessionType.Race and the feature race as Race2, so the type->label mapping
+        // came out inverted (a real saved US GP showed a 7-lap session labelled "Race" and a 20-lap
+        // one labelled "Sprint"). HistoryGroups resolves the true roles by lap count and calls this
+        // to stamp the correct word, fixing already-saved races without needing them re-captured.
+        public void ApplyWeekendRole(bool isSprint) => _sessionLabel = isSprint ? "Sprint" : "Race";
+
         public bool IsDnf { get; }
 
         public string FinishText { get; }        // "P4" / "DNF"
@@ -83,9 +97,7 @@ namespace F1RaceEngineer.Models
             ShowCountryCode = HasCountry && !HasFlag;
             string date = r.SavedAtUtc.ToLocalTime().ToString("d MMM yyyy");
             CardSubtitle = string.IsNullOrEmpty(r.Circuit) ? date : $"{r.Circuit}  ·  {date}";
-            DetailSubtitle = string.IsNullOrEmpty(r.Circuit)
-                ? $"{r.SessionLabel} · {r.TotalLaps} laps"
-                : $"{r.Circuit}  ·  {r.SessionLabel} · {r.TotalLaps} laps";
+            _sessionLabel = r.SessionLabel;
             TotalLaps = r.TotalLaps;
 
             IsDnf = r.ResultStatus != "Finished";
@@ -126,12 +138,10 @@ namespace F1RaceEngineer.Models
 
             StintSegments = BuildSegments(r.PlayerStints, r.TotalLaps);
 
-            // Penalties card: the snapshot the live widget showed. For older saves with no
-            // snapshot, fall back to the stored total penalty time so the card still says
-            // something rather than wrongly reading "No penalties".
+            // Penalties card: the race's incurred penalties, captured as-issued (see
+            // TelemetryState.BuildIncurredPenalties). Races saved before that fix simply show
+            // whatever they stored - no retroactive reconstruction, by design.
             Penalties = new List<string>(r.Penalties);
-            if (Penalties.Count == 0 && r.PenaltiesTimeSeconds > 0)
-                Penalties.Add($"Time penalties: +{r.PenaltiesTimeSeconds}s");
             HasPenalties = Penalties.Count > 0;
             NoPenalties = !HasPenalties;
 

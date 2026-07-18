@@ -101,10 +101,21 @@ namespace F1RaceEngineer.Models
                 ? ("W", (ulong)v.Source.WeekendLinkId)
                 : ("U", v.Source.SessionUid)))
             {
-                var sessions = g.ToList();
-                var main = sessions.FirstOrDefault(s => s.Source.SessionLabel == "Race")
-                           ?? sessions.OrderByDescending(s => s.Source.TotalLaps).First();
-                var sprint = sessions.FirstOrDefault(s => s != main && s.Source.SessionLabel == "Sprint");
+                // A sprint weekend saves two race-type sessions under one WeekendLinkId. Which is
+                // the feature race and which is the sprint is decided by LAP COUNT, not the stored
+                // session-type label: F1 25 was observed reporting the sprint as SessionType.Race
+                // and the feature race as Race2, inverting a naive type->label mapping (a real saved
+                // US GP weekend showed a 7-lap session labelled "Race" and a 20-lap one "Sprint").
+                // The feature race is always the longer of the two, so order by laps: most = main
+                // race, fewer = sprint. ApplyWeekendRole then stamps the correct display word.
+                var ordered = g.OrderByDescending(s => s.Source.TotalLaps).ToList();
+                var main = ordered[0];
+                var sprint = ordered.Count > 1 ? ordered[1] : null;
+                if (sprint != null)
+                {
+                    main.ApplyWeekendRole(isSprint: false);
+                    sprint.ApplyWeekendRole(isSprint: true);
+                }
                 weekends.Add(new WeekendCardView(main, sprint));
             }
 

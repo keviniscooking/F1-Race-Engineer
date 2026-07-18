@@ -300,9 +300,12 @@
                         </StackPanel>
                     </Button>
 
-                    <!-- Race/Sprint switcher, only shown for a Sprint weekend. The two sessions
-                         share this detail view; clicking a tab repopulates it (see ShowSession). -->
-                    <Border x:Name="SessionTabs" HorizontalAlignment="Right" VerticalAlignment="Center"
+                    <!-- Race/Sprint switcher, only shown for a Sprint weekend (SessionTabs stays
+                         Collapsed otherwise, see OpenDetail). Centered on the row - clear of the
+                         left-aligned "All races" button - so the toggle is easy to spot rather than
+                         tucked into the far corner. The two sessions share this detail view;
+                         clicking a tab repopulates it (see ShowSession). -->
+                    <Border x:Name="SessionTabs" HorizontalAlignment="Center" VerticalAlignment="Center"
                             Background="#11161D" BorderBrush="#232B35" BorderThickness="1" CornerRadius="7" Padding="2" Visibility="Collapsed">
                         <StackPanel Orientation="Horizontal">
                             <Border x:Name="RaceTabBtn" CornerRadius="5" Padding="14,5" Background="#1C2733" Cursor="Hand" MouseLeftButtonUp="RaceTab_Click">
@@ -363,9 +366,9 @@
                 <!-- body: classification | (strategy + laps) -->
                 <Grid Grid.Row="3">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="1.05*"/>
+                        <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="16"/>
-                        <ColumnDefinition Width="0.95*"/>
+                        <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
 
                     <!-- LEFT column: final classification (scrolls) with the penalties summary
@@ -472,7 +475,12 @@
                     <!-- MinHeight fits the penalties list at its cap (6 entries = 3 rows of 2);
                          the tyre-strategy card opposite carries the same MinHeight so the two
                          bottom cards stay the same size and aligned. -->
-                    <Border Grid.Row="1" Background="#161B22" BorderBrush="#232B35" BorderThickness="1" CornerRadius="10" Padding="14" Margin="0,16,0,0" MinHeight="156">
+                    <!-- DataContext is set to the SavedRaceView in ShowSession (code-behind): the
+                         rest of the detail view is populated imperatively, but this card is the one
+                         part driven by {Binding}, so it needs the view model as its context or its
+                         NoPenalties/HasPenalties/Penalties bindings silently fail (which is exactly
+                         why the card used to always read "No penalties" regardless of the data). -->
+                    <Border x:Name="PenaltiesCard" Grid.Row="1" Background="#161B22" BorderBrush="#232B35" BorderThickness="1" CornerRadius="10" Padding="14" Margin="0,16,0,0" MinHeight="156">
                         <StackPanel>
                             <TextBlock Text="PENALTIES" FontSize="11" Foreground="#6B7684" FontWeight="SemiBold" Margin="0,0,0,12"/>
 
