@@ -213,12 +213,12 @@ body{margin:0;background:#0D1117;color:#E6EDF3;font-family:'Segoe UI',system-ui,
 .col .card:first-child{flex:1}
 .card{background:#161B22;border:1px solid #232B35;border-radius:10px;padding:16px}
 .card.short{min-height:156px}
-.card h3{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#6B7684;margin:0 0 14px}
+.card h3{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#6B7684;margin:0 0 14px}
 @media(max-width:900px){.grid2{grid-template-columns:1fr}.result{gap:16px}}
-table{width:100%;border-collapse:collapse;font-size:13px}
-th{font-size:10px;letter-spacing:.04em;text-transform:uppercase;color:#4A5460;font-weight:500;text-align:left;padding:0 6px 8px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:#4A5460;font-weight:500;text-align:left;padding:0 6px 9px}
 th.r,td.r{text-align:right}
-td{padding:6px;border-top:1px solid #1C2733}
+td{padding:9px 6px;border-top:1px solid #1C2733}
 .c-pos{width:28px}.c-gap{width:96px}.c-best{width:86px}.c-stint{width:80px}
 tr.me td{background:#1B2A42}
 tr.me td:first-child{border-top-left-radius:6px;border-bottom-left-radius:6px}
@@ -226,16 +226,16 @@ tr.me td:last-child{border-top-right-radius:6px;border-bottom-right-radius:6px}
 .p{font-weight:700}
 .sw{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:8px;vertical-align:middle}
 .fl{color:#AFA9EC;margin-left:5px}
-.team{font-size:10.5px;margin-left:8px}
+.team{font-size:12px;margin-left:8px}
 .chips{display:inline-flex;gap:3px}
 .chip{display:inline-flex;width:16px;height:16px;border-radius:8px;align-items:center;justify-content:center;font-family:Consolas,monospace;font-size:9px;font-weight:800}
-.laps .tag{background:#1C2733;color:#9BA7B4;border-radius:4px;padding:1px 5px;font-size:10px;font-weight:700;font-family:'Segoe UI',sans-serif}
+.laps .tag{background:#1C2733;color:#9BA7B4;border-radius:4px;padding:1px 5px;font-size:10.5px;font-weight:700;font-family:'Segoe UI',sans-serif}
 .pit{color:#79C0FF;font-weight:700;white-space:nowrap}
-.ev .evchip{font-size:10.5px;font-weight:700;white-space:nowrap;margin-right:8px}
-.ok{font-size:13px;color:#9BA7B4}
+.ev .evchip{font-size:11px;font-weight:700;white-space:nowrap;margin-right:8px}
+.ok{font-size:14px;color:#9BA7B4}
 .ok .tick{color:#97C459;font-weight:700;margin-right:9px}
 .pens{display:grid;grid-template-columns:1fr 1fr;gap:6px}
-.pen{background:#412402;color:#EF9F27;border-radius:6px;padding:8px 10px;font-size:12.5px}
+.pen{background:#412402;color:#EF9F27;border-radius:6px;padding:9px 11px;font-size:13.5px}
 .bar{display:flex;height:26px;gap:3px;background:#1C2733;border-radius:4px}
 .bar .seg{display:flex;align-items:center;justify-content:center;border-radius:4px;font-family:Consolas,monospace;font-weight:800;font-size:12px}
 .bar .rem{background:transparent}

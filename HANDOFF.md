@@ -1294,6 +1294,22 @@ of the deferred alert banners.
   F1-25-reports-an-unexpected-`SessionType` case (like the sprint/race swap above). Needs one live
   sprint weekend's log to fix the `PresetMapper` mapping; **still open.**
 
+### Thirty-fifth round — v1.3.1 (history readability + lap penalty cap)
+- **Lap-by-lap penalty cap.** A single lap can be issued several penalties for one infringement (a
+  stop-go plus two 3s time penalties), which stacked as three chips and overflowed the EVENTS cell
+  (see a real sprint export). Now only the **most severe** penalty is kept as that lap's chip
+  (`_pendingPenaltySeverity` + `PenaltyLapEventSeverity`, ranked stop-go > drive-through > time,
+  matching the penalties widget). The full set still lives in the penalties tab. Forward-only, like
+  the penalties-tab capture - a race saved before this keeps its baked chips.
+- **History readability pass.** The detail view (and the mirrored HTML export) had a lot of empty
+  space on short races with small, dense tables. Both lists already scroll *internally* (the page
+  never scrolls - the user's constraint), so the fix was purely legibility: classification and
+  lap-by-lap fonts/row-heights bumped (~12→14, taller rows), section headings 11→12, penalties 12.5→
+  13.5, export table 13→14 with `9px` row padding. Widened the classification **Best** column
+  62→74 - the bigger font was clipping the leading minute digit ("1:37.236" → ":37.236"). Verified by
+  rendering: the app fits one screen with no page scroll and no clipping; the export reads clearly and
+  its short-race lap-by-lap simply ends after its rows (inherent - a 7-lap sprint has 7 rows).
+
 ## 6. Known caveats — built, but not yet trustworthy
 
 Everything in this section is shipped and *looks* right, but has either not been verified

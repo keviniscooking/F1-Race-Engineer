@@ -77,6 +77,13 @@ namespace F1RaceEngineer.Telemetry
         private SafetyCarType _lapEventSafetyCar = SafetyCarType.NoSafetyCar;
         private readonly List<LapEvent> _pendingLapEvents = new();
 
+        // A single lap can pick up several penalties (e.g. a stop-go plus two 3s time penalties for
+        // the same infringement), which overflowed the lap-by-lap EVENTS cell. Only the most severe
+        // penalty is kept as that lap's chip - the full list still lives in the penalties tab. This
+        // tracks the severity of the penalty currently held for the open lap (0 = none yet); reset
+        // when the lap's events are consumed (BuildLapEvents) and on session change.
+        private int _pendingPenaltySeverity;
+
         // ---- Race history capture ----
         // Persists a completed race (Final Classification + the player's lap-by-lap) to disk.
         // Raised after a NEW race is saved so the UI can refresh its list. _currentTrack is
@@ -716,6 +723,7 @@ namespace F1RaceEngineer.Telemetry
             HasTyreStints = false;
             _savedClassificationUid = null;
             _pendingLapEvents.Clear();
+            _pendingPenaltySeverity = 0;
             _lapEventSafetyCar = SafetyCarType.NoSafetyCar;
 
             CarConditionIssues.Clear();
@@ -809,10 +817,21 @@ namespace F1RaceEngineer.Telemetry
                 var incurredLine = PenaltyHistoryLine(penalty.PenaltyType, penalty.Time, infringement);
                 if (incurredLine.HasValue) _penaltiesIncurred.Add(incurredLine.Value);
 
-                // Genuine time-costing penalties (not warnings/lap-invalidations) get a
-                // chip on the lap they were issued.
+                // Genuine time-costing penalties (not warnings/lap-invalidations) get a chip on the
+                // lap they were issued - but only ONE, the most severe: several penalties on a lap
+                // (stop-go + time penalties) used to stack up and overflow the EVENTS cell. The full
+                // set is still in the penalties tab.
                 var penaltyEvent = PenaltyToLapEvent(penalty.PenaltyType, penalty.Time, infringement);
-                if (penaltyEvent != null) _pendingLapEvents.Add(penaltyEvent);
+                if (penaltyEvent != null)
+                {
+                    int severity = PenaltyLapEventSeverity(penalty.PenaltyType);
+                    if (severity > _pendingPenaltySeverity)
+                    {
+                        _pendingLapEvents.RemoveAll(e => e.Kind == LapEventKind.Penalty);
+                        _pendingLapEvents.Add(penaltyEvent);
+                        _pendingPenaltySeverity = severity;
+                    }
+                }
 
                 _isPenaltyActive = true;
                 _penaltyTimer.Stop();
@@ -892,6 +911,16 @@ namespace F1RaceEngineer.Telemetry
             PenaltyType.DriveThrough => new LapEvent(LapEventKind.Penalty, $"Drive-through · {infringement}"),
             PenaltyType.StopGo => new LapEvent(LapEventKind.Penalty, $"Stop-go · {infringement}"),
             _ => null
+        };
+
+        // Ranks the three penalty kinds that get a lap chip, so a lap keeps only its most severe one
+        // (stop-go > drive-through > time penalty) - same order the penalties widget/tab use.
+        private static int PenaltyLapEventSeverity(PenaltyType type) => type switch
+        {
+            PenaltyType.StopGo => 3,
+            PenaltyType.DriveThrough => 2,
+            PenaltyType.TimePenalty => 1,
+            _ => 0
         };
 
         // One (severity, line) for the saved race's penalties tab. Covers the meaningful penalties -
@@ -1956,6 +1985,7 @@ namespace F1RaceEngineer.Telemetry
             events.AddRange(_pendingLapEvents);
 
             _pendingLapEvents.Clear();
+            _pendingPenaltySeverity = 0; // next lap starts with no penalty held
             _lapEventSafetyCar = SafetyCarType.NoSafetyCar;
             return events;
         }

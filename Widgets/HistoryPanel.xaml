@@ -334,10 +334,10 @@
                         <TextBlock x:Name="DSub" FontSize="12" Foreground="#6B7684" Margin="0,5,0,0"/>
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top">
-                        <StackPanel Margin="0,0,22,0"><TextBlock Text="FINISH" FontSize="10" Foreground="#4A5460"/><TextBlock x:Name="DFinish" FontFamily="Consolas" FontSize="22" FontWeight="Bold" Foreground="#E6EDF3"/></StackPanel>
-                        <StackPanel Margin="0,0,22,0"><TextBlock Text="GRID" FontSize="10" Foreground="#4A5460"/><TextBlock x:Name="DGrid" FontFamily="Consolas" FontSize="22" FontWeight="Bold" Foreground="#E6EDF3"/></StackPanel>
-                        <StackPanel Margin="0,0,22,0"><TextBlock Text="GAINED" FontSize="10" Foreground="#4A5460"/><TextBlock x:Name="DGained" FontFamily="Consolas" FontSize="22" FontWeight="Bold" Foreground="#E6EDF3"/></StackPanel>
-                        <StackPanel Margin="0,0,22,0"><TextBlock Text="POINTS" FontSize="10" Foreground="#4A5460"/><TextBlock x:Name="DPoints" FontFamily="Consolas" FontSize="22" FontWeight="Bold" Foreground="#E6EDF3"/></StackPanel>
+                        <StackPanel Margin="0,0,22,0"><TextBlock Text="FINISH" FontSize="11" Foreground="#4A5460"/><TextBlock x:Name="DFinish" FontFamily="Consolas" FontSize="22" FontWeight="Bold" Foreground="#E6EDF3"/></StackPanel>
+                        <StackPanel Margin="0,0,22,0"><TextBlock Text="GRID" FontSize="11" Foreground="#4A5460"/><TextBlock x:Name="DGrid" FontFamily="Consolas" FontSize="22" FontWeight="Bold" Foreground="#E6EDF3"/></StackPanel>
+                        <StackPanel Margin="0,0,22,0"><TextBlock Text="GAINED" FontSize="11" Foreground="#4A5460"/><TextBlock x:Name="DGained" FontFamily="Consolas" FontSize="22" FontWeight="Bold" Foreground="#E6EDF3"/></StackPanel>
+                        <StackPanel Margin="0,0,22,0"><TextBlock Text="POINTS" FontSize="11" Foreground="#4A5460"/><TextBlock x:Name="DPoints" FontFamily="Consolas" FontSize="22" FontWeight="Bold" Foreground="#E6EDF3"/></StackPanel>
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                             <Button Style="{StaticResource MiniAction}" Width="34" Height="34" Click="DetailDelete_Click" ToolTip="Delete" Margin="0,0,8,0">
                                 <Path Data="M3,6 H21 M8,6 V4 A1,1 0 0 1 9,3 H15 A1,1 0 0 1 16,4 V6 M18,6 V20 A2,2 0 0 1 16,22 H8 A2,2 0 0 1 6,20 V6"
@@ -383,28 +383,28 @@
                     <Border Grid.Row="0" Background="#161B22" BorderBrush="#232B35" BorderThickness="1" CornerRadius="10" Padding="14">
                         <Grid>
                             <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-                            <TextBlock Grid.Row="0" Text="FINAL CLASSIFICATION" FontSize="11" Foreground="#6B7684" FontWeight="SemiBold" Margin="0,0,0,12"/>
+                            <TextBlock Grid.Row="0" Text="FINAL CLASSIFICATION" FontSize="12" Foreground="#6B7684" FontWeight="SemiBold" Margin="0,0,0,12"/>
 
                             <Grid Grid.Row="1" Margin="6,0,14,7">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="24"/>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="80"/>
-                                    <ColumnDefinition Width="62"/>
+                                    <ColumnDefinition Width="74"/>
                                     <ColumnDefinition Width="62"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" Text="#" FontSize="10" Foreground="#4A5460"/>
-                                <TextBlock Grid.Column="1" Text="DRIVER" FontSize="10" Foreground="#4A5460"/>
-                                <TextBlock Grid.Column="2" Text="GAP" FontSize="10" Foreground="#4A5460" HorizontalAlignment="Right" Margin="0,0,12,0"/>
-                                <TextBlock Grid.Column="3" Text="BEST" FontSize="10" Foreground="#4A5460" HorizontalAlignment="Right" Margin="0,0,12,0"/>
-                                <TextBlock Grid.Column="4" Text="STINTS" FontSize="10" Foreground="#4A5460" Margin="6,0,0,0"/>
+                                <TextBlock Grid.Column="0" Text="#" FontSize="11" Foreground="#4A5460"/>
+                                <TextBlock Grid.Column="1" Text="DRIVER" FontSize="11" Foreground="#4A5460"/>
+                                <TextBlock Grid.Column="2" Text="GAP" FontSize="11" Foreground="#4A5460" HorizontalAlignment="Right" Margin="0,0,12,0"/>
+                                <TextBlock Grid.Column="3" Text="BEST" FontSize="11" Foreground="#4A5460" HorizontalAlignment="Right" Margin="0,0,12,0"/>
+                                <TextBlock Grid.Column="4" Text="STINTS" FontSize="11" Foreground="#4A5460" Margin="6,0,0,0"/>
                             </Grid>
 
                             <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Padding="0,0,6,0">
                                 <ItemsControl x:Name="ClassList">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
-                                            <Border CornerRadius="5" Padding="6,5,8,5" Margin="0,1">
+                                            <Border CornerRadius="5" Padding="6,8,8,8" Margin="0,1">
                                                 <Border.Style>
                                                     <Style TargetType="Border">
                                                         <Setter Property="Background" Value="Transparent"/>
@@ -418,10 +418,10 @@
                                                             <ColumnDefinition Width="24"/>
                                                             <ColumnDefinition Width="*"/>
                                                             <ColumnDefinition Width="80"/>
-                                                            <ColumnDefinition Width="62"/>
+                                                            <ColumnDefinition Width="74"/>
                                                             <ColumnDefinition Width="62"/>
                                                         </Grid.ColumnDefinitions>
-                                                        <TextBlock Grid.Column="0" Text="{Binding PositionText}" FontFamily="Consolas" FontWeight="Bold" FontSize="13" Foreground="{Binding PositionBrush}" VerticalAlignment="Center"/>
+                                                        <TextBlock Grid.Column="0" Text="{Binding PositionText}" FontFamily="Consolas" FontWeight="Bold" FontSize="14" Foreground="{Binding PositionBrush}" VerticalAlignment="Center"/>
                                                         <!-- Driver on one line: dot + surname + fastest-lap mark, then the team
                                                              name inline to the right (fills the remaining width and trims). Single
                                                              row height lets all cars fit without a scrollbar. -->
@@ -433,7 +433,7 @@
                                                                 <ColumnDefinition Width="*"/>
                                                             </Grid.ColumnDefinitions>
                                                             <Border Grid.Column="0" Width="8" Height="8" CornerRadius="2" Background="{Binding LiveryBrush}" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                                            <TextBlock Grid.Column="1" Text="{Binding DriverName}" FontSize="12.5" Foreground="{Binding NameBrush}" VerticalAlignment="Center"/>
+                                                            <TextBlock Grid.Column="1" Text="{Binding DriverName}" FontSize="14" Foreground="{Binding NameBrush}" VerticalAlignment="Center"/>
                                                             <!-- Fastest-lap badge, matching the race tower: purple disc + stopwatch glyph. -->
                                                             <Border Grid.Column="2" Width="15" Height="15" CornerRadius="7.5" Background="#AFA9EC" Margin="6,0,0,0" VerticalAlignment="Center"
                                                                     Visibility="{Binding HasFastestLap, Converter={StaticResource BoolToVis}}">
@@ -445,11 +445,11 @@
                                                                     </Canvas>
                                                                 </Viewbox>
                                                             </Border>
-                                                            <TextBlock Grid.Column="3" Text="{Binding TeamName}" FontSize="10.5" Foreground="{Binding TeamBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="8,1,0,0"
+                                                            <TextBlock Grid.Column="3" Text="{Binding TeamName}" FontSize="12" Foreground="{Binding TeamBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="8,1,0,0"
                                                                        Visibility="{Binding HasTeam, Converter={StaticResource BoolToVis}}"/>
                                                         </Grid>
-                                                        <TextBlock Grid.Column="2" Text="{Binding GapText}" Foreground="{Binding GapBrush}" FontFamily="Consolas" FontSize="12" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,12,0"/>
-                                                        <TextBlock Grid.Column="3" Text="{Binding BestLapText}" Foreground="{Binding BestLapBrush}" FontFamily="Consolas" FontSize="12" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,12,0"/>
+                                                        <TextBlock Grid.Column="2" Text="{Binding GapText}" Foreground="{Binding GapBrush}" FontFamily="Consolas" FontSize="13" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,12,0"/>
+                                                        <TextBlock Grid.Column="3" Text="{Binding BestLapText}" Foreground="{Binding BestLapBrush}" FontFamily="Consolas" FontSize="13" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,12,0"/>
                                                         <ItemsControl Grid.Column="4" ItemsSource="{Binding StintChips}" VerticalAlignment="Center" HorizontalAlignment="Left" Margin="6,0,0,0">
                                                             <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
                                                             <ItemsControl.ItemTemplate>
@@ -482,7 +482,7 @@
                          why the card used to always read "No penalties" regardless of the data). -->
                     <Border x:Name="PenaltiesCard" Grid.Row="1" Background="#161B22" BorderBrush="#232B35" BorderThickness="1" CornerRadius="10" Padding="14" Margin="0,16,0,0" MinHeight="156">
                         <StackPanel>
-                            <TextBlock Text="PENALTIES" FontSize="11" Foreground="#6B7684" FontWeight="SemiBold" Margin="0,0,0,12"/>
+                            <TextBlock Text="PENALTIES" FontSize="12" Foreground="#6B7684" FontWeight="SemiBold" Margin="0,0,0,12"/>
 
                             <StackPanel Orientation="Horizontal" Visibility="{Binding NoPenalties, Converter={StaticResource BoolToVis}}">
                                 <Viewbox Width="16" Height="16" Margin="0,0,9,0">
@@ -499,7 +499,7 @@
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
                                         <Border Background="#412402" CornerRadius="6" Padding="10,7" Margin="0,0,6,6">
-                                            <TextBlock Text="{Binding}" FontSize="12.5" Foreground="#EF9F27" TextTrimming="CharacterEllipsis"/>
+                                            <TextBlock Text="{Binding}" FontSize="13.5" Foreground="#EF9F27" TextTrimming="CharacterEllipsis"/>
                                         </Border>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
@@ -514,7 +514,7 @@
 
                         <Border Grid.Row="1" Background="#161B22" BorderBrush="#232B35" BorderThickness="1" CornerRadius="10" Padding="14" Margin="0,16,0,0" MinHeight="156">
                             <StackPanel VerticalAlignment="Center">
-                                <TextBlock Text="YOUR TYRE STRATEGY" FontSize="11" Foreground="#6B7684" FontWeight="SemiBold" Margin="0,0,0,12"/>
+                                <TextBlock Text="YOUR TYRE STRATEGY" FontSize="12" Foreground="#6B7684" FontWeight="SemiBold" Margin="0,0,0,12"/>
                                 <Grid Height="26">
                                     <Border Background="#1C2733" CornerRadius="4"/>
                                     <Grid x:Name="DetailStintBar"/>
@@ -526,7 +526,7 @@
                         <Border Grid.Row="0" Background="#161B22" BorderBrush="#232B35" BorderThickness="1" CornerRadius="10" Padding="14">
                             <Grid>
                                 <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-                                <TextBlock Grid.Row="0" Text="YOUR LAP-BY-LAP" FontSize="11" Foreground="#6B7684" FontWeight="SemiBold" Margin="0,0,0,10"/>
+                                <TextBlock Grid.Row="0" Text="YOUR LAP-BY-LAP" FontSize="12" Foreground="#6B7684" FontWeight="SemiBold" Margin="0,0,0,10"/>
 
                                 <!-- header shares the row columns; sectors/pit/time right-aligned so digits line up -->
                                 <Grid Grid.Row="1" Margin="2,0,14,7">
@@ -539,20 +539,20 @@
                                         <ColumnDefinition Width="82"/>
                                         <ColumnDefinition Width="78"/>
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="LAP" FontSize="10" Foreground="#4A5460"/>
-                                    <TextBlock Grid.Column="1" Text="S1" FontSize="10" Foreground="#4A5460" HorizontalAlignment="Right"/>
-                                    <TextBlock Grid.Column="2" Text="S2" FontSize="10" Foreground="#4A5460" HorizontalAlignment="Right"/>
-                                    <TextBlock Grid.Column="3" Text="S3" FontSize="10" Foreground="#4A5460" HorizontalAlignment="Right"/>
-                                    <TextBlock Grid.Column="4" Text="PIT" FontSize="10" Foreground="#4A5460" HorizontalAlignment="Right" Margin="0,0,18,0"/>
-                                    <TextBlock Grid.Column="5" Text="TIME" FontSize="10" Foreground="#4A5460" HorizontalAlignment="Right"/>
-                                    <TextBlock Grid.Column="6" Text="DELTA" FontSize="10" Foreground="#4A5460" HorizontalAlignment="Right"/>
+                                    <TextBlock Grid.Column="0" Text="LAP" FontSize="11" Foreground="#4A5460"/>
+                                    <TextBlock Grid.Column="1" Text="S1" FontSize="11" Foreground="#4A5460" HorizontalAlignment="Right"/>
+                                    <TextBlock Grid.Column="2" Text="S2" FontSize="11" Foreground="#4A5460" HorizontalAlignment="Right"/>
+                                    <TextBlock Grid.Column="3" Text="S3" FontSize="11" Foreground="#4A5460" HorizontalAlignment="Right"/>
+                                    <TextBlock Grid.Column="4" Text="PIT" FontSize="11" Foreground="#4A5460" HorizontalAlignment="Right" Margin="0,0,18,0"/>
+                                    <TextBlock Grid.Column="5" Text="TIME" FontSize="11" Foreground="#4A5460" HorizontalAlignment="Right"/>
+                                    <TextBlock Grid.Column="6" Text="DELTA" FontSize="11" Foreground="#4A5460" HorizontalAlignment="Right"/>
                                 </Grid>
 
                                 <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Padding="0,0,6,0">
                                     <ItemsControl x:Name="LapList">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
-                                                <Grid Margin="2,5,0,5">
+                                                <Grid Margin="2,8,0,8">
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="88"/>
                                                         <ColumnDefinition Width="64"/>
@@ -562,10 +562,10 @@
                                                         <ColumnDefinition Width="82"/>
                                                         <ColumnDefinition Width="78"/>
                                                     </Grid.ColumnDefinitions>
-                                                    <TextBlock Grid.Column="0" Text="{Binding LapText}" FontFamily="Consolas" FontSize="13" Foreground="#E6EDF3" VerticalAlignment="Center"/>
-                                                    <TextBlock Grid.Column="1" Text="{Binding S1Text}" FontFamily="Consolas" FontSize="12" FontWeight="Bold" Foreground="{Binding S1Brush}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
-                                                    <TextBlock Grid.Column="2" Text="{Binding S2Text}" FontFamily="Consolas" FontSize="12" FontWeight="Bold" Foreground="{Binding S2Brush}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
-                                                    <TextBlock Grid.Column="3" Text="{Binding S3Text}" FontFamily="Consolas" FontSize="12" FontWeight="Bold" Foreground="{Binding S3Brush}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                                    <TextBlock Grid.Column="0" Text="{Binding LapText}" FontFamily="Consolas" FontSize="14" Foreground="#E6EDF3" VerticalAlignment="Center"/>
+                                                    <TextBlock Grid.Column="1" Text="{Binding S1Text}" FontFamily="Consolas" FontSize="13" FontWeight="Bold" Foreground="{Binding S1Brush}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                                    <TextBlock Grid.Column="2" Text="{Binding S2Text}" FontFamily="Consolas" FontSize="13" FontWeight="Bold" Foreground="{Binding S2Brush}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                                    <TextBlock Grid.Column="3" Text="{Binding S3Text}" FontFamily="Consolas" FontSize="13" FontWeight="Bold" Foreground="{Binding S3Brush}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                                                     <!-- EVENTS (left) share the middle gap with the pit/tag (right): SC/VSC, red
                                                          flag, chequered and penalty chips for this lap. Empty on a green lap. -->
                                                     <ItemsControl Grid.Column="4" ItemsSource="{Binding Events}" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="30,0,0,0">
@@ -577,15 +577,15 @@
                                                          width slot) so IN and OUT line up in the same column whether or not a pit
                                                          time is present. Matches the main Lap History widget's pit/tag ordering. -->
                                                     <StackPanel Grid.Column="4" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,18,0">
-                                                        <TextBlock Text="{Binding PitText}" FontFamily="Consolas" FontSize="11" FontWeight="Bold" Foreground="#79C0FF" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                                        <TextBlock Text="{Binding PitText}" FontFamily="Consolas" FontSize="12" FontWeight="Bold" Foreground="#79C0FF" VerticalAlignment="Center" Margin="0,0,8,0"/>
                                                         <Border Width="30" VerticalAlignment="Center" Visibility="{Binding HasTag, Converter={StaticResource BoolToVis}}">
                                                             <Border Background="#1C2733" CornerRadius="4" Padding="4,1" HorizontalAlignment="Right">
-                                                                <TextBlock Text="{Binding Tag}" FontSize="10" FontWeight="Bold" Foreground="#9BA7B4"/>
+                                                                <TextBlock Text="{Binding Tag}" FontSize="10.5" FontWeight="Bold" Foreground="#9BA7B4"/>
                                                             </Border>
                                                         </Border>
                                                     </StackPanel>
-                                                    <TextBlock Grid.Column="5" Text="{Binding LapTimeText}" FontFamily="Consolas" FontSize="14" FontWeight="Bold" Foreground="{Binding LapTimeBrush}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
-                                                    <TextBlock Grid.Column="6" Text="{Binding DeltaText}" FontFamily="Consolas" FontSize="12" Foreground="#6B7684" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                                    <TextBlock Grid.Column="5" Text="{Binding LapTimeText}" FontFamily="Consolas" FontSize="15" FontWeight="Bold" Foreground="{Binding LapTimeBrush}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                                    <TextBlock Grid.Column="6" Text="{Binding DeltaText}" FontFamily="Consolas" FontSize="13" Foreground="#6B7684" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                                                 </Grid>
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>
