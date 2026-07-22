@@ -82,5 +82,10 @@ namespace F1RaceEngineer.Models
             IsFastestLap == other.IsFastestLap &&
             ReferenceEquals(LiveryBrush, other.LiveryBrush) &&
             ReferenceEquals(TyreBrush, other.TyreBrush);
+
+        // See CarStanding for why the object overload and hash are both needed alongside the
+        // typed Equals, and why hashing a subset of the compared fields is correct.
+        public override bool Equals(object? obj) => Equals(obj as RaceStanding);
+        public override int GetHashCode() => HashCode.Combine(Position, DriverName, TeamName);
     }
 }

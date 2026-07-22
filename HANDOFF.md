@@ -77,9 +77,25 @@ and must switch context automatically.
   already exist before the first install, so `Setup.exe` initially reported "already
   installed" (a false positive - no registry Uninstall entry existed, confirmed via a
   real registry check) instead of doing a fresh install. Fixed by deleting the stray
-  folder before re-running `Setup.exe`. Not expected to recur (nothing writes to that
-  path anymore since Track Map was removed), but worth knowing if a similarly-named
-  local cache folder ever reappears under a future feature.
+  folder before re-running `Setup.exe`.
+  **CORRECTION (§5 fortieth round) - the "not expected to recur" note that used to sit
+  here was wrong, and stayed wrong for many rounds.** It claimed nothing writes to that
+  path anymore once Track Map was removed. Three things do, all added later:
+  `RaceHistoryStore` (`history\`), `WindowStateStore` (`window.json`) and the pit
+  diagnostic (`pit-debug.log`) - all under `%LocalAppData%\F1RaceEngineer\`, i.e. inside
+  Velopack's own install root. Consequences, in order of how likely they are to bite:
+  - **The "already installed" false positive CAN recur**, and most easily for the project
+    owner: a `dotnet run` dev session creates that folder before any install has happened.
+    Clear it before a first-time `Setup.exe` on a machine that has only ever run from source.
+  - **Updates are safe** - Velopack replaces `current\` and leaves sibling folders alone.
+    This is empirically proven, not assumed: saved races survived every release from v1.0.x
+    to v1.3.3 and only ever disappeared when the user deliberately cleared them.
+  - **Uninstall removes the app directory, and takes the saved race history with it.**
+    Anyone wanting to keep their races across an uninstall must copy `history\` out first,
+    or export the races to HTML. Not currently surfaced anywhere in the UI.
+  Moving app data to its own root (e.g. `%LocalAppData%\F1RaceEngineer.Data\`) would
+  decouple it from the installer, at the cost of a one-time migration for existing saves -
+  deferred, not done, and deliberately recorded here rather than silently fixed.
   `AppIcon.ico` (project root) is a custom-drawn icon, not a
   stock image - a rounded blue-badge (`#1F6FEB`, the app's own accent colour) around
   the exact flag pole/pennant glyph already used in-app for alerts (`AlertBanner`,
@@ -347,6 +363,10 @@ F1 25 game ──UDP──> UdpListenerService (background thread)
   Root cause: `_lapNumberForHistory` was never cleared in `ResetSessionScopedState()` -
   the exact class of bug that rule exists to prevent (see the Practice→Qualifying leak
   above), just on a field added later that missed it. Fixed by resetting it there too.
+  **Annotation (§5 thirty-ninth round): that field no longer exists.** Rows now take the
+  game's own lap number instead of an app-side counter, which removes this whole class of
+  bug rather than resetting around it - don't go looking for `_lapNumberForHistory` in the
+  current code.
 - **Lap History text was still too small to read at a glance** even after the first
   size pass - increased lap number/sector/time/delta font sizes again
   (`LapTimingWidget.xaml`) and widened the sector/time columns to match.
@@ -422,7 +442,7 @@ F1 25 game ──UDP──> UdpListenerService (background thread)
 
 ### Full-codebase audit pass (redundancy/cleanup, no live-game changes)
 - **Deleted a stray root-level `F1RaceEngineer_*_wpftmp.csproj`** - build debris from an
-  earlier OneDrive file-lock failure that escaped `obj/` into the project root. Normal
+  earlier cloud-sync file-lock failure that escaped `obj/` into the project root. Normal
   `obj/**/*wpftmp*` churn is expected and left alone; only the one in the root was wrong.
 - **`RefreshRaceStandings`/`RefreshPositionList` had duplicated participant lookup** -
   both had an identical 3-line block resolving driver name/livery/team by car index.
@@ -976,7 +996,8 @@ path hasn't seen a real race finish yet.
   event so an open history panel refreshes. **Not yet confirmed against a real race
   finish** - all field reads are against the documented API.
 - **Persistence** - `RaceHistoryStore`: one JSON file per race under
-  `%LocalAppData%\F1RaceEngineer\history\` (not the OneDrive project dir - no sync churn;
+  `%LocalAppData%\F1RaceEngineer\history\` (not the project dir, which may be cloud-synced -
+  no sync churn;
   same root as the pit log). All IO defensive (a history feature must never crash the app).
   `SavedRace`/`SavedRaceView` are plain DTOs (hex strings, not brushes) so they round-trip
   through `System.Text.Json` and re-render identically in the panel and the HTML export.
@@ -1401,6 +1422,137 @@ the pit log, and fixed at the root - along with several things that turned out t
   tags, recovered stop times, tyre-bar marker, GP name/flag and the red/amber chips all only exercise
   with real telemetry. With the history now empty, the next race is a clean first data point.
 
+### Thirty-ninth round — lap numbers come from the game; red-flag restarts get their own chip
+Triggered by the first live sprint after v1.3.3 (Chinese GP, 7 laps, red-flagged). The user reported
+three symptoms and correctly diagnosed two of them; the log settled all three.
+
+- **Partial validation of §38 (from the same screenshot).** The **GP name + country flag** render
+  correctly, and the **amber warning chip** appears in both the lap-by-lap and the Penalties & Flags
+  widget. The pit-tag work is still *unvalidated* - this sprint had no pit stop, so `SawInLapThisLap`,
+  the recovered stationary stop times and the tyre-bar marker were never exercised. Monaco still owed.
+- **Symptom: "laps are missing and the totals don't line up".** A 7-lap sprint showed a 5-row history
+  ending at "Lap 5" while the tower read "LAP 7 / 7". **Not** a mid-race wipe, which was the obvious
+  suspect (and the author's first theory) - the log has exactly one session reset, at the sprint's
+  start, and none after. The real cause: history rows were numbered by a private counter,
+  `_lapNumberForHistory++`, that had no connection to the game's lap number. The red-flag restart
+  handed the app a fresh `SessionUID` with the race already at lap 4, so the first lap it ever saw
+  (`lap=4` in the log, a 4:07.669 lap - the stoppage counted into it) displayed as "Lap 1" and every
+  later lap inherited the offset. The tower reads telemetry directly, so the two disagreed.
+- **Fix:** rows take the game's number - `Math.Max(1, (int)tracker.LastSeenLapNum)`, read *before* the
+  `lapNumberAdvanced` block rolls it forward. `LastSeenLapNum` is the lap that was in progress, which
+  is correct in both cases with no special-casing: mid-race `CurrentLapNum` has already advanced past
+  the completed lap, and on the final lap it never advances at all (the final-lap registration
+  mechanism from §5's fifth round, confirmed live by this same session - see §6).
+  `_lapNumberForHistory` is gone. Genuinely missed laps now show as an honest gap instead of silently
+  renumbering everything after them.
+- **This also fixes tyre-bar alignment on any late join.** `AlignStintsToInLaps` matches IN laps
+  against `TyreStintsEndLaps`, which are *game* lap numbers - it had been comparing them to the app
+  counter, so alignment silently failed whenever the app didn't witness lap 1. Same scale now.
+- **Symptom: the restart lap tagged "OUT".** Confirmed as the user guessed - a red-flag restart
+  releases the field from the pit lane, so the game really does report `DriverStatus.OutLap` for that
+  whole lap (`23:24:50 driver=OutLap` → `23:26:34 LAP_COMPLETE tag=OUT`). The tag was *literally* true
+  but implied a pit stop that never happened.
+- **Fix - deliberately NOT a new PIT tag.** The first design was a "RESTART"/"RED" badge in the PIT
+  column; that was rejected on review. That column means "you pitted", so any word in it keeps
+  asserting a stop, and its two fixed-width badges (38px live, 30px history) force an abbreviation.
+  The EVENTS gap already holds precisely this category - race control acting on the session (SC, VSC,
+  Red Flag, Chequered) - and is variable-width. So the restart lap gets a green **⚑ Restart** chip
+  (new `LapEventKind.Restart`) and the misleading tag is dropped. It sits directly under the red
+  **⚑ Red Flag** chip on the lap above, so the pair reads as one story.
+  Green is `#9BE0A5` - not a new colour, but exactly the alert banner's "Racing resumes"
+  (`TimingColorPalette.AlertGreenText`), whose own comment already calls green the universal restart
+  colour.
+- **Detection:** `_awaitingRedFlagRestart` latches on the `RedFlag` event and is consumed by the first
+  lap that would have been tagged "OUT"; cleared on session reset. Safe against the red-flagged lap
+  itself consuming it - that lap completed as `driver=OnTrack` in the log. The pit-debug log records
+  `tag=RESTART`, so Monaco validation still reads cleanly.
+- **Free across all three surfaces.** Everything routes through the shared `LapEvent`, so the history
+  panel and HTML export needed no changes - the exporter already takes `ev.TextBrush` for colour and
+  falls through to `⚑` for the glyph. `SavedLapEvent` stores the kind by **name** (`Kind.ToString()` /
+  `Enum.TryParse`), not ordinal, so members may be added or reordered but must never be renamed
+  without migration. (An earlier comment in `LapEvent.cs` claimed the opposite and was corrected.)
+- **Backfill declined.** `SessionHistory` carries times for the two laps the app never saw, so they
+  could be reconstructed - but events and IN/OUT tags can't be, so they'd be bare rows. The user chose
+  not to; the honest gap is preferred.
+- **Verified:** builds clean. Needs a live red-flagged session to confirm the Restart chip end to end.
+
+### Fortieth round — strict full-repo audit (dead code, mappings, privacy) before release
+A deliberately adversarial pass over all 58 tracked files: analyzer-driven rather than by eye, with
+every "finding" verified before being acted on. Several suspicious-looking results turned out to be
+correct code and were left alone - recorded here so the same false alarms aren't re-investigated.
+
+- **Method.** Ran the full .NET analyzer set (`-p:AnalysisMode=All -p:EnforceCodeStyleInBuild=true`),
+  which is far stricter than the normal build. Most of its ~650 hits are library-design rules that
+  don't apply to a single-assembly WPF app (CA1515 make-types-internal, CA1305 culture, CA1002
+  don't-expose-`List<T>`, CA2007 ConfigureAwait) and were dismissed as a class, not individually.
+- **REAL BUG - leaked `CancellationTokenSource` per reconnect.** `UdpListenerService.Stop()` cancelled
+  the CTS but never disposed or nulled it, and `Start()` overwrites the field - so every
+  Disconnect→Connect cycle abandoned a live one holding a kernel wait handle. Now disposed and nulled.
+- **REAL BUG - leaked CTS per failed connect (found while fixing the above).** `Start()` created the
+  CTS *before* `new UdpClient(port)`, which is the line that actually fails when another telemetry
+  tool holds the port. The throw left the CTS unreachable - one leaked per retry, and retrying a busy
+  port is exactly what the Connect button invites. `Start()` now builds both locally and only
+  publishes to the fields once both succeed, disposing the CTS on the bind failure before rethrowing.
+- **UDP port now released on window close.** `Stop()` was only ever wired to the Disconnect button, so
+  closing the app left the socket bound until process teardown. Harmless in isolation, but a fast
+  close-and-relaunch could hit the "another app is already bound to this port" failure the README
+  troubleshoots - against itself. `OnClosing` now stops it, before the existing early-return so it
+  runs on both paths, and `Stop()` only raises `Stopped` if it was actually running so a defensive
+  call can't emit a spurious "disconnected" to the UI.
+- **Equality contract inconsistency (CA1067).** `CarStanding` and `RaceStanding` implemented
+  `IEquatable<T>` with no `Equals(object)` / `GetHashCode`. **Not an active bug** - the only consumer,
+  `CollectionUnchanged<T>`, is constrained `where T : IEquatable<T>`, so the typed overload binds. But
+  any hash-based or non-generic path (`Distinct`, `HashSet`, `object.Equals`) would silently have used
+  reference identity and disagreed with `Equals`. `PenaltyEntry` already implemented the full correct
+  trio, so the other two were brought in line with it rather than the reverse.
+- **P/Invoke hardened (CA5392).** `DwmSetWindowAttribute` now pins `DllImportSearchPath.System32`, so
+  a same-named `dwmapi.dll` beside the .exe can't be preloaded instead - relevant because Velopack
+  installs per-user into a user-writable directory. Its three ignored HRESULTs (CA1806) are
+  **deliberate and now documented in-code**: cosmetic dark-chrome attributes, unsupported on older
+  Windows builds, where the right behaviour is default chrome rather than a failed startup. This is
+  the only analyzer hit knowingly left standing.
+- **Mappings verified exhaustively against the API dump, not by eye.** All complete, no staleness:
+  `Track` 28/28 real members covered by *all three* switches (`GrandPrixFor`, `CountryCodeFor`,
+  `CircuitFor`); `SessionType` 17/17 mapped with `Unknown`/`TimeTrial` falling to `Unsupported`;
+  `InfringementType` all 55 labelled. The `Track`→3-letter-code→`FlagPalette` chain is exactly **1:1
+  in both directions** - 21 codes emitted, 21 drawn, no code without a flag and no flag never emitted.
+- **Two false alarms, both correct code - do not "fix".** (1) `TeamNames` doesn't map the F2 teams,
+  APXGP or `F1Generic`; that's the documented `_ => team.ToString()` policy for anything off the F1
+  grid, not a gap. (2) `ClassRowView`/`LapRowView` appear unreferenced outside their own file because
+  they're only ever element types of the `Classification`/`Laps` collections, reached through
+  DataTemplates and the exporter - the type names legitimately never appear elsewhere.
+- **Dead-code sweep came back empty.** No unreferenced `x:Key` resources, no `TelemetryState` public
+  member unused by XAML or code-behind, no unreferenced types, no commented-out code blocks. The only
+  `TEMP` markers are the pit diagnostic, all cross-referenced to §6 and deliberately still shipping
+  until Monaco.
+- **Documentation audit — mechanical, not by eye.** Every code identifier the docs reference in
+  backticks (private fields, `Method()` names, `*.cs`/`*.xaml` files) was extracted and checked to
+  still exist in the codebase. Three didn't: `_lastForecastSamples` and `PositionListUnchanged` both
+  turned out to be already-handled (the first carries an explicit "superseded, no longer exists"
+  annotation; the second's replacement by `CollectionUnchanged<T>()` is recorded in the audit round
+  that did it) - the convention working as intended. `_lapNumberForHistory` was the one genuine
+  miss, left dangling by the thirty-ninth round; now annotated at its original mention rather than
+  rewritten, per this file's rule about historical rounds.
+- **The install-directory note was materially WRONG and is corrected in place** (see §2's release
+  steps). It claimed nothing writes to `%LocalAppData%\F1RaceEngineer\` once Track Map was removed;
+  in fact `RaceHistoryStore`, `WindowStateStore` and the pit log all do, inside Velopack's own
+  install root. Updates are empirically safe, but **uninstall takes the saved race history with it**,
+  and the "already installed" false positive can recur - most easily for the project owner, since a
+  `dotnet run` dev session creates that folder before any install exists. Recorded, with a possible
+  fix (a separate data root + migration) explicitly deferred rather than quietly applied mid-audit.
+- **README re-verified claim by claim against the code**, not assumed: the alert banner's full set
+  (red flag, retirement, penalty, SC/VSC incl. "Racing resumes" and the peel-off/in-the-pits states,
+  team-mate-in-pits, chequered), the tower's shared penalty/fastest-lap badge slot, and the timing
+  board's Practice+Qualifying scope all match what the code actually does. Updated for this batch:
+  the green restart marker and game-sourced lap numbering.
+- **Privacy pass.** No tokens, credentials, email addresses or absolute machine paths in any tracked
+  file (the GitHub PAT used for releases is only ever passed inline to `vpk upload`, never written to
+  disk). Four references to the author's own cloud-sync folder were genericised to "the project
+  folder, which may be cloud-synced" - the *reason* (don't write app data into a synced directory) is
+  the part worth keeping, the vendor name isn't. `%LocalAppData%` / `%USERPROFILE%` were already
+  correctly used as variables throughout, including in the API dump's header. `LICENSE` keeps the
+  author's public GitHub handle, which is intentional - MIT needs a named copyright holder.
+
 ## 6. Known caveats — built, but not yet trustworthy
 
 Everything in this section is shipped and *looks* right, but has either not been verified
@@ -1415,7 +1567,11 @@ against live game data or is known to have an open edge case. Referenced through
   round) - it was firing right on the finish line all along, just getting cut short by
   an unrelated bug, now fixed. The same fix was applied to Red Flag pre-emptively
   since it shares the identical mechanism, but that half is still unconfirmed against
-  a real red flag specifically.
+  a real red flag specifically. **Partially closed (§5, thirty-ninth round):** a real
+  red flag has now occurred (Chinese GP sprint) and the `RedFlag` event *does* fire and
+  correctly mark its lap with the chip. The banner was no longer showing by the time the
+  session was reviewed, so it did clear - but nothing captured *when*, so the 15s timeout
+  itself is still unmeasured. Watch the banner directly at the next red flag.
 - **`CarPosition == 0` is used to filter inactive car slots** in the position list —
   a reasonable inference from the API's general pattern, not explicitly documented.
 - **Tower's pending-penalty badge (§5, twelfth round) is reasoned from field semantics,
@@ -1424,11 +1580,14 @@ against live game data or is known to have an open edge case. Referenced through
   own Penalties & Flags widget, but generalizing them to every car in the tower hasn't
   been checked against a real pending penalty on a rival car. Watch the next penalty
   situation specifically.
-- **Final-lap registration fix (§5, fifth round) is reasoned from the reported symptom,
-  not yet re-confirmed live.** The fix assumes `LastLapTimeInMS` reliably changes value
-  on the final lap even though `CurrentLapNum` doesn't advance - consistent with what
-  was observed, but not independently verified against a second real race/sprint
-  finish. Watch the next session's final lap specifically.
+- **Final-lap registration fix (§5, fifth round) — CONFIRMED LIVE (§5, thirty-ninth
+  round).** The fix assumed `LastLapTimeInMS` reliably changes on the final lap even
+  though `CurrentLapNum` doesn't advance. The Chinese GP sprint log shows exactly that
+  mechanism firing: two consecutive completions both at `lap=7` (`23:29:50 lastLap=97801`
+  then `23:31:30 lastLap=100841`), the lap number never advancing past 7, and the final
+  lap still reaching history with its full time and all three sectors plus the Chequered
+  chip. Independently verified against a second real session finish - no longer an
+  assumption.
 - **Session-restart fix (§5, ninth round) is reasoned from the reported symptom and a
   confirmed field (`SessionUID`), not yet re-confirmed live.** Comparing `SessionUID`
   alongside `SessionType` should catch a same-type restart that a `SessionType`-only
@@ -1768,6 +1927,24 @@ before rebuilding a version of this.
   `DrsFault` are all received and unused.
 - **Weather forecast timeline — proposed, undecided.** Currently a single "next change"
   callout; a small timeline across the forecast samples would read like a pit-wall rain radar.
+- **Uninstall-time race-history rescue — investigated and REJECTED by the user, don't rebuild
+  without new information.** Uninstalling deletes the saved race history (see §2's release-steps
+  correction). Several shapes were designed and all were declined: a tickbox during uninstall, an
+  in-app pre-warning, and an unconditional export to the Desktop. The blocking technical facts, so
+  this isn't re-derived from scratch:
+  - Velopack 1.2.0 **does** expose `OnBeforeUninstallFastCallback` (confirmed by inspecting the
+    shipped DLL), so running code at uninstall time is possible.
+  - But it **cannot cancel or abort the uninstall** - the callback returns nothing and Velopack has
+    no cancellation API for it (the only `cancel` symbols in the assembly are generic
+    `CancellationToken` plumbing and `UserCancelled` for update downloads). A *warning* there is
+    therefore unactionable: it announces the data loss at the moment nothing can be done about it.
+  - It is a **"Fast" callback**, spawned and awaited with a `WaitForExit` timeout, so blocking on a
+    human is contraindicated - an unanswered dialog gets the process killed and the history deleted
+    unexported, failing in exactly the case the feature would exist for.
+  - Anything built here is also near-untestable without repeated real install/uninstall cycles
+    against a throwaway pack ID.
+  The consequence stands and is documented in §2 rather than mitigated in code: **uninstalling
+  removes the saved races**, and HTML export is the way to keep any of them.
 - **Tyre temperature — investigated and REJECTED, don't revisit without new information.**
   The idea was to colour the tyre corners the way the game's own MFD does (blue = cold, green
   = in the window, red = overheating). `TyresSurfaceTemperature` / `TyresInnerTemperature` and

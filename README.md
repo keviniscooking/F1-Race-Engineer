@@ -11,8 +11,10 @@ to alt-tab out of the game mid-session.
   (updates every sector, not just at the line), three sector boxes, and a scrollable
   full-race lap history (its viewport grows with the window; scroll back for earlier laps)
   with per-sector colour coding, IN/OUT lap tags, pit stop/pit lane timing, and inline
-  per-lap event markers (Safety Car / VSC, red flag, chequered flag, and infringements —
-  red for a penalty, amber for a warning).
+  per-lap event markers (Safety Car / VSC, red flag, a green restart when racing resumes,
+  chequered flag, and infringements — red for a penalty, amber for a warning). Laps are
+  numbered by the game's own lap count, so they line up with the tower's "LAP X / Y" even
+  if the app joins a session late or after a red-flag restart.
 - **Race Position Tower** — the Grand Prix name and country flag above a "LAP X / Y"
   counter and a broadcast-style purple "fastest lap" strip (driver + time), over the full
   field: position with a ▲/▼ places-gained-vs-grid delta, interval and gap to leader, tyre

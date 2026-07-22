@@ -10,7 +10,8 @@ namespace F1RaceEngineer.Telemetry
     /// <summary>
     /// Persists completed races as one JSON file each, under
     /// %LocalAppData%\F1RaceEngineer\history\ (same root as the pit log; deliberately NOT
-    /// under the project's OneDrive folder, so saving doesn't trigger sync churn). One file
+    /// under the project folder, which may sit in a cloud-synced directory - writing races
+    /// there would trigger sync churn on every save). One file
     /// per race keeps delete trivial (delete the file) and export self-contained. All IO is
     /// defensive - a history feature must never take the app down, so failures degrade to
     /// "no history" rather than throwing.

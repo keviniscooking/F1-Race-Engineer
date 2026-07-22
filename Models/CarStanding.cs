@@ -23,5 +23,14 @@ namespace F1RaceEngineer.Models
             GapText == other.GapText &&
             IsPlayer == other.IsPlayer &&
             ReferenceEquals(LiveryBrush, other.LiveryBrush);
+
+        // Only CollectionUnchanged<T> compares these today, and its IEquatable<T> constraint
+        // binds the typed overload above - but without these two, any hash-based or
+        // non-generic path (Distinct, HashSet, object.Equals) would silently fall back to
+        // reference identity and disagree with Equals. Same trio as PenaltyEntry. The hash
+        // uses a subset of the equality fields, which is valid: equal instances agree on
+        // them, so equal instances always hash equal.
+        public override bool Equals(object? obj) => Equals(obj as CarStanding);
+        public override int GetHashCode() => HashCode.Combine(Position, DriverName, TeamName);
     }
 }

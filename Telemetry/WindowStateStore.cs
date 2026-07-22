@@ -7,7 +7,8 @@ namespace F1RaceEngineer.Telemetry
     /// <summary>
     /// Remembers the main window's size, position and maximized state between launches, as a
     /// single JSON file under %LocalAppData%\F1RaceEngineer\ (same root as the race history and
-    /// pit log, deliberately NOT the project's OneDrive folder). As with the history store, all
+    /// pit log, deliberately NOT the project folder, which may be cloud-synced). As with the
+    /// history store, all
     /// IO is best-effort: a corrupt or missing file just means "open at the default size", never
     /// a crash. This is a second-screen dashboard people place once and leave, so persisting the
     /// placement removes a per-launch chore.

@@ -188,6 +188,13 @@ namespace F1RaceEngineer.Telemetry
 
         // ---- Alert banner state ----
         private bool _isRedFlagActive;
+
+        // Set when a red flag is shown, cleared by the lap that resumes racing. A red-flag
+        // restart releases the whole field from the pit lane, so the game legitimately reports
+        // DriverStatus.OutLap for that lap - which would otherwise tag it "OUT" in the PIT
+        // column exactly like a pit stop, implying a stop that never happened. Confirmed from
+        // the Chinese GP sprint (driver=OutLap held for the entire restart lap).
+        private bool _awaitingRedFlagRestart;
         private bool _isChequeredFlagActive;
         private SafetyCarType _safetyCarStatus = SafetyCarType.NoSafetyCar;
         private readonly DispatcherTimer _redFlagTimer = new() { Interval = TimeSpan.FromSeconds(15) };
@@ -385,8 +392,6 @@ namespace F1RaceEngineer.Telemetry
         // more laps than fit. Nothing is ever dropped, so a full race can be scrolled back
         // through end to end.
         public ObservableCollection<LapHistoryEntry> LapHistory { get; } = new();
-
-        private int _lapNumberForHistory = 0;
 
         // ---- Tyres (bindable) ----
         private string _tyreCompoundLetter = "?";
@@ -696,7 +701,6 @@ namespace F1RaceEngineer.Telemetry
             _personalBestLapCumulativeSplitsMs = null;
             _cumulativeThisLapMs = 0;
             _lastCompletedSectorColorThisLap = TimingColor.Neutral;
-            _lapNumberForHistory = 0;
 
             _carBestLapMs.Clear();
             _carTrackers.Clear(); // stale baselines from the old session would cause spurious sector/lap detections otherwise
@@ -772,6 +776,9 @@ namespace F1RaceEngineer.Telemetry
             _pendingLapEvents.Clear();
             _pendingPenaltySeverity = 0;
             _lapEventSafetyCar = SafetyCarType.NoSafetyCar;
+            // A red flag that never got its restart lap (session abandoned, or the game handed
+            // us a new SessionUID at the restart) must not carry into the next session.
+            _awaitingRedFlagRestart = false;
 
             CarConditionIssues.Clear();
             CarConditionIsOk = true;
@@ -827,6 +834,7 @@ namespace F1RaceEngineer.Telemetry
             if (eventType == EventType.RedFlag)
             {
                 _isRedFlagActive = true;
+                _awaitingRedFlagRestart = true;
                 _redFlagTimer.Stop();
                 _redFlagTimer.Start();
                 AddPendingLapEvent(new LapEvent(LapEventKind.RedFlag, "Red Flag"));
@@ -1403,8 +1411,28 @@ namespace F1RaceEngineer.Telemetry
 
                     string lapTag = isPlayer ? ClassifyLapTag(tracker.LastKnownDriverStatus, tracker.SawInLapThisLap) : "";
                     tracker.SawInLapThisLap = false; // consumed - the next lap starts clean
-                    loggedLapTag = lapTag; // TEMP pit diagnostic
-                    RegisterLapTime(car.LastLapTimeInMS, sector1Ms, sector2Ms, sector3Ms, isPlayer, lapTag, tracker.PendingPitLaneTimeMs);
+
+                    // The lap that resumes racing after a red flag is an out-lap in the game's
+                    // eyes, but not a pit stop - so it gets a green "Restart" chip in EVENTS
+                    // (where race-control happenings already live, alongside the "Red Flag" chip
+                    // on the lap above it) and the misleading PIT tag is dropped.
+                    bool isRedFlagRestart = isPlayer && _awaitingRedFlagRestart && lapTag == "OUT";
+                    if (isRedFlagRestart)
+                    {
+                        _awaitingRedFlagRestart = false;
+                        lapTag = "";
+                        AddPendingLapEvent(new LapEvent(LapEventKind.Restart, "Restart"));
+                    }
+                    loggedLapTag = isRedFlagRestart ? "RESTART" : lapTag; // TEMP pit diagnostic
+                    // LastSeenLapNum still holds the lap that was in progress, which is the
+                    // one that just finished - read it BEFORE the lapNumberAdvanced block
+                    // below rolls it forward. This is correct in both cases without a
+                    // special case: mid-race CurrentLapNum has already advanced past the
+                    // completed lap, while on the final lap it never advances at all (see
+                    // the lapJustCompleted comment above) and LastSeenLapNum is already the
+                    // right number.
+                    int completedLapNum = Math.Max(1, (int)tracker.LastSeenLapNum);
+                    RegisterLapTime(car.LastLapTimeInMS, sector1Ms, sector2Ms, sector3Ms, isPlayer, lapTag, tracker.PendingPitLaneTimeMs, completedLapNum);
                     tracker.PendingPitLaneTimeMs = 0; // consumed - don't let it leak onto a later unrelated OUT lap
 
                     // Per-car best lap is no longer accumulated here from LastLapTimeInMS - it now
@@ -1999,7 +2027,7 @@ namespace F1RaceEngineer.Telemetry
             return status == DriverStatus.OutLap ? "OUT" : "";
         }
 
-        private void RegisterLapTime(uint ms, uint sector1Ms, uint sector2Ms, uint sector3Ms, bool isPlayer, string lapTag, uint pitLaneTimeMs)
+        private void RegisterLapTime(uint ms, uint sector1Ms, uint sector2Ms, uint sector3Ms, bool isPlayer, string lapTag, uint pitLaneTimeMs, int completedLapNum)
         {
             bool newSessionBest = _sessionBestLapMs == null || ms < _sessionBestLapMs;
             if (newSessionBest) _sessionBestLapMs = ms;
@@ -2046,10 +2074,19 @@ namespace F1RaceEngineer.Telemetry
             DeltaToPbText = deltaText;
             DeltaToPbColorBrush = deltaBrush;
 
-            _lapNumberForHistory++;
             LapHistory.Insert(0, new LapHistoryEntry
             {
-                LapNumberText = $"Lap {_lapNumberForHistory}",
+                // The GAME's lap number, not a count of laps this app happened to witness.
+                // A self-incrementing counter silently renumbered from 1 whenever the app
+                // didn't see the start of a race - a red-flag restart issues a fresh
+                // SessionUID mid-race, so the history restarted at "Lap 1" while the game
+                // (and the tower's "LAP X / Y") was already on lap 4. Confirmed from the
+                // Chinese GP sprint: first lap the app recorded logged as lap=4 yet
+                // displayed as "Lap 1", leaving a 7-lap sprint showing a 5-row history
+                // ending at "Lap 5". Sourcing the number from telemetry makes the rows
+                // agree with the tower and any genuinely missed laps show up as an honest
+                // gap instead of shifting every later lap.
+                LapNumberText = $"Lap {completedLapNum}",
                 LapTimeText = FormatTime(ms),
                 DeltaText = deltaText,
                 ColorBrush = TimingColorPalette.TextBrush(color),

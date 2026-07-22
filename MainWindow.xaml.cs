@@ -14,7 +14,11 @@ namespace F1RaceEngineer
 {
     public partial class MainWindow : Window
     {
+        // System32-only search: dwmapi.dll is a Windows system library, so pinning the search
+        // path stops a same-named DLL beside the .exe being loaded instead (DLL preloading).
+        // The app installs per-user via Velopack, so its own directory is user-writable.
         [DllImport("dwmapi.dll", PreserveSig = true)]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int pvAttribute, int cbAttribute);
 
         private const int DwmwaUseImmersiveDarkMode = 20;
@@ -123,7 +127,9 @@ namespace F1RaceEngineer
 
             // The native window chrome defaults to light-mode regardless of the app's own
             // dark theme; without this the title bar is a jarring light-pink strip above
-            // an otherwise dark window.
+            // an otherwise dark window. All three HRESULTs are deliberately ignored: these
+            // are cosmetic-only attributes, unsupported on older Windows builds, where the
+            // correct behaviour is to leave the default chrome rather than fail startup.
             var hwnd = new WindowInteropHelper(this).Handle;
             int useDarkMode = 1;
             DwmSetWindowAttribute(hwnd, DwmwaUseImmersiveDarkMode, ref useDarkMode, sizeof(int));
@@ -166,6 +172,13 @@ namespace F1RaceEngineer
 
         protected override void OnClosing(CancelEventArgs e)
         {
+            // Release the UDP port deterministically rather than relying on process teardown to
+            // do it. Closing and immediately relaunching could otherwise hit the "another app is
+            // already bound to this port" failure README troubleshoots - against itself. Placed
+            // before the early return below so it runs on both paths; Stop() is idempotent, and
+            // its Stopped handler marshals through the still-live dispatcher on this same thread.
+            _listener.Stop();
+
             // RestoreBounds is the normal-state rect even when the window is maximized/minimized,
             // so un-maximizing next launch returns to a sensible size. Left/Top/Width/Height would
             // report the maximized frame instead, which isn't what we want to persist.
