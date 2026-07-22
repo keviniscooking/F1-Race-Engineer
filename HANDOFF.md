@@ -1927,6 +1927,48 @@ before rebuilding a version of this.
   `DrsFault` are all received and unused.
 - **Weather forecast timeline — proposed, undecided.** Currently a single "next change"
   callout; a small timeline across the forecast samples would read like a pit-wall rain radar.
+- **Two-player career support — AGREED IN PRINCIPLE, design conversation paused mid-flight
+  (resumes next session). Do not build ahead of that conversation.** The user plays two-player
+  career with friends often and explicitly does not want a solution that relies on exchanging
+  files between machines.
+  - **The enabling discovery: no file exchange is needed at all.** In a two-player career both
+    humans are in the *same session*, and `SessionHistoryDataPacket` is **per car** (`CarIndex`) -
+    it carries the full lap history (up to 100 laps) with lap time, **all three sector times**,
+    validity flags, best-sector lap numbers **and** tyre stint history. The app already receives
+    and handles this packet but currently mines it only for best laps (§5 thirty-seventh round).
+    So the other player's complete lap-by-lap and strategy is already arriving and being discarded.
+  - **Detecting the mode, two independent ways.** `SessionDataPacket.GameMode` has explicit values
+    `Career25Online` (two-player career) and `SplitScreen` (local), alongside `DriverCareer25` /
+    `MyTeamCareer25` / `ChallengeCareer25` and the online/TimeTrial/StoryMode entries. Independently,
+    `ParticipantData.IsAiControlled` is per-car, so counting non-AI entries identifies the humans
+    without trusting the enum - the same belt-and-braces approach the sprint/race lap-count check
+    uses after F1 25 mislabelled session types.
+  - **AGREED to build:** (1) **highlight both human players in the Race Position Tower** - today only
+    the player's own row is marked, so a second human is indistinguishable from 19 AI cars, and this
+    gates everything else; (2) **store the other human's lap-by-lap and stints in `SavedRace`**
+    alongside `PlayerLaps` (roughly doubles a race file - negligible, the whole history is ~24KB).
+    The user restated the highlight requirement under the history item too, which reads as wanting
+    both humans marked in the **saved race's classification view** as well as the live tower -
+    confirm which surfaces next session.
+  - **AGREED in principle but PRESENTATION UNDECIDED - specify before building:** a head-to-head tab
+    in the saved-race detail (sector deltas, median race pace, consistency, the two strategy bars
+    stacked via `StintStripRenderer`), and a **season head-to-head** strip ("You 7 - 5 Alex" across
+    race finishes, plus qualifying and best-lap H2H, in the existing `SeasonGroupView`). The user
+    wants to work out exactly how these read before any of it is built.
+  - **DEFERRED, "maybe later":** a pinned always-visible gap to the other human (independent of
+    position), and a live during-the-race sector head-to-head.
+  - **Open question to settle:** with 3+ humans, is there one pinned "rival" or are all tracked?
+  - **Build nothing before one logged two-player session confirms the theory** - specifically that
+    `IsAiControlled` marks both humans and that `SessionHistory` populates for the other player's
+    car. All of the above is reasoned from the API dump, and this project has been burned by exactly
+    that before (the pit-tag saga, §6, and the sprint/race session-type inversion).
+  - **Superseded idea, recorded so it isn't re-proposed:** exporting/importing race JSON between
+    friends, plus capturing the "fairness fingerprint" (`AIDifficulty`, the ten assist flags,
+    `RuleSet`, `IsNetworkGame`) needed to make cross-machine comparisons honest. That solves the
+    *general* case - two different races on the same track, different difficulty and assists - which
+    the same-session case makes unnecessary. Note those fields are still captured nowhere, and
+    assists are session-level (they describe *your own* settings, not per-driver), so they remain the
+    only route if a general comparison is ever wanted.
 - **Uninstall-time race-history rescue — investigated and REJECTED by the user, don't rebuild
   without new information.** Uninstalling deletes the saved race history (see §2's release-steps
   correction). Several shapes were designed and all were declined: a tickbox during uninstall, an
