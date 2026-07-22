@@ -111,7 +111,7 @@ namespace F1RaceEngineer.Telemetry
         // (a served drive-through/stop-go/time penalty is history the moment it's issued). Each
         // carries a severity so the saved list can be ranked most-severe-first and capped exactly
         // like the live widget (see BuildIncurredPenalties).
-        private readonly List<(int Severity, string Text)> _penaltiesIncurred = new();
+        private readonly List<(int Severity, string Text, bool IsPenalty)> _penaltiesIncurred = new();
 
         private class CarLapTracker
         {
@@ -129,6 +129,18 @@ namespace F1RaceEngineer.Telemetry
             // cross the line) - using the prior tick's value reliably attributes the
             // in/out-lap classification to the lap that just ended instead.
             public DriverStatus LastKnownDriverStatus;
+
+            // True if DriverStatus was InLap at ANY point during the lap now in progress.
+            // The previous-tick status alone is not enough to spot an in-lap: where the pit
+            // exit lies BEFORE the start/finish line, the whole stop (entry, box, rejoin)
+            // fits inside one lap and the status flips InLap -> OutLap seconds before the
+            // line - so that lap read as OutLap and got tagged "OUT", producing the
+            // long-standing double-OUT with no IN row (confirmed from the pit log: a stop
+            // finished at 21:58:10 and the lap only completed at 21:58:15). Because the IN
+            // row never existed, PatchMostRecentInRowPitTime also silently dropped the
+            // stationary stop time. Latching "saw InLap this lap" fixes both, and leaves the
+            // straddling-pit-lane case (already correct) unchanged. Cleared per lap.
+            public bool SawInLapThisLap;
 
             // PitStopTimerInMS (the stationary box time) goes stale by the time the IN
             // lap's row would normally be created at the line - confirmed live, it reads
@@ -267,6 +279,29 @@ namespace F1RaceEngineer.Telemetry
         private byte _totalLaps;
         private string _lapCounterText = "-";
         public string LapCounterText { get => _lapCounterText; private set => SetProperty(ref _lapCounterText, value); }
+
+        // Which Grand Prix this is, shown above the lap counter in the Race tower so the race
+        // identifies itself at a glance (the tower is Race-only, so this rides with it). Name and
+        // flag come from the cached Track via TrackNames/FlagPalette - the same pair the saved-race
+        // history cards use, so the two views name a race identically. HasTrackFlag gates the flag:
+        // FlagPalette only has vector flags for the countries drawn so far, and a missing one should
+        // simply show the name alone rather than an empty box.
+        private string _grandPrixName = "";
+        public string GrandPrixName
+        {
+            get => _grandPrixName;
+            private set { if (SetProperty(ref _grandPrixName, value)) Raise(nameof(HasGrandPrix)); }
+        }
+
+        // Derived, so the XAML can hide the whole name+flag row before a session has named the
+        // track without needing a string-to-visibility converter (the app only has BoolToVis).
+        public bool HasGrandPrix => !string.IsNullOrEmpty(_grandPrixName);
+
+        private Brush? _trackFlagBrush;
+        public Brush? TrackFlagBrush { get => _trackFlagBrush; private set => SetProperty(ref _trackFlagBrush, value); }
+
+        private bool _hasTrackFlag;
+        public bool HasTrackFlag { get => _hasTrackFlag; private set => SetProperty(ref _hasTrackFlag, value); }
 
         // Grouping keys from SessionDataPacket, cached here and stamped onto the SavedRace so
         // the history can tie a weekend's sessions together and separate season/career saves.
@@ -410,7 +445,9 @@ namespace F1RaceEngineer.Telemetry
         private bool _penaltiesIsOk = true;
         public bool PenaltiesIsOk { get => _penaltiesIsOk; private set => SetProperty(ref _penaltiesIsOk, value); }
 
-        public ObservableCollection<string> PenaltiesIssues { get; } = new();
+        // Entries rather than bare strings so each line can carry its category (penalty vs warning)
+        // through to the UI, which colours them red vs amber - see PenaltyEntry.
+        public ObservableCollection<PenaltyEntry> PenaltiesIssues { get; } = new();
 
         private bool _playerFlagVisible;
         public bool PlayerFlagVisible { get => _playerFlagVisible; private set => SetProperty(ref _playerFlagVisible, value); }
@@ -571,6 +608,9 @@ namespace F1RaceEngineer.Telemetry
 
             _totalLaps = session.TotalLaps;
             _currentTrack = session.Track;
+            GrandPrixName = TrackNames.GrandPrixFor(_currentTrack);
+            TrackFlagBrush = FlagPalette.BrushFor(TrackNames.CountryCodeFor(_currentTrack));
+            HasTrackFlag = TrackFlagBrush != null;
             _seasonLinkId = session.SeasonLinkIdentifier;
             _weekendLinkId = session.WeekendLinkIdentifier;
             _sessionLinkId = session.SessionLinkIdentifier;
@@ -834,7 +874,7 @@ namespace F1RaceEngineer.Telemetry
                     int severity = PenaltyLapEventSeverity(penalty.PenaltyType);
                     if (severity > _pendingPenaltySeverity)
                     {
-                        _pendingLapEvents.RemoveAll(e => e.Kind == LapEventKind.Penalty);
+                        _pendingLapEvents.RemoveAll(e => e.Kind is LapEventKind.Penalty or LapEventKind.Warning);
                         _pendingLapEvents.Add(penaltyEvent);
                         _pendingPenaltySeverity = severity;
                     }
@@ -906,38 +946,45 @@ namespace F1RaceEngineer.Telemetry
             _pendingLapEvents.Add(e);
         }
 
-        // Only genuine time-costing penalties get a lap chip; warnings and lap-invalidations
-        // are deliberately excluded (per the design discussion).
+        // Infringement chips for the lap they happened on: the three time-costing penalties (red)
+        // and warnings (amber, LapEventKind.Warning). Lap-invalidations are still excluded. The
+        // chip colour says which it is, so - as in the Penalties & Flags list - the text carries
+        // only the infringement, with no "Warning"/"Penalty" prefix.
         private static LapEvent? PenaltyToLapEvent(PenaltyType type, int timeSeconds, string infringement) => type switch
         {
             PenaltyType.TimePenalty => new LapEvent(LapEventKind.Penalty, $"{timeSeconds}s · {infringement}"),
             PenaltyType.DriveThrough => new LapEvent(LapEventKind.Penalty, $"Drive-through · {infringement}"),
             PenaltyType.StopGo => new LapEvent(LapEventKind.Penalty, $"Stop-go · {infringement}"),
+            PenaltyType.Warning => new LapEvent(LapEventKind.Warning, infringement),
             _ => null
         };
 
-        // Ranks the three penalty kinds that get a lap chip, so a lap keeps only its most severe one
-        // (stop-go > drive-through > time penalty) - same order the penalties widget/tab use.
+        // Ranks the infringement kinds that get a lap chip, so a lap keeps only its most severe one
+        // (stop-go > drive-through > time penalty > warning) - same order the penalties widget/tab
+        // use. One chip per lap keeps the EVENTS cell from overflowing, which is what several
+        // penalties for a single incident used to do; the full set is still in the penalties tab.
         private static int PenaltyLapEventSeverity(PenaltyType type) => type switch
         {
-            PenaltyType.StopGo => 3,
-            PenaltyType.DriveThrough => 2,
-            PenaltyType.TimePenalty => 1,
+            PenaltyType.StopGo => 4,
+            PenaltyType.DriveThrough => 3,
+            PenaltyType.TimePenalty => 2,
+            PenaltyType.Warning => 1,
             _ => 0
         };
 
-        // One (severity, line) for the saved race's penalties tab. Covers the meaningful penalties -
-        // the three time-costing ones the lap-by-lap also chips, plus warnings (which the lap-by-lap
-        // omits but the penalties tab has always listed). Everything else (lap-time invalidations
-        // etc.) is deliberately skipped, same "real penalties only" call PenaltyToLapEvent makes.
-        // Severities mirror the live Penalties & Flags widget (RefreshPenalties) so the saved list
-        // ranks the same way: stop-go > drive-through > time penalty > warning.
-        private static (int Severity, string Text)? PenaltyHistoryLine(PenaltyType type, int timeSeconds, string infringement) => type switch
+        // One entry for the saved race's penalties tab. Covers the meaningful penalties - the three
+        // time-costing ones the lap-by-lap also chips, plus warnings. Everything else (lap-time
+        // invalidations etc.) is deliberately skipped, same "real penalties only" call
+        // PenaltyToLapEvent makes. Severities mirror the live Penalties & Flags widget
+        // (RefreshPenalties) so the saved list ranks the same way: stop-go > drive-through > time
+        // penalty > warning. IsPenalty drives the red-vs-amber colour; because the colour carries
+        // the category the warning line is just the infringement, with no "Warning - " prefix.
+        private static (int Severity, string Text, bool IsPenalty)? PenaltyHistoryLine(PenaltyType type, int timeSeconds, string infringement) => type switch
         {
-            PenaltyType.StopGo => (100, $"Stop-go - {infringement}"),
-            PenaltyType.DriveThrough => (90, $"Drive-through - {infringement}"),
-            PenaltyType.TimePenalty => (80, $"+{timeSeconds}s - {infringement}"),
-            PenaltyType.Warning => (50, $"Warning - {infringement}"),
+            PenaltyType.StopGo => (100, $"Stop-go - {infringement}", true),
+            PenaltyType.DriveThrough => (90, $"Drive-through - {infringement}", true),
+            PenaltyType.TimePenalty => (80, $"+{timeSeconds}s - {infringement}", true),
+            PenaltyType.Warning => (50, infringement, false),
             _ => null
         };
 
@@ -946,15 +993,20 @@ namespace F1RaceEngineer.Telemetry
         // "(xN)" multiplier (so three track-limit warnings read as one line), the list is ordered
         // most-severe-first, then capped to IssueListMaxEntries with a "+N more" overflow so a
         // heavily-penalised race can't outgrow the card - the same CapIssueList the live widget uses.
-        private List<string> BuildIncurredPenalties()
+        private List<SavedPenalty> BuildIncurredPenalties()
         {
             var ranked = _penaltiesIncurred
                 .GroupBy(p => p.Text)
-                .Select(g => (Severity: g.Max(x => x.Severity), Count: g.Count(), Text: g.Key))
+                .Select(g => (Severity: g.Max(x => x.Severity), Count: g.Count(), Text: g.Key, IsPenalty: g.First().IsPenalty))
                 .OrderByDescending(g => g.Severity)
-                .Select(g => g.Count > 1 ? $"{g.Text} (x{g.Count})" : g.Text)
+                .Select(g => new SavedPenalty
+                {
+                    Text = g.Count > 1 ? $"{g.Text} (x{g.Count})" : g.Text,
+                    IsPenalty = g.IsPenalty
+                })
                 .ToList();
-            return CapIssueList(ranked, IssueListMaxEntries);
+            return CapIssueList(ranked, IssueListMaxEntries,
+                n => new SavedPenalty { Text = $"+{n} more", IsPenalty = false });
         }
 
         private void RefreshAlertBanner()
@@ -1080,9 +1132,15 @@ namespace F1RaceEngineer.Telemetry
 
             if (first || compoundChanged || ageReset)
             {
-                // Age counts laps already run on the tyre, so currentLap - age is when it was
-                // fitted - accurate even if the app joined the race mid-session.
-                int startLap = Math.Max(1, _playerCurrentLap - age);
+                // Age counts laps already run on the tyre, so currentLap - age is the lap it was
+                // fitted on - accurate even if the app joined the race mid-session. For a stint
+                // that follows a PIT STOP the new stint starts the lap AFTER that: you drove the
+                // pit lap itself on the old tyres until the stop, so it belongs to the outgoing
+                // stint. That's what puts the bar's pit marker on the lap you actually pitted,
+                // matching the lap-by-lap "IN" tag and the saved-race bar (AlignStintsToInLaps),
+                // instead of a lap early. The opening stint is exempt - it starts on lap 1.
+                int fittedLap = _playerCurrentLap - age;
+                int startLap = Math.Max(1, first ? fittedLap : fittedLap + 1);
                 var last = _liveStints.Count > 0 ? _liveStints[^1] : default;
                 if (_liveStints.Count == 0 || last.StartLap != startLap || last.Compound != compound)
                 {
@@ -1194,7 +1252,10 @@ namespace F1RaceEngineer.Telemetry
 
             CarConditionIsOk = issues.Count == 0;
             // No banner on this widget, so it always gets the full entry budget.
-            var ordered = CapIssueList(issues.OrderByDescending(i => i.Severity).Select(i => i.Text).ToList(), IssueListMaxEntries);
+            var ordered = CapIssueList(
+                issues.OrderByDescending(i => i.Severity).Select(i => i.Text).ToList(),
+                IssueListMaxEntries,
+                n => $"+{n} more");
             if (!CollectionUnchanged(CarConditionIssues, ordered))
             {
                 CarConditionIssues.Clear();
@@ -1205,14 +1266,16 @@ namespace F1RaceEngineer.Telemetry
         /// <summary>
         /// Truncates to <paramref name="maxEntries"/>, replacing the last visible slot with a
         /// "+N more" summary so an overflowing list never silently drops information.
-        /// Expects the list to already be sorted most-severe-first.
+        /// Expects the list to already be sorted most-severe-first. Generic over the entry type so
+        /// Car Condition (plain strings) and Penalties (PenaltyEntry, which carries its colour
+        /// category) can share it; <paramref name="makeOverflow"/> builds that last summary entry.
         /// </summary>
-        private static List<string> CapIssueList(List<string> issues, int maxEntries)
+        private static List<T> CapIssueList<T>(List<T> issues, int maxEntries, Func<int, T> makeOverflow)
         {
             if (issues.Count <= maxEntries) return issues;
             int overflow = issues.Count - (maxEntries - 1);
             var capped = issues.Take(maxEntries - 1).ToList();
-            capped.Add($"+{overflow} more");
+            capped.Add(makeOverflow(overflow));
             return capped;
         }
 
@@ -1264,6 +1327,10 @@ namespace F1RaceEngineer.Telemetry
                     RegisterSectorTime(2, car.Sector2TimeInMS, isPlayer);
                     tracker.LastSeenSector2Ms = car.Sector2TimeInMS;
                 }
+
+                // Latch the in-lap for THIS lap the moment it's seen, rather than relying on the
+                // status still reading InLap at the line - see CarLapTracker.SawInLapThisLap.
+                if (car.DriverStatus == DriverStatus.InLap) tracker.SawInLapThisLap = true;
 
                 // Track the peak PitStopTimerInMS while actually in the pits. On exit,
                 // try to patch it straight into an already-existing IN row (see
@@ -1334,7 +1401,8 @@ namespace F1RaceEngineer.Telemetry
                         RegisterSectorTime(3, sector3Ms, isPlayer);
                     }
 
-                    string lapTag = isPlayer ? ClassifyLapTag(tracker.LastKnownDriverStatus) : "";
+                    string lapTag = isPlayer ? ClassifyLapTag(tracker.LastKnownDriverStatus, tracker.SawInLapThisLap) : "";
+                    tracker.SawInLapThisLap = false; // consumed - the next lap starts clean
                     loggedLapTag = lapTag; // TEMP pit diagnostic
                     RegisterLapTime(car.LastLapTimeInMS, sector1Ms, sector2Ms, sector3Ms, isPlayer, lapTag, tracker.PendingPitLaneTimeMs);
                     tracker.PendingPitLaneTimeMs = 0; // consumed - don't let it leak onto a later unrelated OUT lap
@@ -1575,14 +1643,23 @@ namespace F1RaceEngineer.Telemetry
             // owed (stop-go costs more time than drive-through, so it ranks above it),
             // ahead of already-applied time penalties, ahead of individual warnings,
             // ahead of the generic untracked-warnings overflow line.
-            var issues = new List<(int Severity, string Text)>();
-            if (playerLap.NumUnservedStopGoPens > 0) issues.Add((100, $"Unserved stop-go: {playerLap.NumUnservedStopGoPens}"));
-            if (playerLap.NumUnservedDriveThroughPens > 0) issues.Add((90, $"Unserved drive-through: {playerLap.NumUnservedDriveThroughPens}"));
-            if (playerLap.Penalties > 0) issues.Add((80, $"Time penalties: +{playerLap.Penalties}s"));
+            //
+            // Wording note: the chip's COLOUR says which category it is (red = penalty, amber =
+            // warning - see PenaltyEntry), so the text no longer repeats it. "Warning - Track
+            // limits" is now just "Track limits"; a time penalty is just "+5s". What's kept is the
+            // part that actually informs - the infringement, the magnitude, and "unserved" (still
+            // owed is the actionable bit, not a restatement of the category).
+            var issues = new List<(int Severity, PenaltyEntry Entry)>();
+            if (playerLap.NumUnservedStopGoPens > 0)
+                issues.Add((100, new PenaltyEntry { Text = $"Stop-go unserved ({playerLap.NumUnservedStopGoPens})", IsPenalty = true }));
+            if (playerLap.NumUnservedDriveThroughPens > 0)
+                issues.Add((90, new PenaltyEntry { Text = $"Drive-through unserved ({playerLap.NumUnservedDriveThroughPens})", IsPenalty = true }));
+            if (playerLap.Penalties > 0)
+                issues.Add((80, new PenaltyEntry { Text = $"+{playerLap.Penalties}s", IsPenalty = true }));
 
             // One line per specific warning *kind* (from PenaltyIssued events), not just a
             // bare count - and duplicates of the same kind collapse into a single line with
-            // an "(xN)" multiplier (e.g. "Warning - Track limits (x3)") rather than
+            // an "(xN)" multiplier (e.g. "Track limits (x3)") rather than
             // repeating the identical row and eating list slots. GroupBy preserves
             // first-occurrence order. Falls back to a generic "+N more" for whatever the
             // event-based list hasn't accounted for (e.g. warnings from before the app
@@ -1590,10 +1667,11 @@ namespace F1RaceEngineer.Telemetry
             foreach (var group in _warningReasons.GroupBy(r => r))
             {
                 int count = group.Count();
-                issues.Add((50, count > 1 ? $"Warning - {group.Key} (x{count})" : $"Warning - {group.Key}"));
+                issues.Add((50, new PenaltyEntry { Text = count > 1 ? $"{group.Key} (x{count})" : group.Key, IsPenalty = false }));
             }
             int untrackedWarnings = playerLap.TotalWarnings - _warningReasons.Count;
-            if (untrackedWarnings > 0) issues.Add((40, $"+{untrackedWarnings} more warning(s)"));
+            if (untrackedWarnings > 0)
+                issues.Add((40, new PenaltyEntry { Text = $"+{untrackedWarnings} more", IsPenalty = false }));
 
             PenaltiesIsOk = issues.Count == 0;
             // The flag banner, when shown, sits above this list and eats one grid row (2 entries'
@@ -1602,7 +1680,10 @@ namespace F1RaceEngineer.Telemetry
             // cached: this runs every LapData tick, so it tracks the flag appearing/clearing on its
             // own. The list is already severity-sorted, so the entries squeezed out are the mildest.
             int entryBudget = PlayerFlagVisible ? IssueListMaxEntries - FlagBannerEntryCost : IssueListMaxEntries;
-            var ordered = CapIssueList(issues.OrderByDescending(i => i.Severity).Select(i => i.Text).ToList(), entryBudget);
+            var ordered = CapIssueList(
+                issues.OrderByDescending(i => i.Severity).Select(i => i.Entry).ToList(),
+                entryBudget,
+                n => new PenaltyEntry { Text = $"+{n} more", IsPenalty = false });
             if (!CollectionUnchanged(PenaltiesIssues, ordered))
             {
                 PenaltiesIssues.Clear();
@@ -1904,17 +1985,19 @@ namespace F1RaceEngineer.Telemetry
         }
 
         /// <summary>
-        /// Assumes DriverStatus holds InLap/OutLap for the whole lap in question and only
-        /// flips at (or after) the timing line, which is why the caller passes the
-        /// tracker's previous-tick value. Confirmed correct via live testing (HANDOFF §5,
-        /// eighth round).
+        /// Tags the lap that just ended as the pit IN lap, the OUT lap, or neither.
+        /// <paramref name="sawInLap"/> wins over <paramref name="status"/>: a lap the car spent any
+        /// part of driving to the pits IS the in-lap, even if it left the box before the line. That
+        /// case (pit exit before start/finish, so the whole stop fits in one lap) is exactly what
+        /// made both laps read OutLap and produced the double-OUT bug - see CarLapTracker.
+        /// <paramref name="status"/> is the tracker's PREVIOUS-tick value, so the out-lap is still
+        /// attributed to the lap that just ended rather than the one starting.
         /// </summary>
-        private static string ClassifyLapTag(DriverStatus status) => status switch
+        private static string ClassifyLapTag(DriverStatus status, bool sawInLap)
         {
-            DriverStatus.InLap => "IN",
-            DriverStatus.OutLap => "OUT",
-            _ => ""
-        };
+            if (sawInLap) return "IN";
+            return status == DriverStatus.OutLap ? "OUT" : "";
+        }
 
         private void RegisterLapTime(uint ms, uint sector1Ms, uint sector2Ms, uint sector3Ms, bool isPlayer, string lapTag, uint pitLaneTimeMs)
         {

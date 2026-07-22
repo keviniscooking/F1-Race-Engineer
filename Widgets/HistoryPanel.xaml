@@ -500,8 +500,9 @@
                                 <ItemsControl.ItemsPanel><ItemsPanelTemplate><UniformGrid Columns="2"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <Border Background="#412402" CornerRadius="6" Padding="10,7" Margin="0,0,6,6">
-                                            <TextBlock Text="{Binding}" FontSize="13.5" Foreground="#EF9F27" TextTrimming="CharacterEllipsis"/>
+                                        <!-- red = penalty, amber = warning (see PenaltyEntry) -->
+                                        <Border Background="{Binding Background}" CornerRadius="6" Padding="10,7" Margin="0,0,6,6">
+                                            <TextBlock Text="{Binding Text}" FontSize="13.5" Foreground="{Binding Foreground}" TextTrimming="CharacterEllipsis"/>
                                         </Border>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>

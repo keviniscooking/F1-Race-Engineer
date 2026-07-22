@@ -1354,6 +1354,53 @@ Two long-running open items closed off the same debug log the user sent back.
   **Not yet re-verified live** (needs a session with a full field) - but it's the authoritative
   source, so the board should now match the game's timing screen exactly.
 
+### Thirty-eighth round — the double-OUT pit bug SOLVED, plus penalty colours
+The long-running §6 pit-tagging bug, finally caught with hard evidence from a user screenshot plus
+the pit log, and fixed at the root - along with several things that turned out to be the same bug.
+
+- **Root cause of the double-OUT.** A race showed both pit stops tagged **OUT / OUT** with no IN row.
+  The log gave the exact mechanism: the whole stop fits inside ONE lap where the pit exit lies
+  *before* the start/finish line, and `DriverStatus` flips `InLap → OutLap` **seconds before the lap
+  completes** (stop finished 21:58:10, lap completed 21:58:15). `ClassifyLapTag` only ever looked at
+  the previous tick, saw `OutLap`, and tagged the in-lap "OUT"; the following out-lap was then "OUT"
+  too. It's **track-dependent**, which is why it hid for so long - where the pit lane straddles the
+  line the status is still `InLap` at the crossing and tagging was correct.
+- **Fix:** `CarLapTracker.SawInLapThisLap` latches the moment `DriverStatus` reads `InLap` anywhere in
+  the lap; `ClassifyLapTag(status, sawInLap)` prefers that latch. Correct for both pit-lane geometries.
+- **Two symptoms fell out of the same fix.** (1) The **missing stationary stop times** -
+  `PatchMostRecentInRowPitTime` looks for a row tagged "IN" and silently bailed when none existed, so
+  the 7.601s / 2.427s stops were dropped (the times that *did* show were the pit-LANE traversal,
+  which attaches to the OUT lap by a different path). The patch runs *after* the row is created, so a
+  correctly-tagged IN row now receives them. (2) The saved-race **tyre-marker alignment**
+  (`AlignStintsToInLaps`) needs IN tags and had been silently falling back.
+- **Live tyre-bar marker (separate bug, same symptom).** The live bar marked the stint *boundary*
+  (L4 / L13) rather than the lap pitted (L5 / L14). A stint following a pit now starts the lap AFTER
+  the fitted lap, so the pit lap belongs to the outgoing stint - matching the lap-by-lap IN tag and
+  the saved-race bar. The opening stint is exempt (it starts on lap 1) and the bar still sums to race
+  distance.
+- **Grand Prix name + country flag** added above the lap counter in the tower - small and muted so
+  "LAP X / Y" stays the hero. Uses the same `TrackNames`/`FlagPalette` pair as the history cards, and
+  hides until a session packet has named the track.
+- **Penalties: colour now carries the category.** Red = a real penalty, amber = a warning, applied
+  consistently across the live widget, the history card, the HTML export **and** the lap-by-lap "!"
+  badge. Because the colour says which it is, the wording drops the redundancy: `Warning - Track
+  limits` → `Track limits`, `Time penalties: +6s` → `+6s` (unserved ones keep the word "unserved" -
+  that's the actionable part, not a category restatement). This needed the list to carry its category
+  to the UI, so `PenaltiesIssues` went from bare strings to `PenaltyEntry` (text + IsPenalty + the
+  two brushes); `CapIssueList` became generic so Car Condition still shares it.
+- **Warnings now appear in the lap history** (new `LapEventKind.Warning`), joining the same
+  one-chip-per-lap severity cap as penalties (stop-go > drive-through > time > warning), so the
+  EVENTS cell still can't overflow the way stacked penalties once did.
+- **No compatibility layer.** A category-carrying penalty list can't be read from the old text-only
+  saves, so this was briefly built with a legacy field + fallback. The user then cleared the race
+  history outright, which removed the reason for it: the legacy field, the fallback, and every
+  "races saved before…" comment are gone, and the field took its natural name (`Penalties`). The
+  penalties path is now single-source: capture → `SavedPenalty` → `PenaltyEntry`.
+- **Verified:** builds clean, the app and history render correctly, and old-save loading was checked
+  before the history was cleared. **Everything in this round still needs one live race** - the IN/OUT
+  tags, recovered stop times, tyre-bar marker, GP name/flag and the red/amber chips all only exercise
+  with real telemetry. With the history now empty, the next race is a clean first data point.
+
 ## 6. Known caveats — built, but not yet trustworthy
 
 Everything in this section is shipped and *looks* right, but has either not been verified
@@ -1387,9 +1434,17 @@ against live game data or is known to have an open edge case. Referenced through
   alongside `SessionType` should catch a same-type restart that a `SessionType`-only
   check misses, but hasn't been independently re-tested against a second deliberate
   restart. Watch the next session restart specifically.
-- **Lap History pit in/out tagging + stop time: reported broken at Monaco, still
-  unreproduced. The original "line-straddling tracks" framing was WRONG - see the
-  correction at the end of this entry, read it before acting on the theory below.**
+- **Lap History pit in/out tagging + stop time — ROOT CAUSE FOUND AND FIXED (§5
+  thirty-eighth round); awaiting one live race to confirm.** The bug was finally captured
+  outside Monaco with a screenshot plus the pit log, and the mechanism is now proven rather
+  than theorised: where the pit exit lies BEFORE the start/finish line the whole stop fits
+  inside one lap and `DriverStatus` flips `InLap → OutLap` seconds before that lap completes,
+  so the previous-tick read tagged the in-lap "OUT". `CarLapTracker.SawInLapThisLap` now
+  latches the in-lap the moment it's seen anywhere in the lap, which also restores the lost
+  stationary stop time (the patch had nothing tagged "IN" to write into). **Keep the pit
+  logging until a Monaco stop confirms the fix on the other pit-lane geometry**, then remove
+  it. The historical analysis below is retained for context.
+
   Reported live at Monaco: a pit stop produced a **double "OUT"**
   (both the in-lap and the out-lap tagged OUT, no "IN") and the **stationary stop time
   was missing** (only the total pit-lane time on the OUT row appeared). Root cause: the

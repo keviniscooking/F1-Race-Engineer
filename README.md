@@ -11,21 +11,27 @@ to alt-tab out of the game mid-session.
   (updates every sector, not just at the line), three sector boxes, and a scrollable
   full-race lap history (its viewport grows with the window; scroll back for earlier laps)
   with per-sector colour coding, IN/OUT lap tags, pit stop/pit lane timing, and inline
-  per-lap event markers (Safety Car / VSC, red flag, chequered flag, penalties).
-- **Race Position Tower** — a "LAP X / Y" counter and a broadcast-style purple "fastest
-  lap" strip (driver + time) above the full field: position with a ▲/▼ places-gained-vs-grid
-  delta, interval and gap to leader, tyre compound paired with its age in laps, a "PIT" tag
-  while a car is being serviced (auto-reverting to the live gap when it rejoins), and a
-  shared badge slot for a pending penalty or the session's fastest lap. Race only.
-- **Field timing board** — full field with best lap and gap to fastest, shown in both
-  Practice and Qualifying (both are timed, leaderboard sessions).
-- **Alert banner** — Safety Car / VSC, Red Flag, Chequered Flag, penalties, retirement,
+  per-lap event markers (Safety Car / VSC, red flag, chequered flag, and infringements —
+  red for a penalty, amber for a warning).
+- **Race Position Tower** — the Grand Prix name and country flag above a "LAP X / Y"
+  counter and a broadcast-style purple "fastest lap" strip (driver + time), over the full
+  field: position with a ▲/▼ places-gained-vs-grid delta, interval and gap to leader, tyre
+  compound paired with its age in laps, a "PIT" tag while a car is being serviced
+  (auto-reverting to the live gap when it rejoins), and a shared badge slot for a pending
+  penalty or the session's fastest lap. Race only.
+- **Field timing board** — full field ranked by best lap with the gap to fastest, shown in
+  both Practice and Qualifying (both are timed, leaderboard sessions). Best laps come
+  straight from the game's own session history, so the order matches the in-game timing
+  screen exactly (invalidated laps excluded).
+- **Alert banner** — Safety Car / VSC (including "in this lap — peel off" and a green
+  "racing resumes" at the restart), Red Flag, Chequered Flag, penalties, retirement,
   and team-mate-in-pits notifications.
 - **Tyres, Car Condition, Penalties & Flags, Session & Track** — toggleable widgets via
   the gear-icon settings panel, with sensible per-preset defaults. Penalties & Flags
-  reasons are labelled against real FIA terminology, not raw game field names. The Tyres
+  reasons are labelled against real FIA terminology, not raw game field names, and are
+  colour-coded — red for a penalty you've been given, amber for a warning. The Tyres
   widget also shows a live, broadcast-style **tyre-strategy bar** (your stints so far,
-  colour-coded by compound).
+  colour-coded by compound, with a marker on each lap you pitted).
 - **Race History** — a clock icon (next to the gear) opens your saved races. Every race
   is captured automatically when it finishes: a card per Grand Prix (finish, best lap,
   points, stint bar) opening into a full detail view — final classification, your

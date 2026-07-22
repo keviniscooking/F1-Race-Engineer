@@ -2,7 +2,7 @@ using System.Windows.Media;
 
 namespace F1RaceEngineer.Models
 {
-    public enum LapEventKind { SafetyCar, VirtualSafetyCar, RedFlag, Chequered, Penalty }
+    public enum LapEventKind { SafetyCar, VirtualSafetyCar, RedFlag, Chequered, Penalty, Warning }
 
     /// <summary>
     /// A notable thing that happened on one lap - a Safety Car / VSC caution, a red flag, the
@@ -24,7 +24,9 @@ namespace F1RaceEngineer.Models
 
         public bool IsFlag => Kind is LapEventKind.SafetyCar or LapEventKind.VirtualSafetyCar or LapEventKind.RedFlag;
         public bool IsChequered => Kind == LapEventKind.Chequered;
-        public bool IsPenalty => Kind == LapEventKind.Penalty;
+        // Warnings reuse the penalty chip's "!" marker - the colour separates them (red penalty vs
+        // amber warning), the same convention the Penalties & Flags list now uses.
+        public bool IsPenalty => Kind is LapEventKind.Penalty or LapEventKind.Warning;
 
         // Waved-flag fill: yellow for a caution (SC/VSC), red for a red flag.
         public SolidColorBrush IconBrush => Kind switch
@@ -37,12 +39,16 @@ namespace F1RaceEngineer.Models
         {
             LapEventKind.SafetyCar or LapEventKind.VirtualSafetyCar => Yellow,
             LapEventKind.RedFlag => Red,
-            LapEventKind.Penalty => Amber,
+            // Red = a real penalty, amber = a warning - matching the Penalties & Flags chips, so
+            // the same colour means the same thing wherever an infringement is shown.
+            LapEventKind.Penalty => PenaltyRed,
+            LapEventKind.Warning => Amber,
             _ => Neutral
         };
 
         private static readonly SolidColorBrush Yellow = Frozen(0xE8, 0xC5, 0x2E);
         private static readonly SolidColorBrush Red = Frozen(0xE1, 0x2E, 0x2E);
+        private static readonly SolidColorBrush PenaltyRed = Frozen(0xFF, 0x8A, 0x8A);
         private static readonly SolidColorBrush Amber = Frozen(0xF0, 0x88, 0x3E);
         private static readonly SolidColorBrush Neutral = Frozen(0x9B, 0xA7, 0xB4);
 

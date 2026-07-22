@@ -104,7 +104,9 @@ namespace F1RaceEngineer.Telemetry
             else
             {
                 sb.Append("<div class=\"pens\">");
-                foreach (var p in v.Penalties) sb.Append("<div class=\"pen\">").Append(Enc(p)).Append("</div>");
+                // Same red-vs-amber split as in-app: a real penalty reads red, a warning amber.
+                foreach (var p in v.Penalties)
+                    sb.Append($"<div class=\"pen{(p.IsPenalty ? " hard" : "")}\">").Append(Enc(p.Text)).Append("</div>");
                 sb.Append("</div>");
             }
             return sb.Append("</div>").ToString();
@@ -143,7 +145,7 @@ namespace F1RaceEngineer.Telemetry
         private static string Glyph(LapEvent ev) => ev.Kind switch
         {
             LapEventKind.Chequered => "▦",
-            LapEventKind.Penalty => "!",
+            LapEventKind.Penalty or LapEventKind.Warning => "!",
             _ => "⚑"
         };
 
@@ -236,6 +238,7 @@ tr.me td:last-child{border-top-right-radius:6px;border-bottom-right-radius:6px}
 .ok .tick{color:#97C459;font-weight:700;margin-right:9px}
 .pens{display:grid;grid-template-columns:1fr 1fr;gap:6px}
 .pen{background:#412402;color:#EF9F27;border-radius:6px;padding:9px 11px;font-size:13.5px}
+.pen.hard{background:#4A1519;color:#FF8A8A}
 .bar{display:flex;height:26px;gap:3px;background:#1C2733;border-radius:4px}
 .bar .seg{display:flex;align-items:center;justify-content:center;border-radius:4px;font-family:Consolas,monospace;font-weight:800;font-size:12px}
 .bar .rem{background:transparent}

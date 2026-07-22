@@ -48,10 +48,10 @@ namespace F1RaceEngineer.Models
         public bool PlayerHasFastestLap { get; set; }
         public List<SavedStint> PlayerStints { get; set; } = new();
 
-        // Snapshot of the player's final Penalties &amp; Flags list (the same strings the live
-        // widget showed), so the history detail can render a matching penalties card. Empty
-        // for a clean race and for races saved before this was captured.
-        public List<string> Penalties { get; set; } = new();
+        // The player's penalties for this race, each carrying whether it's a real penalty (red) or
+        // a warning (amber) so the history card colours them the way the live widget does. Empty
+        // for a clean race.
+        public List<SavedPenalty> Penalties { get; set; } = new();
 
         // ---- Full-field result + the player's own lap detail ----
         public List<SavedClassificationRow> Classification { get; set; } = new();
@@ -62,6 +62,17 @@ namespace F1RaceEngineer.Models
         // part of the race data).
         [JsonIgnore]
         public string? FilePath { get; set; }
+    }
+
+    /// <summary>
+    /// A penalty as stored in a saved race: the display text plus its category, so the history
+    /// card can colour it red (penalty) or amber (warning) exactly like the live widget. Kept a
+    /// plain serializable DTO - the brushes live on <see cref="PenaltyEntry"/>, the display model.
+    /// </summary>
+    public class SavedPenalty
+    {
+        public string Text { get; set; } = "";
+        public bool IsPenalty { get; set; }
     }
 
     public class SavedStint
@@ -86,7 +97,8 @@ namespace F1RaceEngineer.Models
         // Used to compute the gap-to-winner column shown in the history classification.
         // TotalRaceTime is seconds of racing (excludes pit/penalty adjustments the game
         // already folds into finishing order); NumLaps distinguishes lapped cars ("+1 LAP").
-        // Zero on races saved before this was captured - those show no gap.
+        // Can legitimately be zero if the game didn't report a time for a car, in which case
+        // that row shows no gap rather than a bogus one.
         public double TotalRaceTimeSeconds { get; set; }
         public int NumLaps { get; set; }
     }

@@ -73,7 +73,7 @@ namespace F1RaceEngineer.Models
         public string DnfDetail { get; }          // "Retired on lap 61 — Terminal damage"
 
         public int TotalLaps { get; }
-        public List<string> Penalties { get; }   // mirrors the live Penalties & Flags list
+        public List<PenaltyEntry> Penalties { get; }   // mirrors the live Penalties & Flags list
         public bool HasPenalties { get; }
         public bool NoPenalties { get; }          // drives the quiet "No penalties" state without an inverse converter
         public List<TyreStintSegment> StintSegments { get; }
@@ -139,9 +139,11 @@ namespace F1RaceEngineer.Models
             StintSegments = BuildSegments(AlignStintsToInLaps(r.PlayerStints, r.PlayerLaps), r.TotalLaps);
 
             // Penalties card: the race's incurred penalties, captured as-issued (see
-            // TelemetryState.BuildIncurredPenalties). Races saved before that fix simply show
-            // whatever they stored - no retroactive reconstruction, by design.
-            Penalties = new List<string>(r.Penalties);
+            // TelemetryState.BuildIncurredPenalties), each carrying whether it's a penalty (red) or
+            // a warning (amber), which is what colours the chips on the history card.
+            Penalties = new List<PenaltyEntry>();
+            foreach (var p in r.Penalties)
+                Penalties.Add(new PenaltyEntry { Text = p.Text, IsPenalty = p.IsPenalty });
             HasPenalties = Penalties.Count > 0;
             NoPenalties = !HasPenalties;
 
@@ -377,13 +379,13 @@ namespace F1RaceEngineer.Models
 
         // Gap column, F1-classification style: the winner shows their total race time; runners
         // on the lead lap show "+SS.sss" (or "+M:SS.sss"); lapped cars "+N LAP(S)"; retired
-        // cars a "DNF" flag (like the race tower). Empty when the data wasn't captured (races
-        // saved before this version have winnerTime == 0), so old races show nothing for the
-        // running cars rather than a wrong gap - but DNFs are still marked, since that's known.
+        // cars a "DNF" flag (like the race tower). If the winner has no race time there's nothing
+        // to measure against, so the running cars show nothing rather than a wrong gap - DNFs are
+        // still marked, since that much is known regardless.
         private static (string, SolidColorBrush) BuildGap(SavedClassificationRow r, double winnerTime, int winnerLaps)
         {
             if (r.IsOut) return ("DNF", DnfRed);
-            if (winnerTime <= 0) return ("", Muted); // not captured for this saved race
+            if (winnerTime <= 0) return ("", Muted); // no reference time - don't invent a gap
 
             if (r.Position == 1 || r.TotalRaceTimeSeconds <= winnerTime)
                 return (FormatRaceTime(r.TotalRaceTimeSeconds > 0 ? r.TotalRaceTimeSeconds : winnerTime), Ink);

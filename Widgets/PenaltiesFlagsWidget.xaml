@@ -54,8 +54,10 @@
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <Border Background="#412402" CornerRadius="6" Padding="10,7" Margin="0,0,6,4">
-                            <TextBlock Text="{Binding}" FontSize="15" Foreground="#EF9F27" TextTrimming="CharacterEllipsis"/>
+                        <!-- Colour carries the category: red = a real penalty, amber = a warning
+                             (see PenaltyEntry), which is why the text no longer says either word. -->
+                        <Border Background="{Binding Background}" CornerRadius="6" Padding="10,7" Margin="0,0,6,4">
+                            <TextBlock Text="{Binding Text}" FontSize="15" Foreground="{Binding Foreground}" TextTrimming="CharacterEllipsis"/>
                         </Border>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>

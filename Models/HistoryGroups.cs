@@ -7,8 +7,8 @@ namespace F1RaceEngineer.Models
     /// <summary>
     /// One card in the history list = one race weekend. A Sprint weekend collapses its Sprint
     /// and Race (linked by the game's WeekendLinkId) into this single card, with the Race as the
-    /// headline and the Sprint reachable via a tab in the detail view. A normal weekend (or any
-    /// race saved before link IDs were captured) is just the one session. The card DataTemplate
+    /// headline and the Sprint reachable via a tab in the detail view. A normal weekend (or a
+    /// session the game didn't link to one) is just the one session. The card DataTemplate
     /// binds its headline straight through <see cref="Race"/>; only the sprint-aware bits live here.
     /// </summary>
     public class WeekendCardView
@@ -36,9 +36,9 @@ namespace F1RaceEngineer.Models
 
     /// <summary>
     /// One section of the history list: all weekends from a single season/career save (grouped by
-    /// the game's SeasonLinkId), with a summary strip aggregated across them. Races saved before
-    /// link IDs existed - or one-off/online sessions the game didn't link - fall into a catch-all
-    /// "Earlier races" section, which still gets a summary since finishing data is always present.
+    /// the game's SeasonLinkId), with a summary strip aggregated across them. One-off/online
+    /// sessions the game didn't give a season link fall into a catch-all "Earlier races" section,
+    /// which still gets a summary since finishing data is always present.
     /// </summary>
     public class SeasonGroupView
     {
