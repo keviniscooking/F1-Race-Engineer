@@ -177,6 +177,20 @@ namespace F1RaceEngineer.Models
 
         public List<SavedH2HLap> Laps { get; set; } = new();
         public List<SavedStint> Stints { get; set; } = new();
+        public List<SavedH2HStop> Stops { get; set; } = new();
+    }
+
+    /// <summary>
+    /// One pit stop, for either driver. Both timings are captured because they answer different
+    /// questions: StationaryMs is the crew's time with the car on jacks - the bit that goes wrong
+    /// and loses a position - while LaneMs is the whole pit-lane traversal, which is mostly a
+    /// property of the circuit and similar for everyone.
+    /// </summary>
+    public class SavedH2HStop
+    {
+        public int Lap { get; set; }
+        public uint StationaryMs { get; set; }
+        public uint LaneMs { get; set; }
     }
 
     public class SavedH2HLap

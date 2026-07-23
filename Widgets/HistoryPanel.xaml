@@ -305,17 +305,40 @@
                          left-aligned "All races" button - so the toggle is easy to spot rather than
                          tucked into the far corner. The two sessions share this detail view;
                          clicking a tab repopulates it (see ShowSession). -->
-                    <Border x:Name="SessionTabs" HorizontalAlignment="Center" VerticalAlignment="Center"
-                            Background="#11161D" BorderBrush="#232B35" BorderThickness="1" CornerRadius="7" Padding="2" Visibility="Collapsed">
-                        <StackPanel Orientation="Horizontal">
-                            <Border x:Name="RaceTabBtn" CornerRadius="5" Padding="14,5" Background="#1C2733" Cursor="Hand" MouseLeftButtonUp="RaceTab_Click">
-                                <TextBlock Text="RACE" FontSize="11" FontWeight="Bold" Foreground="#E6EDF3"/>
-                            </Border>
-                            <Border x:Name="SprintTabBtn" CornerRadius="5" Padding="14,5" Background="Transparent" Cursor="Hand" MouseLeftButtonUp="SprintTab_Click" Margin="2,0,0,0">
-                                <TextBlock Text="SPRINT" FontSize="11" FontWeight="Bold" Foreground="#6B7684"/>
-                            </Border>
-                        </StackPanel>
-                    </Border>
+                    <!-- Both toggles sit side by side, centered, and BOTH stay visible at once.
+                         That's deliberate: SessionTabs picks WHICH SESSION (Race/Sprint) and
+                         ViewTabs picks WHICH VIEW of it (Result/Head to head). Merging the two
+                         axes into one strip would force a 2x2 matrix on a sprint weekend; keeping
+                         them separate and simultaneously visible is what makes "Sprint" +
+                         "HEAD TO HEAD" unambiguous without splitting the weekend card. -->
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <Border x:Name="SessionTabs"
+                                Background="#11161D" BorderBrush="#232B35" BorderThickness="1" CornerRadius="7" Padding="2" Visibility="Collapsed">
+                            <StackPanel Orientation="Horizontal">
+                                <Border x:Name="RaceTabBtn" CornerRadius="5" Padding="14,5" Background="#1C2733" Cursor="Hand" MouseLeftButtonUp="RaceTab_Click">
+                                    <TextBlock Text="RACE" FontSize="11" FontWeight="Bold" Foreground="#E6EDF3"/>
+                                </Border>
+                                <Border x:Name="SprintTabBtn" CornerRadius="5" Padding="14,5" Background="Transparent" Cursor="Hand" MouseLeftButtonUp="SprintTab_Click" Margin="2,0,0,0">
+                                    <TextBlock Text="SPRINT" FontSize="11" FontWeight="Bold" Foreground="#6B7684"/>
+                                </Border>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Only shown when the selected session actually has a saved head-to-head
+                             (a two-player career with both drivers' laps captured), so a solo
+                             career never sees a toggle with nothing behind it. -->
+                        <Border x:Name="ViewTabs" Margin="10,0,0,0"
+                                Background="#11161D" BorderBrush="#232B35" BorderThickness="1" CornerRadius="7" Padding="2" Visibility="Collapsed">
+                            <StackPanel Orientation="Horizontal">
+                                <Border x:Name="ResultTabBtn" CornerRadius="5" Padding="14,5" Background="#1C2733" Cursor="Hand" MouseLeftButtonUp="ResultTab_Click">
+                                    <TextBlock Text="RESULT" FontSize="11" FontWeight="Bold" Foreground="#E6EDF3"/>
+                                </Border>
+                                <Border x:Name="H2HTabBtn" CornerRadius="5" Padding="14,5" Background="Transparent" Cursor="Hand" MouseLeftButtonUp="H2HTab_Click" Margin="2,0,0,0">
+                                    <TextBlock Text="HEAD TO HEAD" FontSize="11" FontWeight="Bold" Foreground="#6B7684"/>
+                                </Border>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
                 </Grid>
 
                 <!-- header -->
@@ -363,8 +386,10 @@
                     </StackPanel>
                 </Border>
 
-                <!-- body: classification | (strategy + laps) -->
-                <Grid Grid.Row="3">
+                <!-- body: classification | (strategy + laps). Swapped wholesale for the H2H body
+                     below rather than having H2H squeeze in beside it - both columns here are
+                     already full and the page must not scroll. -->
+                <Grid x:Name="ResultBody" Grid.Row="3">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="16"/>
@@ -599,6 +624,203 @@
                                     </ItemsControl>
                                 </ScrollViewer>
                             </Grid>
+                        </Border>
+                    </Grid>
+                </Grid>
+
+                <!-- ============ HEAD TO HEAD BODY ============
+                     Swaps in for ResultBody above (never sits beside it). Mirrors the same 50/50
+                     split so the page reads as the same shape: left is who won and by what, right
+                     is how it unfolded. Nothing here scrolls except the tape, which only would on
+                     a very short window. -->
+                <Grid x:Name="H2HBody" Grid.Row="3" Visibility="Collapsed">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="16"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- LEFT: verdict + tale of the tape + pit stops.
+                         The tape sizes to its content (Auto) and the stops card takes the
+                         remainder (*), so the leftover space at the bottom of this column is put
+                         to work instead of sitting empty - and the stops list, the one part that
+                         grows with the race, is the part given a bounded, scrolling home. -->
+                    <Grid Grid.Column="0">
+                        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+
+                        <!-- Verdict: the one-line answer, so who won doesn't have to be read out
+                             of a table of numbers. -->
+                        <Border Grid.Row="0" Background="#161B22" BorderBrush="#232B35" BorderThickness="1" CornerRadius="10" Padding="14">
+                            <StackPanel>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock x:Name="H2HYouName" FontSize="13" FontWeight="Bold" Foreground="#E6EDF3" TextTrimming="CharacterEllipsis"/>
+                                        <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
+                                            <Border x:Name="H2HYouLivery" Width="3" Height="15" CornerRadius="1.5" Margin="0,0,7,0"/>
+                                            <TextBlock x:Name="H2HYouResult" FontSize="17" FontWeight="Bold" FontFamily="Consolas" Foreground="#E6EDF3"/>
+                                            <TextBlock x:Name="H2HYouPoints" FontSize="11" Foreground="#6B7684" VerticalAlignment="Bottom" Margin="8,0,0,2"/>
+                                        </StackPanel>
+                                    </StackPanel>
+
+                                    <TextBlock x:Name="H2HVerdict" Grid.Column="1" FontSize="15" FontWeight="Bold" VerticalAlignment="Center" Margin="14,0"/>
+
+                                    <StackPanel Grid.Column="2" HorizontalAlignment="Right">
+                                        <TextBlock x:Name="H2HRivalName" FontSize="13" FontWeight="Bold" Foreground="#E6EDF3" HorizontalAlignment="Right" TextTrimming="CharacterEllipsis"/>
+                                        <StackPanel Orientation="Horizontal" Margin="0,3,0,0" HorizontalAlignment="Right">
+                                            <TextBlock x:Name="H2HRivalPoints" FontSize="11" Foreground="#6B7684" VerticalAlignment="Bottom" Margin="0,0,8,2"/>
+                                            <TextBlock x:Name="H2HRivalResult" FontSize="17" FontWeight="Bold" FontFamily="Consolas" Foreground="#E6EDF3"/>
+                                            <Border x:Name="H2HRivalLivery" Width="3" Height="15" CornerRadius="1.5" Margin="7,0,0,0"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Grid>
+                                <TextBlock x:Name="H2HMargin" FontSize="11" Foreground="#6B7684" HorizontalAlignment="Center" Margin="0,9,0,0"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Tale of the tape -->
+                        <Border Grid.Row="1" Background="#161B22" BorderBrush="#232B35" BorderThickness="1" CornerRadius="10" Padding="14" Margin="0,16,0,0">
+                            <Grid>
+                                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Text="TALE OF THE TAPE" FontSize="12" Foreground="#6B7684" FontWeight="SemiBold" Margin="0,0,0,10"/>
+                                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                                    <ItemsControl x:Name="TapeList">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Grid Margin="0,0,0,7">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="88"/>
+                                                        <ColumnDefinition Width="64"/>
+                                                        <ColumnDefinition Width="88"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Grid.Column="0" Text="{Binding Label}" FontSize="11" Foreground="#6B7684" VerticalAlignment="Center"/>
+                                                    <TextBlock Grid.Column="1" Text="{Binding YouText}" Foreground="{Binding YouBrush}" FontFamily="Consolas" FontSize="13"
+                                                               HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                                    <TextBlock Grid.Column="2" Text="{Binding DeltaText}" Foreground="{Binding DeltaBrush}" FontFamily="Consolas" FontSize="11"
+                                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                    <TextBlock Grid.Column="3" Text="{Binding RivalText}" Foreground="{Binding RivalBrush}" FontFamily="Consolas" FontSize="13"
+                                                               HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+                            </Grid>
+                        </Border>
+
+                        <!-- PIT STOPS. One column per driver, each listing its own stops - stops
+                             land on different laps, so a shared lap column would be mostly gaps.
+                             The list scrolls inside this card, so a wet race with five stops can
+                             never push the page past its fixed height. -->
+                        <Border Grid.Row="2" Background="#161B22" BorderBrush="#232B35" BorderThickness="1" CornerRadius="10" Padding="14" Margin="0,16,0,0">
+                            <Grid>
+                                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                                <Grid Grid.Row="0" Margin="0,0,0,10">
+                                    <TextBlock Text="PIT STOPS" FontSize="12" Foreground="#6B7684" FontWeight="SemiBold"/>
+                                    <TextBlock Text="lap · box · lane" FontSize="10" Foreground="#4A5460" HorizontalAlignment="Right"/>
+                                </Grid>
+
+                                <Grid Grid.Row="1">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="14"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock x:Name="StopsYouName" FontSize="11" FontWeight="Bold" Foreground="#8B97A4" Margin="0,0,0,6" TextTrimming="CharacterEllipsis"/>
+                                        <ScrollViewer MaxHeight="120" VerticalScrollBarVisibility="Auto">
+                                            <ItemsControl x:Name="StopsYouList">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Grid Margin="0,0,0,5">
+                                                            <Grid.ColumnDefinitions><ColumnDefinition Width="36"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                                            <TextBlock Grid.Column="0" Text="{Binding LapText}" FontSize="11" FontFamily="Consolas" Foreground="#6B7684"/>
+                                                            <TextBlock Grid.Column="1" Text="{Binding BoxText}" FontSize="12" FontFamily="Consolas" Foreground="#79C0FF" HorizontalAlignment="Right"/>
+                                                            <TextBlock Grid.Column="2" Text="{Binding LaneText}" FontSize="11" FontFamily="Consolas" Foreground="#6B7684" HorizontalAlignment="Right"/>
+                                                        </Grid>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </ScrollViewer>
+                                        <TextBlock x:Name="StopsYouEmpty" Text="No stops" FontSize="11" Foreground="#4A5460" Visibility="Collapsed"/>
+                                    </StackPanel>
+
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock x:Name="StopsRivalName" FontSize="11" FontWeight="Bold" Foreground="#8B97A4" Margin="0,0,0,6" TextTrimming="CharacterEllipsis"/>
+                                        <ScrollViewer MaxHeight="120" VerticalScrollBarVisibility="Auto">
+                                            <ItemsControl x:Name="StopsRivalList">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Grid Margin="0,0,0,5">
+                                                            <Grid.ColumnDefinitions><ColumnDefinition Width="36"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                                            <TextBlock Grid.Column="0" Text="{Binding LapText}" FontSize="11" FontFamily="Consolas" Foreground="#6B7684"/>
+                                                            <TextBlock Grid.Column="1" Text="{Binding BoxText}" FontSize="12" FontFamily="Consolas" Foreground="#79C0FF" HorizontalAlignment="Right"/>
+                                                            <TextBlock Grid.Column="2" Text="{Binding LaneText}" FontSize="11" FontFamily="Consolas" Foreground="#6B7684" HorizontalAlignment="Right"/>
+                                                        </Grid>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </ScrollViewer>
+                                        <TextBlock x:Name="StopsRivalEmpty" Text="No stops" FontSize="11" Foreground="#4A5460" Visibility="Collapsed"/>
+                                    </StackPanel>
+                                </Grid>
+
+                                <!-- Total box time: the single number that says who lost more in the pits. -->
+                                <Grid Grid.Row="2" Margin="0,8,0,0">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="14"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                    <Border Grid.Column="0" BorderBrush="#232B35" BorderThickness="0,1,0,0" Padding="0,6,0,0">
+                                        <Grid>
+                                            <TextBlock Text="TOTAL BOX" FontSize="10" Foreground="#4A5460" VerticalAlignment="Center"/>
+                                            <TextBlock x:Name="StopsYouTotal" FontSize="12" FontFamily="Consolas" Foreground="#E6EDF3" HorizontalAlignment="Right"/>
+                                        </Grid>
+                                    </Border>
+                                    <Border Grid.Column="2" BorderBrush="#232B35" BorderThickness="0,1,0,0" Padding="0,6,0,0">
+                                        <Grid>
+                                            <TextBlock Text="TOTAL BOX" FontSize="10" Foreground="#4A5460" VerticalAlignment="Center"/>
+                                            <TextBlock x:Name="StopsRivalTotal" FontSize="12" FontFamily="Consolas" Foreground="#E6EDF3" HorizontalAlignment="Right"/>
+                                        </Grid>
+                                    </Border>
+                                </Grid>
+                            </Grid>
+                        </Border>
+                    </Grid>
+
+                    <!-- RIGHT: gap evolution + strategy -->
+                    <Grid Grid.Column="2">
+                        <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+
+                        <Border Grid.Row="0" Background="#161B22" BorderBrush="#232B35" BorderThickness="1" CornerRadius="10" Padding="14">
+                            <Grid>
+                                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                                <Grid Grid.Row="0" Margin="0,0,0,8">
+                                    <TextBlock Text="GAP EVOLUTION" FontSize="12" Foreground="#6B7684" FontWeight="SemiBold"/>
+                                    <TextBlock x:Name="GapLegend" FontSize="10" Foreground="#4A5460" HorizontalAlignment="Right"/>
+                                </Grid>
+                                <!-- Drawn in code-behind, vector, on resize - "drawn, not captured". -->
+                                <Canvas x:Name="GapCanvas" Grid.Row="1" ClipToBounds="True" SizeChanged="GapCanvas_SizeChanged"/>
+                                <TextBlock x:Name="GapEmpty" Grid.Row="1" Text="No lap data captured for both drivers."
+                                           Foreground="#4A5460" FontSize="12" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed"/>
+                                <Canvas x:Name="GapAxis" Grid.Row="2" Height="16" Margin="0,5,0,0"/>
+                            </Grid>
+                        </Border>
+
+                        <Border Grid.Row="1" Background="#161B22" BorderBrush="#232B35" BorderThickness="1" CornerRadius="10" Padding="14" Margin="0,16,0,0">
+                            <StackPanel>
+                                <TextBlock Text="STRATEGY" FontSize="12" Foreground="#6B7684" FontWeight="SemiBold" Margin="0,0,0,12"/>
+                                <!-- Each bar carries its OWN lap axis. A single shared axis would
+                                     draw only one driver's pit markers and silently present them
+                                     as if they applied to both. -->
+                                <TextBlock x:Name="H2HStintYouLabel" FontSize="11" Foreground="#8B97A4" Margin="0,0,0,4"/>
+                                <Grid x:Name="H2HStintYou" Height="14" Loaded="H2HStintYou_Loaded"/>
+                                <Canvas x:Name="H2HTicksYou" Height="16" Margin="0,4,0,0"/>
+
+                                <TextBlock x:Name="H2HStintRivalLabel" FontSize="11" Foreground="#8B97A4" Margin="0,14,0,4"/>
+                                <Grid x:Name="H2HStintRival" Height="14" Loaded="H2HStintRival_Loaded"/>
+                                <Canvas x:Name="H2HTicksRival" Height="16" Margin="0,4,0,0"/>
+                            </StackPanel>
                         </Border>
                     </Grid>
                 </Grid>

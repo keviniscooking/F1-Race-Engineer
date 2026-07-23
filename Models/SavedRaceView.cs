@@ -36,6 +36,20 @@ namespace F1RaceEngineer.Models
         // to stamp the correct word, fixing already-saved races without needing them re-captured.
         public void ApplyWeekendRole(bool isSprint) => _sessionLabel = isSprint ? "Sprint" : "Race";
 
+        // A saved head-to-head exists only for a two-player career where both drivers' laps were
+        // captured (see TelemetryState.BuildHeadToHead), so this null check is the single gate for
+        // the RESULT/HEAD TO HEAD toggle.
+        public bool HasHeadToHead => Source.HeadToHead != null;
+
+        /// <summary>
+        /// Builds the head-to-head view on demand rather than in the constructor, because the
+        /// Race/Sprint word is only correct after <see cref="ApplyWeekendRole"/> has run - the
+        /// H2H page names its session in the header, and capturing that label too early would
+        /// print the very ambiguity the header exists to remove.
+        /// </summary>
+        public HeadToHeadView? BuildHeadToHead() =>
+            Source.HeadToHead == null ? null : new HeadToHeadView(Source.HeadToHead, $"{GrandPrix} · {_sessionLabel}");
+
         public bool IsDnf { get; }
 
         public string FinishText { get; }        // "P4" / "DNF"

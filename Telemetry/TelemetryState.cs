@@ -68,6 +68,11 @@ namespace F1RaceEngineer.Telemetry
         // and only in that one mode - see HandleSessionHistory.
         private readonly Dictionary<int, List<SavedH2HLap>> _h2hLapHistory = new();
 
+        // Completed pit stops for the two humans, keyed by car index. Unlike the lap history
+        // above (re-sent whole by the game every tick), stops are one-shot events, so this
+        // accumulates across the race and must be cleared on session reset.
+        private readonly Dictionary<int, List<SavedH2HStop>> _h2hStops = new();
+
         // Tyre compound per car, from CarStatusData (a separate packet from LapData) -
         // cached the same way as participant name/team above so RefreshRaceStandings
         // (driven by LapData) can still read each car's current compound inline.
@@ -720,6 +725,7 @@ namespace F1RaceEngineer.Telemetry
 
             _carBestLapMs.Clear();
             _h2hLapHistory.Clear(); // a previous session's laps would otherwise be saved as this race's head-to-head
+            _h2hStops.Clear();      // accumulated, not re-sent by the game - would carry into the next race otherwise
             _carTrackers.Clear(); // stale baselines from the old session would cause spurious sector/lap detections otherwise
             _carTyreCompounds.Clear();
             _carTyreAge.Clear();
@@ -1400,6 +1406,26 @@ namespace F1RaceEngineer.Telemetry
                 else if (tracker.LastKnownPitLaneTimerActive)
                 {
                     tracker.PendingPitLaneTimeMs = tracker.MaxPitLaneTimeInLaneMsThisStop;
+
+                    // Record the completed stop for the two humans. Done at pit-LANE exit rather
+                    // than when the car leaves its box, because that's the later of the two events
+                    // - both the stationary peak and the lane peak are final here, and the
+                    // stationary value isn't cleared until the next stop begins. A drive-through
+                    // or a lane visit with no service has no stationary time, so it's skipped
+                    // rather than recorded as a 0.00s "stop".
+                    if (IsTwoPlayerCareer && tracker.MaxPitStopTimerMsThisStop > 0
+                        && (i == _playerCarIndex || i == RivalCarIndex))
+                    {
+                        if (!_h2hStops.TryGetValue(i, out var stopList))
+                            _h2hStops[i] = stopList = new List<SavedH2HStop>();
+                        stopList.Add(new SavedH2HStop
+                        {
+                            Lap = car.CurrentLapNum,
+                            StationaryMs = tracker.MaxPitStopTimerMsThisStop,
+                            LaneMs = tracker.MaxPitLaneTimeInLaneMsThisStop
+                        });
+                    }
+
                     if (isPlayer)
                         LogPitEvent(car.CurrentLapNum, car.DriverStatus, car.PitStatus, car.PitLaneTimerActive,
                             car.PitStopTimerInMS, tracker.MaxPitLaneTimeInLaneMsThisStop, car.LastLapTimeInMS, "STORE_LANE_TIME (pit lane exited)");
@@ -2026,7 +2052,8 @@ namespace F1RaceEngineer.Telemetry
                 TotalRaceTimeSeconds = c.TotalRaceTime,
                 NumLaps = c.NumLaps,
                 Laps = laps,
-                Stints = BuildStints(c)
+                Stints = BuildStints(c),
+                Stops = _h2hStops.TryGetValue(carIndex, out var stops) ? stops : new List<SavedH2HStop>()
             };
         }
 

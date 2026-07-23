@@ -8,6 +8,10 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Threading;
+// NOTE: deliberately NOT "using System.Windows.Shapes" - it makes Path ambiguous with
+// System.IO.Path, which this file already uses for the export filename. The handful of shape
+// types in DrawGap are fully qualified instead.
+using WShapes = System.Windows.Shapes;
 using Microsoft.Win32;
 using F1RaceEngineer.Models;
 using F1RaceEngineer.Telemetry;
@@ -19,6 +23,20 @@ namespace F1RaceEngineer.Widgets
         private static readonly SolidColorBrush TabActiveBg = SavedRaceView.BrushFromHex("#1C2733");
         private static readonly SolidColorBrush TabActiveInk = SavedRaceView.BrushFromHex("#E6EDF3");
         private static readonly SolidColorBrush TabIdleInk = SavedRaceView.BrushFromHex("#6B7684");
+
+        // Gap-evolution chart. The trace uses the app's accent blue (the same colour pit timings
+        // are shown in), over a translucent fill so the side of the zero line the race was spent
+        // on reads at a glance.
+        private static readonly SolidColorBrush GapLineBrush = SavedRaceView.BrushFromHex("#79C0FF");
+        private static readonly SolidColorBrush GapZeroBrush = SavedRaceView.BrushFromHex("#30363D");
+        private static readonly SolidColorBrush GapFillBrush = FrozenAlpha(0x38, 0x79, 0xC0, 0xFF);
+
+        private static SolidColorBrush FrozenAlpha(byte a, byte r, byte g, byte b)
+        {
+            var s = new SolidColorBrush(Color.FromArgb(a, r, g, b));
+            s.Freeze();
+            return s;
+        }
 
         private readonly RaceHistoryStore _store = new();
         private readonly ObservableCollection<SeasonGroupView> _seasons = new();   // currently displayed
@@ -197,7 +215,168 @@ namespace F1RaceEngineer.Widgets
             bool isSprint = _currentWeekend?.Sprint == v;
             StyleTab(RaceTabBtn, !isSprint);
             StyleTab(SprintTabBtn, isSprint);
+
+            // The head-to-head is per SESSION, not per weekend - a sprint weekend can have one for
+            // the race, the sprint, both or neither - so it's rebuilt here on every session switch
+            // rather than once when the weekend opens.
+            _h2h = v.BuildHeadToHead();
+            ViewTabs.Visibility = _h2h != null ? Visibility.Visible : Visibility.Collapsed;
+            ShowView(showH2H: false); // switching session always lands back on the result
         }
+
+        // ---- head to head ----
+        private HeadToHeadView? _h2h;
+
+        private void ResultTab_Click(object sender, RoutedEventArgs e) => ShowView(showH2H: false);
+        private void H2HTab_Click(object sender, RoutedEventArgs e) => ShowView(showH2H: true);
+
+        /// <summary>
+        /// Swaps the detail body wholesale. The two bodies are siblings and never both visible;
+        /// the header rows above them stay put, so switching view never loses which race you're in.
+        /// </summary>
+        private void ShowView(bool showH2H)
+        {
+            bool h2h = showH2H && _h2h != null;
+            ResultBody.Visibility = h2h ? Visibility.Collapsed : Visibility.Visible;
+            H2HBody.Visibility = h2h ? Visibility.Visible : Visibility.Collapsed;
+            StyleTab(ResultTabBtn, !h2h);
+            StyleTab(H2HTabBtn, h2h);
+
+            if (!h2h || _h2h == null) return;
+            PopulateH2H(_h2h);
+        }
+
+        private void PopulateH2H(HeadToHeadView v)
+        {
+            H2HYouName.Text = v.You.Name;
+            H2HYouResult.Text = v.You.PositionText;
+            H2HYouPoints.Text = v.You.PointsText;
+            H2HYouLivery.Background = v.You.LiveryBrush;
+
+            H2HRivalName.Text = v.Rival.Name;
+            H2HRivalResult.Text = v.Rival.PositionText;
+            H2HRivalPoints.Text = v.Rival.PointsText;
+            H2HRivalLivery.Background = v.Rival.LiveryBrush;
+
+            H2HVerdict.Text = v.VerdictText;
+            H2HVerdict.Foreground = v.VerdictBrush;
+            H2HMargin.Text = v.MarginText;
+
+            TapeList.ItemsSource = v.Rows;
+
+            GapLegend.Text = $"above = {v.You.Name} ahead";
+            GapEmpty.Visibility = v.HasGapSeries ? Visibility.Collapsed : Visibility.Visible;
+            DrawGap();
+
+            H2HStintYouLabel.Text = v.You.Name;
+            H2HStintRivalLabel.Text = v.Rival.Name;
+
+            StopsYouName.Text = v.You.Name;
+            StopsRivalName.Text = v.Rival.Name;
+            StopsYouList.ItemsSource = v.You.Stops;
+            StopsRivalList.ItemsSource = v.Rival.Stops;
+            StopsYouEmpty.Visibility = v.You.HasStops ? Visibility.Collapsed : Visibility.Visible;
+            StopsRivalEmpty.Visibility = v.Rival.HasStops ? Visibility.Collapsed : Visibility.Visible;
+            StopsYouTotal.Text = v.You.StopTotalText;
+            StopsRivalTotal.Text = v.Rival.StopTotalText;
+
+            RenderH2HStints();
+        }
+
+        private void GapCanvas_SizeChanged(object sender, SizeChangedEventArgs e) => DrawGap();
+        private void H2HStintYou_Loaded(object sender, RoutedEventArgs e) => RenderH2HStints();
+        private void H2HStintRival_Loaded(object sender, RoutedEventArgs e) => RenderH2HStints();
+
+        /// <summary>
+        /// Both strategy bars share one lap axis (the longer of the two race distances), so the
+        /// bars are directly comparable left-to-right - an undercut reads as a visible offset
+        /// between the two rather than something you have to work out from stint lengths.
+        /// </summary>
+        private void RenderH2HStints()
+        {
+            if (_h2h == null || _current == null) return;
+            int laps = Math.Max(1, _current.TotalLaps);
+            StintStripRenderer.Render(H2HStintYou, H2HTicksYou, _h2h.You.StintSegments, laps, showLetters: true, gap: 3, cornerRadius: 4);
+            StintStripRenderer.Render(H2HStintRival, H2HTicksRival, _h2h.Rival.StintSegments, laps, showLetters: true, gap: 3, cornerRadius: 4);
+        }
+
+        /// <summary>
+        /// The gap-evolution chart: vector-drawn on every resize rather than rendered to an image,
+        /// matching this project's "drawn, not captured" convention. The zero line is centred and
+        /// the axis is symmetric, so "ahead" and "behind" are equally readable and the shape isn't
+        /// distorted by one big swing in a single direction.
+        /// </summary>
+        private void DrawGap()
+        {
+            GapCanvas.Children.Clear();
+            if (_h2h == null || !_h2h.HasGapSeries) return;
+
+            double w = GapCanvas.ActualWidth, h = GapCanvas.ActualHeight;
+            if (w < 8 || h < 8) return; // not laid out yet; SizeChanged will call back
+
+            var series = _h2h.GapSeries;
+            double mid = h / 2;
+            double scale = (h / 2 - 6) / _h2h.GapMaxAbsSeconds;
+
+            // Zero line: the moment-by-moment "who's actually ahead" reference.
+            GapCanvas.Children.Add(new WShapes.Line
+            {
+                X1 = 0, X2 = w, Y1 = mid, Y2 = mid,
+                Stroke = GapZeroBrush, StrokeThickness = 1
+            });
+
+            double StepX(int i) => series.Count == 1 ? w / 2 : w * i / (series.Count - 1.0);
+            double Y(double gap) => mid - gap * scale;
+
+            // Filled area between the trace and the zero line, so which side of the line the race
+            // was spent on is obvious at a glance rather than needing the trace to be traced.
+            var fill = new System.Windows.Media.PathGeometry();
+            var fig = new System.Windows.Media.PathFigure { StartPoint = new Point(StepX(0), mid), IsClosed = true, IsFilled = true };
+            for (int i = 0; i < series.Count; i++)
+                fig.Segments.Add(new System.Windows.Media.LineSegment(new Point(StepX(i), Y(series[i].GapSeconds)), false));
+            fig.Segments.Add(new System.Windows.Media.LineSegment(new Point(StepX(series.Count - 1), mid), false));
+            fill.Figures.Add(fig);
+            GapCanvas.Children.Add(new WShapes.Path { Data = fill, Fill = GapFillBrush });
+
+            var poly = new WShapes.Polyline { Stroke = GapLineBrush, StrokeThickness = 2, StrokeLineJoin = PenLineJoin.Round };
+            for (int i = 0; i < series.Count; i++)
+                poly.Points.Add(new Point(StepX(i), Y(series[i].GapSeconds)));
+            GapCanvas.Children.Add(poly);
+
+            // Scale labels. Without these the trace is only a shape - a 2s swing and a 20s swing
+            // would draw identically, since the axis is normalised to whatever the biggest gap was.
+            AddGapLabel($"+{_h2h.GapMaxAbsSeconds:0.0}s", 2, 0);
+            AddGapLabel($"-{_h2h.GapMaxAbsSeconds:0.0}s", 2, h - 14);
+            AddGapLabel("0", 2, mid - 14);
+
+            // Lap axis under the trace: first and last lap, plus the biggest-swing lap so the
+            // decisive moment is identifiable rather than just visible.
+            GapAxis.Children.Clear();
+            int peak = 0;
+            for (int i = 1; i < series.Count; i++)
+                if (Math.Abs(series[i].GapSeconds) > Math.Abs(series[peak].GapSeconds)) peak = i;
+            AddAxisLabel($"L{series[0].Lap}", 0);
+            if (peak > 0 && peak < series.Count - 1) AddAxisLabel($"L{series[peak].Lap}", StepX(peak) - 10);
+            AddAxisLabel($"L{series[^1].Lap}", w - 24);
+        }
+
+        private void AddGapLabel(string text, double x, double y)
+        {
+            var t = new TextBlock { Text = text, FontSize = 9.5, Foreground = TabIdleInk, FontFamily = ConsolasFont };
+            Canvas.SetLeft(t, x);
+            Canvas.SetTop(t, y);
+            GapCanvas.Children.Add(t);
+        }
+
+        private void AddAxisLabel(string text, double x)
+        {
+            var t = new TextBlock { Text = text, FontSize = 9.5, Foreground = TabIdleInk, FontFamily = ConsolasFont };
+            Canvas.SetLeft(t, Math.Max(0, x));
+            Canvas.SetTop(t, 0);
+            GapAxis.Children.Add(t);
+        }
+
+        private static readonly FontFamily ConsolasFont = new("Consolas");
 
         private static void StyleTab(Border tab, bool active)
         {
