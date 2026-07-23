@@ -1981,6 +1981,7 @@ namespace F1RaceEngineer.Telemetry
                 // reads "Race" - right in the overwhelming majority, and never confidently wrong
                 // the way guessing from the type was.
                 SessionLabel = "Race",
+                SessionTypeName = _lastSeenSessionType?.ToString() ?? "",
                 TotalLaps = _totalLaps > 0 ? _totalLaps : player.NumLaps,
                 SeasonLinkId = _seasonLinkId,
                 WeekendLinkId = _weekendLinkId,

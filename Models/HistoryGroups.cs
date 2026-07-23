@@ -116,7 +116,20 @@ namespace F1RaceEngineer.Models
                 // US GP weekend showed a 7-lap session labelled "Race" and a 20-lap one "Sprint").
                 // The feature race is always the longer of the two, so order by laps: most = main
                 // race, fewer = sprint. ApplyWeekendRole then stamps the correct display word.
-                var ordered = g.OrderByDescending(s => s.Source.TotalLaps).ToList();
+                // Race2 first when present - it is the game's EXACT marker for the feature race,
+                // whereas lap count is only a relative signal. Lap count remains the tiebreak, and
+                // the sole rule for races saved before SessionTypeName was captured.
+                //
+                // Never compare lap count against a CONSTANT: race distance is a season setting
+                // (25/50/75/100%) and BOTH sessions scale by it, so a full-distance sprint (~19
+                // laps at Shanghai) is longer than a 25%-distance grand prix. A "under N laps means
+                // sprint" rule would be right for one player's settings and wrong for another's at
+                // the same track. Comparing the two sessions of one weekend to each other is
+                // setting-independent, which is exactly why it works.
+                var ordered = g
+                    .OrderByDescending(s => s.Source.SessionTypeName is "Race2" or "Race3")
+                    .ThenByDescending(s => s.Source.TotalLaps)
+                    .ToList();
                 var main = ordered[0];
                 var sprint = ordered.Count > 1 ? ordered[1] : null;
                 if (sprint != null)

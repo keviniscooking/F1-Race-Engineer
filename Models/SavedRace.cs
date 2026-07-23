@@ -23,6 +23,14 @@ namespace F1RaceEngineer.Models
         public string Circuit { get; set; } = "";
         public string Country { get; set; } = ""; // FIA 3-letter code, shown before the GP name
         public string SessionLabel { get; set; } = "Race"; // Race / Sprint
+
+        // The game's raw SessionType NAME (stored by name, like GameMode). Kept because it is the
+        // EXACT signal for which session of a sprint weekend this is: F1 25 uses Race2 only for
+        // the feature race, while Race covers both a sprint and an ordinary grand prix. Lap count
+        // resolves a weekend correctly but only relatively, and would tie-break arbitrarily if two
+        // sessions ever came out the same length - the type doesn't. Empty on races saved before
+        // this was captured, which is why HistoryGroups still falls back to lap count.
+        public string SessionTypeName { get; set; } = "";
         public int TotalLaps { get; set; }
 
         // Persistent grouping keys the game generates so external apps can link sessions:

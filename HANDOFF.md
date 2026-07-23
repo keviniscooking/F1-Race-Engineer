@@ -1690,6 +1690,61 @@ and MEASURED rather than eyeballed, which is recorded here because that's what f
 - **NOT verifiable here:** the top bar's hidden state, because `_hasReceivedPacket` only flips on a
   valid game packet and a malformed one never raises `PacketReceived`. Needs a live session.
 
+### Forty-second round — fixes from a real red-flagged race, and how sprints are identified
+All diagnosed from the pit log and the saved race rather than guessed, after user feedback on a
+red-flagged Chinese GP.
+
+- **Abandoned laps.** A red-flagged lap arrives with a lap time that spans the stoppage and NO
+  sector times (a real one read 4:08.315 with three blank sectors). That number is the length of
+  the interruption, not a lap, and it was feeding the session best, the personal best and every
+  delta after it. Laps with no timed sector are now excluded from all of that and shown with no
+  time. `sector1Ms == 0 && sector2Ms == 0` is the test - a real lap always times sectors.
+- **Skipped laps.** The game's own lap counter can jump: this race went straight from **9 to 11**,
+  so lap 10 simply vanished from the list. Missing numbers now appear as numbered blanks, capped
+  at 10 so a corrupt packet can't fill the list. Nothing is invented - no time, no sectors.
+- **Phantom lap-1 pit stop.** A later stint's start was derived as `currentLap - tyreAge`, which
+  assumes the game resets `TyresAgeLaps` when tyres are fitted. After a RED-FLAG tyre change it
+  does NOT: fresh hards still reported ~10 laps of age, so `11 - 10 = 1` drew a pit stop on the
+  opening lap that never happened. Later stints now start from the lap the change was OBSERVED on,
+  which needs no such assumption; age is still used for the opening stint, the one case it's for.
+  (The game's own final classification was worse - it reported a single H stint for all 20 laps,
+  forgetting the mediums entirely.)
+- **Qualifying/Practice bottom alignment.** Lap Timing's 6px bottom margin exists to clear the
+  catalog widgets, but with all of them toggled off it still reserved the space, so the column
+  stopped short of the Position board beside it. Measured 1384 vs 1378; the margin is now applied
+  only when something is actually below, and both measure 1384.
+- **SPRINT IDENTIFICATION - the important finding.** `SessionLabelFor` mapped `Race2` to "Sprint",
+  which labelled a real 20-lap feature race a sprint. Checking every race session ever logged
+  settles what the type can and cannot tell us:
+  - `Race2` appears **only** at full-race length (20, 25) - it is the exact marker for the feature
+    race of a sprint weekend.
+  - `Race` appears at **7, 8, 18, 20 and 25** laps - the game uses the same type for a sprint AND
+    for an ordinary grand prix. There is no distinct sprint type.
+  So a lone `Race` session is genuinely unknowable and is labelled "Race"; `Race2` is decisive.
+  `SavedRace` now stores `SessionTypeName`, and `HistoryGroups` orders a weekend by type first
+  with lap count as the tiebreak (and as the only rule for races saved before this).
+- **NEVER threshold lap count against a constant.** Race distance is a season setting (25/50/75/
+  100%) and BOTH sessions scale with it: at ~36% distance a Shanghai weekend gave a 7-lap sprint
+  and a 20-lap feature race, while at 100% the sprint is ~19 laps - LONGER than this user's
+  18-lap feature races. Any "under N laps means sprint" rule is right for one player's settings
+  and wrong for another's at the same track. Comparing the two sessions of one weekend against
+  each other is setting-independent, which is precisely why that method works and a constant
+  cannot. Do not revisit this.
+- **GameMode is logged as a NUMBER as well as a name.** F1Game.UDP 26.0.0 only names the 2025
+  career modes (27-30), so a 2026 career arrives unnamed - a real race logged **78**, which is
+  `DriverCareer25` (28) + 50, strongly implying the 2026 set sits at 76-80. Not mapped on that
+  inference: the raw value is logged so the real numbers can be learned from sessions instead.
+  Consequence today: a 2026 career shows no career-type label. The head-to-head gate is unaffected
+  IF two-player career remains 2025-only (the user reports 2026 has no multiplayer) - if that
+  changes, the gate will need the 2026 online value.
+- **Season H2H strip** restructured to the tale-of-the-tape shape (values on their own sides,
+  metric centred, split bar beneath) and unboxed - as a bordered card it was the only bordered
+  thing between a borderless summary above and bordered cards below, belonging to neither. Width
+  is set near the widest row's natural size; wider, the bars ran past the numbers they describe.
+- **Race cards show the session fastest lap and who set it**, ahead of the player's own best. Read
+  from the classification rows, which already carry the flag per driver, so it works on every race
+  already saved.
+
 ## 6. Known caveats — built, but not yet trustworthy
 
 Everything in this section is shipped and *looks* right, but has either not been verified
