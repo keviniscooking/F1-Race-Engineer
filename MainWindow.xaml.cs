@@ -32,7 +32,12 @@ namespace F1RaceEngineer
         // "data is flowing but this session type has no layout".
         private bool _hasReceivedPacket;
         private readonly TelemetryState _state = new();
-        private readonly WindowStateStore _windowState = new();
+        private readonly AppStateStore _appState = new();
+
+        // The UDP port, owned here rather than by a TextBox. It used to live in the top bar as
+        // editable text, which made a control the source of truth and forced Settings to write
+        // back into it; now Settings edits this and the top bar only displays it.
+        private int _port = AppStateStore.DefaultPort;
 
         private static readonly SolidColorBrush ActiveTabBrush = new(Color.FromRgb(0x1C, 0x27, 0x33));
         private static readonly SolidColorBrush InactiveTabBrush = Brushes.Transparent;
@@ -95,7 +100,6 @@ namespace F1RaceEngineer
             {
                 StatusText.Text = "Connected, waiting for data...";
                 StatusText.Foreground = Brushes.LimeGreen;
-                ConnectButton.Content = "Disconnect";
                 UpdateConnectionBarVisibility();
             });
 
@@ -103,7 +107,6 @@ namespace F1RaceEngineer
             {
                 StatusText.Text = "Not connected";
                 StatusText.Foreground = Brushes.OrangeRed;
-                ConnectButton.Content = "Connect";
                 UpdateConnectionBarVisibility();
             });
 
@@ -133,13 +136,27 @@ namespace F1RaceEngineer
             }
             _listener.PacketReceived += FirstPacket;
 
-            SettingsFlyoutContent.ConnectRequested += port =>
+            SettingsFlyoutContent.ConnectRequested += text =>
             {
-                PortTextBox.Text = port;   // the top-bar box stays the single source of truth
+                if (!int.TryParse(text?.Trim(), out int port) || port is < 1 or > 65535)
+                {
+                    SetError("Error: Port must be a number between 1 and 65535.");
+                    return;
+                }
+                SetError("");
+                _port = port;
+                PortLabel.Text = $"Port {_port}";
+                SaveAppState();          // persist immediately - a changed port that vanished on
+                                         // restart would look like the app was broken, not forgetful
                 if (_listener.IsRunning) _listener.Stop();
                 Connect();
+                SettingsFlyoutContent.ShowConnection(_port.ToString(), _listener.IsRunning, ConnectionSummary());
             };
-            SettingsFlyoutContent.DisconnectRequested += () => { if (_listener.IsRunning) _listener.Stop(); };
+            SettingsFlyoutContent.DisconnectRequested += () =>
+            {
+                if (_listener.IsRunning) _listener.Stop();
+                SettingsFlyoutContent.ShowConnection(_port.ToString(), _listener.IsRunning, ConnectionSummary());
+            };
 
             // Try once on launch so the common case (game already configured to send to
             // the default port) needs no manual click. Deliberately no retry loop if
@@ -168,9 +185,17 @@ namespace F1RaceEngineer
             DwmSetWindowAttribute(hwnd, DwmwaTextColor, ref textColor, sizeof(int));
         }
 
+        /// <summary>
+        /// Loads persisted state before the window is shown: the port (so the launch connect uses
+        /// the remembered one, not the default) and the window placement.
+        /// </summary>
         private void RestoreWindowPlacement()
         {
-            var saved = _windowState.Load();
+            var state = _appState.Load();
+            _port = state.Port;
+            PortLabel.Text = $"Port {_port}";
+
+            var saved = state.Window;
             if (saved == null) return;
 
             // Never trust the saved size below the XAML minimums - a corrupt or hand-edited file
@@ -213,7 +238,7 @@ namespace F1RaceEngineer
             // Empty only if the window was never actually shown - don't clobber a good saved
             // placement with zeros in that case.
             if (bounds.IsEmpty) { base.OnClosing(e); return; }
-            _windowState.Save(new WindowStateStore.WindowPlacement
+            SaveAppState(new AppStateStore.WindowPlacement
             {
                 Left = bounds.Left,
                 Top = bounds.Top,
@@ -481,6 +506,19 @@ namespace F1RaceEngineer
         /// game is closed mid-session the data stops but the port is still proven good, and the
         /// controls flapping back in would be noise, not information.
         /// </summary>
+        /// <summary>
+        /// Writes the port plus the given placement. Called on close with the real geometry, and
+        /// on a port change with null - which preserves whatever placement is already on disk, so
+        /// saving a port mid-session can't wipe the remembered window position.
+        /// </summary>
+        private void SaveAppState(AppStateStore.WindowPlacement? placement = null)
+        {
+            var state = _appState.Load();
+            state.Port = _port;
+            if (placement != null) state.Window = placement;
+            _appState.Save(state);
+        }
+
         private void UpdateConnectionBarVisibility()
         {
             bool proven = _listener.IsRunning && _hasReceivedPacket;
@@ -517,7 +555,7 @@ namespace F1RaceEngineer
         /// </summary>
         private void RefreshHelpCard()
         {
-            HelpPortValue.Text = string.IsNullOrWhiteSpace(PortTextBox.Text) ? "20777" : PortTextBox.Text.Trim();
+            HelpPortValue.Text = _port.ToString();
 
             string text;
             string dot;
@@ -555,7 +593,7 @@ namespace F1RaceEngineer
         {
             // Push live connection state in each time it opens, rather than binding - the panel
             // holds no listener of its own, so this keeps one owner for the socket.
-            SettingsFlyoutContent.ShowConnection(PortTextBox.Text, _listener.IsRunning, ConnectionSummary());
+            SettingsFlyoutContent.ShowConnection(_port.ToString(), _listener.IsRunning, ConnectionSummary());
             SettingsPopup.IsOpen = true;
         }
 
@@ -578,27 +616,16 @@ namespace F1RaceEngineer
             SettingsButton.IsChecked = false;
         }
 
-        private void ConnectButton_Click(object sender, RoutedEventArgs e)
-        {
-            SetError("");
-
-            if (_listener.IsRunning)
-            {
-                _listener.Stop();
-                return;
-            }
-
-            Connect();
-        }
+        /// <summary>
+        /// The top-bar status line is a shortcut to the controls that can fix it - it's only ever
+        /// visible when the connection needs attention, so the click that follows reading it
+        /// should land somewhere useful rather than doing nothing.
+        /// </summary>
+        private void ConnectionStatus_Click(object sender, RoutedEventArgs e) => SettingsButton.IsChecked = true;
 
         private void Connect()
         {
-            if (!int.TryParse(PortTextBox.Text, out int port))
-            {
-                SetError("Error: Port must be a number.");
-                return;
-            }
-
+            int port = _port;
             try
             {
                 _listener.Start(port);

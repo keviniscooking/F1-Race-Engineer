@@ -52,11 +52,20 @@
                  even with visually-similar Padding values. -->
             <!-- Collapses once the connection is proven (see UpdateConnectionBarVisibility). The
                  permanent home for these controls is the settings panel's CONNECTION section. -->
-            <StackPanel x:Name="ConnectionBar" Grid.Column="0" Orientation="Horizontal" HorizontalAlignment="Left">
-                <TextBlock Text="Port:" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="11" Foreground="#6B7684"/>
-                <TextBox x:Name="PortTextBox" Width="70" Height="24" Text="20777" FontSize="11"/>
-                <Button x:Name="ConnectButton" Content="Connect" Height="24" Margin="10,0,0,0" FontSize="11" Click="ConnectButton_Click"/>
-                <TextBlock x:Name="StatusText" Text="Not connected" Margin="14,0,0,0" VerticalAlignment="Center" FontSize="11" Foreground="#F0883E"/>
+            <!-- Read-only now: the port is edited in Settings → Connection, so an editable copy
+                 here would be a second source of truth for one value. This is purely a status
+                 line, and it only appears when something needs attention (see
+                 UpdateConnectionBarVisibility) - the whole group hides once telemetry flows.
+                 Clickable, because the one state where it's visible is the state you want to fix. -->
+            <StackPanel x:Name="ConnectionBar" Grid.Column="0" Orientation="Horizontal" HorizontalAlignment="Left" Height="24">
+                <TextBlock VerticalAlignment="Center" FontSize="11">
+                    <Hyperlink Click="ConnectionStatus_Click" TextDecorations="None" Foreground="#6B7684"
+                               ToolTip="Open connection settings">
+                        <Run x:Name="PortLabel" Text="Port 20777" Foreground="#6B7684"/>
+                        <Run Text="·" Foreground="#3A4450"/>
+                        <Run x:Name="StatusText" Text="Not connected" Foreground="#F0883E"/>
+                    </Hyperlink>
+                </TextBlock>
             </StackPanel>
 
             <!-- Preset indicator (auto-driven by SessionType, not clickable) -->
