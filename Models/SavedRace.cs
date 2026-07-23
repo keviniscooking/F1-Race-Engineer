@@ -34,6 +34,18 @@ namespace F1RaceEngineer.Models
         public uint WeekendLinkId { get; set; }
         public uint SessionLinkId { get; set; }
 
+        // The game's GameMode enum NAME (not its ordinal), e.g. "Career25Online" - stored by name
+        // for the same reason SavedLapEvent stores its kind by name: members can be added or
+        // reordered by the library without silently re-labelling every already-saved race.
+        // Drives the career-type label in the season header AND identifies a two-player career,
+        // which is what makes a saved race eligible for the head-to-head view.
+        public string GameMode { get; set; } = "";
+
+        // Populated only for a two-player career (GameMode.Career25Online with exactly two
+        // non-AI cars); null everywhere else, so the history panel gates the head-to-head view
+        // on this being non-null rather than re-deriving eligibility.
+        public SavedHeadToHead? HeadToHead { get; set; }
+
         // ---- Player result ----
         public int GridPosition { get; set; }
         public int FinishPosition { get; set; }
@@ -127,5 +139,55 @@ namespace F1RaceEngineer.Models
     {
         public string Kind { get; set; } = ""; // matches LapEventKind names
         public string Text { get; set; } = "";
+    }
+
+    /// <summary>
+    /// The two humans of a two-player career, captured so the saved race can be replayed as a
+    /// head-to-head. Null on every other race, which is the overwhelming majority - a solo career
+    /// pays nothing for this.
+    ///
+    /// Deliberately stored as RAW MILLISECONDS rather than reusing <see cref="SavedLapRow"/>.
+    /// That type is display-oriented (formatted "1:37.355" strings and hex colours) because it
+    /// mirrors what the live lap-history widget already rendered; the head-to-head has to
+    /// *compute* - sector deltas, ideal laps, median pace, consistency, and a lap-by-lap gap
+    /// chart from cumulative times. Parsing formatted text back into numbers to do arithmetic
+    /// would be both lossy and absurd, so the numeric series is stored once, properly.
+    /// </summary>
+    public class SavedHeadToHead
+    {
+        public SavedH2HDriver You { get; set; } = new();
+        public SavedH2HDriver Rival { get; set; } = new();
+    }
+
+    public class SavedH2HDriver
+    {
+        public string Name { get; set; } = "";
+        public string Team { get; set; } = "";
+        public string LiveryHex { get; set; } = "#9BA7B4";
+
+        public int GridPosition { get; set; }
+        public int FinishPosition { get; set; }
+        public int Points { get; set; }
+        public int PitStops { get; set; }
+        public int PenaltiesTimeSeconds { get; set; }
+        public bool IsOut { get; set; }
+        public bool HasFastestLap { get; set; }
+        public double TotalRaceTimeSeconds { get; set; }
+        public int NumLaps { get; set; }
+
+        public List<SavedH2HLap> Laps { get; set; } = new();
+        public List<SavedStint> Stints { get; set; } = new();
+    }
+
+    public class SavedH2HLap
+    {
+        public int LapNumber { get; set; }
+        public uint LapTimeMs { get; set; }
+        public uint S1Ms { get; set; }
+        public uint S2Ms { get; set; }
+        public uint S3Ms { get; set; }
+        // The game's own validity flag. Invalidated laps must be excluded from best-lap and
+        // ideal-lap maths, matching how the live timing board already sources best laps.
+        public bool IsValid { get; set; }
     }
 }

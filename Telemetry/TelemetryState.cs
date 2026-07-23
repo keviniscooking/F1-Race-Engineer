@@ -57,6 +57,17 @@ namespace F1RaceEngineer.Telemetry
         private readonly Dictionary<int, SolidColorBrush> _participantLivery = new();
         private readonly Dictionary<int, string> _participantTeams = new();
 
+        // Car indices the game reports as NOT AI-controlled, rebuilt from every Participants
+        // packet. Two of these plus GameMode.Career25Online is what switches on the two-player
+        // head-to-head feature (see CareerNames.IsTwoPlayer) - a multiplayer lobby has many
+        // humans and deliberately keeps the ordinary "highlight my own car only" behaviour.
+        private readonly HashSet<int> _humanCarIndices = new();
+
+        // Full lap-by-lap (raw ms + sectors) for the two humans of a two-player career, keyed by
+        // car index and refreshed from every SessionHistory packet. Only ever holds two entries,
+        // and only in that one mode - see HandleSessionHistory.
+        private readonly Dictionary<int, List<SavedH2HLap>> _h2hLapHistory = new();
+
         // Tyre compound per car, from CarStatusData (a separate packet from LapData) -
         // cached the same way as participant name/team above so RefreshRaceStandings
         // (driven by LapData) can still read each car's current compound inline.
@@ -315,6 +326,7 @@ namespace F1RaceEngineer.Telemetry
         private uint _seasonLinkId;
         private uint _weekendLinkId;
         private uint _sessionLinkId;
+        private GameMode _gameMode;
 
         // Read by the live Tyres widget to scale its tyre-strategy bar to the whole race
         // distance (a ghost full-length track that the coloured stints fill lap by lap),
@@ -619,6 +631,10 @@ namespace F1RaceEngineer.Telemetry
             _seasonLinkId = session.SeasonLinkIdentifier;
             _weekendLinkId = session.WeekendLinkIdentifier;
             _sessionLinkId = session.SessionLinkIdentifier;
+            // Gates the head-to-head feature as well as labelling the career in history - see
+            // CareerNames. Cached here (not read at save time) because Final Classification
+            // carries no game mode, exactly like _currentTrack above.
+            _gameMode = session.GameMode;
             IsTimeTrial = session.SessionType == SessionType.TimeTrial;
 
             RefreshSessionAndTrack(session);
@@ -703,6 +719,7 @@ namespace F1RaceEngineer.Telemetry
             _lastCompletedSectorColorThisLap = TimingColor.Neutral;
 
             _carBestLapMs.Clear();
+            _h2hLapHistory.Clear(); // a previous session's laps would otherwise be saved as this race's head-to-head
             _carTrackers.Clear(); // stale baselines from the old session would cause spurious sector/lap detections otherwise
             _carTyreCompounds.Clear();
             _carTyreAge.Clear();
@@ -809,9 +826,11 @@ namespace F1RaceEngineer.Telemetry
             var span = packet.Participants.AsSpan();
             int count = Math.Min(packet.NumActiveCars, span.Length);
 
+            _humanCarIndices.Clear();
             for (int i = 0; i < count; i++)
             {
                 var p = span[i];
+                if (!p.IsAiControlled) _humanCarIndices.Add(i);
                 _participantNames[i] = string.IsNullOrWhiteSpace(p.Name) ? $"Car {i + 1}" : p.Name;
                 _participantTeams[i] = TeamNames.LabelFor(p.Team);
 
@@ -1517,6 +1536,12 @@ namespace F1RaceEngineer.Telemetry
             // Whoever currently holds the session's fastest lap - _carBestLapMs is
             // already maintained per car (also used by RefreshPositionList's qualifying
             // gap-to-leader calculation), so no new tracking is needed here.
+            // Resolved once per refresh, not per car: this method runs on every LapData tick
+            // (20-60Hz) and RivalCarIndex walks a set, so evaluating it inside the row loop would
+            // repeat that work ~22 times a tick for a value that can't change mid-loop. -1 in
+            // every mode except a two-player career, where no row matches and nothing highlights.
+            int rivalCarIndex = RivalCarIndex;
+
             int fastestLapCarIndex = -1;
             uint? fastestLapMs = null;
             foreach (var kvp in _carBestLapMs)
@@ -1609,6 +1634,7 @@ namespace F1RaceEngineer.Telemetry
                     TeamName = team ?? "",
                     LiveryBrush = livery ?? TimingColorPalette.NeutralText,
                     IsPlayer = i == _playerCarIndex,
+                    IsRival = i == rivalCarIndex,
                     IsOut = isOut,
                     IsPitting = isPitting,
                     TyreLetter = tyreLetter,
@@ -1646,6 +1672,30 @@ namespace F1RaceEngineer.Telemetry
             _participantNames.TryGetValue(carIndex, out name);
             _participantLivery.TryGetValue(carIndex, out livery);
             _participantTeams.TryGetValue(carIndex, out team);
+        }
+
+        /// <summary>
+        /// The gate for every head-to-head feature. BOTH signals are required, deliberately: the
+        /// game mode alone would let a mislabelled session switch this on (F1 25 has form here -
+        /// it reports a sprint as SessionType.Race), and a human count alone would fire in a
+        /// multiplayer lobby, which must keep the ordinary "highlight my own car only" behaviour.
+        /// </summary>
+        private bool IsTwoPlayerCareer => CareerNames.IsTwoPlayer(_gameMode) && _humanCarIndices.Count == 2;
+
+        /// <summary>
+        /// The other human's car index in a two-player career, or -1 when there isn't exactly one.
+        /// Returns -1 outside a two-player career so callers can't accidentally treat a random AI
+        /// (or a lobby full of humans) as "the rival".
+        /// </summary>
+        private int RivalCarIndex
+        {
+            get
+            {
+                if (!IsTwoPlayerCareer || _playerCarIndex < 0) return -1;
+                foreach (int idx in _humanCarIndices)
+                    if (idx != _playerCarIndex) return idx;
+                return -1;
+            }
         }
 
         /// <summary>
@@ -1729,6 +1779,14 @@ namespace F1RaceEngineer.Telemetry
         /// </summary>
         private void HandleSessionHistory(SessionHistoryDataPacket packet)
         {
+            // Snapshot the two humans' full lap-by-lap for the saved head-to-head. Done BEFORE
+            // the best-lap early-return below, which bails when no lap has been set yet - that's
+            // fine for a best lap but would skip this. The game re-sends this packet for every
+            // car continuously, so each snapshot simply overwrites the last and what's held at
+            // the flag is the complete race.
+            if (IsTwoPlayerCareer && (packet.CarIndex == _playerCarIndex || packet.CarIndex == RivalCarIndex))
+                _h2hLapHistory[packet.CarIndex] = SnapshotHistoryLaps(packet);
+
             byte bestLapNum = packet.BestLapTimeLapNum;
             if (bestLapNum == 0) return; // no lap set yet this session
 
@@ -1738,6 +1796,37 @@ namespace F1RaceEngineer.Telemetry
 
             uint bestMs = laps[idx].LapTimeInMS;
             if (bestMs > 0) _carBestLapMs[packet.CarIndex] = bestMs;
+        }
+
+        /// <summary>
+        /// Copies one car's lap history out of the packet into plain storage. Only laps with a
+        /// real time are kept - the array is fixed-length (100) and mostly empty early on, and a
+        /// zero-time entry means "not run yet", not "a zero-second lap".
+        /// </summary>
+        private static List<SavedH2HLap> SnapshotHistoryLaps(SessionHistoryDataPacket packet)
+        {
+            var span = packet.LapHistoryData.AsSpan();
+            int count = Math.Min(packet.NumLaps, span.Length);
+            var laps = new List<SavedH2HLap>(count);
+
+            for (int i = 0; i < count; i++)
+            {
+                var l = span[i];
+                if (l.LapTimeInMS == 0) continue;
+                laps.Add(new SavedH2HLap
+                {
+                    LapNumber = i + 1,
+                    LapTimeMs = l.LapTimeInMS,
+                    // Sector fields are split into a minutes byte plus a ms ushort, so a sector
+                    // over a minute (rain, a safety-car lap) would otherwise wrap and read as a
+                    // wildly fast sector. Recombined here rather than at every point of use.
+                    S1Ms = (uint)(l.Sector1TimeMinutes * 60000) + l.Sector1TimeInMS,
+                    S2Ms = (uint)(l.Sector2TimeMinutes * 60000) + l.Sector2TimeInMS,
+                    S3Ms = (uint)(l.Sector3TimeMinutes * 60000) + l.Sector3TimeInMS,
+                    IsValid = l.LapValidBitFlags.HasFlag(LapValid.LapValid)
+                });
+            }
+            return laps;
         }
 
         private void RefreshPositionList(Span<LapData> span)
@@ -1838,6 +1927,7 @@ namespace F1RaceEngineer.Telemetry
                 SeasonLinkId = _seasonLinkId,
                 WeekendLinkId = _weekendLinkId,
                 SessionLinkId = _sessionLinkId,
+                GameMode = _gameMode.ToString(),
                 GridPosition = player.GridPosition,
                 FinishPosition = player.Position,
                 Points = player.Points,
@@ -1852,7 +1942,8 @@ namespace F1RaceEngineer.Telemetry
                 PlayerStints = BuildStints(player),
                 Penalties = BuildIncurredPenalties(),
                 Classification = BuildClassification(span, numCars, playerIdx, fastestIdx),
-                PlayerLaps = SnapshotPlayerLaps()
+                PlayerLaps = SnapshotPlayerLaps(),
+                HeadToHead = BuildHeadToHead(span, numCars, playerIdx, fastestIdx)
             };
 
             _savedClassificationUid = uid;
@@ -1889,6 +1980,54 @@ namespace F1RaceEngineer.Telemetry
                 result += char.IsUpper(ch) ? " " + char.ToLower(ch) : ch.ToString();
             }
             return result;
+        }
+
+        /// <summary>
+        /// Assembles the two-player head-to-head, or null if this race isn't one. Returns null
+        /// rather than an empty object so the history panel's "does this race have a H2H?" check
+        /// is a plain null test with no half-populated middle state to reason about.
+        /// Per-driver facts come from Final Classification (which is per car, so the rival's grid
+        /// slot, points, stops and stints need no extra tracking); the lap-by-lap comes from the
+        /// SessionHistory snapshots accumulated during the race.
+        /// </summary>
+        private SavedHeadToHead? BuildHeadToHead(Span<FinalClassificationData> span, int numCars, int playerIdx, int fastestIdx)
+        {
+            int rivalIdx = RivalCarIndex;
+            if (rivalIdx < 0 || playerIdx < 0) return null;
+            if (playerIdx >= numCars || rivalIdx >= numCars) return null;
+
+            // Both sides must have real lap data, otherwise the comparison would render as a
+            // half-empty page. Better to save no head-to-head than a misleading one.
+            if (!_h2hLapHistory.TryGetValue(playerIdx, out var playerLaps) || playerLaps.Count == 0) return null;
+            if (!_h2hLapHistory.TryGetValue(rivalIdx, out var rivalLaps) || rivalLaps.Count == 0) return null;
+
+            return new SavedHeadToHead
+            {
+                You = BuildH2HDriver(span[playerIdx], playerIdx, playerLaps, fastestIdx),
+                Rival = BuildH2HDriver(span[rivalIdx], rivalIdx, rivalLaps, fastestIdx)
+            };
+        }
+
+        private SavedH2HDriver BuildH2HDriver(FinalClassificationData c, int carIndex, List<SavedH2HLap> laps, int fastestIdx)
+        {
+            GetParticipantInfo(carIndex, out var name, out var livery, out var team);
+            return new SavedH2HDriver
+            {
+                Name = name ?? $"Car {carIndex + 1}",
+                Team = team ?? "",
+                LiveryHex = ToHex(livery),
+                GridPosition = c.GridPosition,
+                FinishPosition = c.Position,
+                Points = c.Points,
+                PitStops = c.NumPitStops,
+                PenaltiesTimeSeconds = c.PenaltiesTime,
+                IsOut = IsOutStatus(c.ResultStatus),
+                HasFastestLap = carIndex == fastestIdx,
+                TotalRaceTimeSeconds = c.TotalRaceTime,
+                NumLaps = c.NumLaps,
+                Laps = laps,
+                Stints = BuildStints(c)
+            };
         }
 
         private static List<SavedStint> BuildStints(FinalClassificationData c)

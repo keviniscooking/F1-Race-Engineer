@@ -10,6 +10,11 @@ namespace F1RaceEngineer.Models
         public string TeamName { get; set; } = "";
         public SolidColorBrush LiveryBrush { get; set; } = TimingColorPalette.NeutralText;
         public bool IsPlayer { get; set; }
+
+        // The OTHER human in a two-player career (see TelemetryState.RivalCarIndex). Never set in
+        // a solo career or a multiplayer lobby, so the tower keeps its ordinary single-highlight
+        // behaviour everywhere except the one mode this is for.
+        public bool IsRival { get; set; }
         public string IntervalText { get; set; } = "-";
         public string GapText { get; set; } = "-";
 
@@ -70,6 +75,7 @@ namespace F1RaceEngineer.Models
             DriverName == other.DriverName &&
             TeamName == other.TeamName &&
             IsPlayer == other.IsPlayer &&
+            IsRival == other.IsRival &&
             IntervalText == other.IntervalText &&
             GapText == other.GapText &&
             IsOut == other.IsOut &&

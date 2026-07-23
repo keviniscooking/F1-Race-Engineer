@@ -73,6 +73,14 @@ namespace F1RaceEngineer.Models
         public string DnfDetail { get; }          // "Retired on lap 61 — Terminal damage"
 
         public int TotalLaps { get; }
+
+        // Career type, parsed back from the stored GameMode name. Empty for races saved by a
+        // version that didn't capture it and for modes with no meaningful label, which is why
+        // every consumer gates on the Has/Is flags rather than testing for an empty string.
+        public string CareerTypeText { get; }          // "Two-Player Career", "My Team", ...
+        public bool HasCareerType { get; }
+        public bool IsTwoPlayerCareer { get; }         // gates the head-to-head view
+
         public List<PenaltyEntry> Penalties { get; }   // mirrors the live Penalties & Flags list
         public bool HasPenalties { get; }
         public bool NoPenalties { get; }          // drives the quiet "No penalties" state without an inverse converter
@@ -99,6 +107,17 @@ namespace F1RaceEngineer.Models
             CardSubtitle = string.IsNullOrEmpty(r.Circuit) ? date : $"{r.Circuit}  ·  {date}";
             _sessionLabel = r.SessionLabel;
             TotalLaps = r.TotalLaps;
+
+            // TryParse, not Parse: the stored string is whatever the game reported when the race
+            // was saved, so an unrecognised or absent value must degrade to "no career label"
+            // rather than throw while rendering the history list.
+            if (Enum.TryParse<F1Game.UDP.Enums.GameMode>(r.GameMode, out var mode))
+            {
+                CareerTypeText = CareerNames.LabelFor(mode);
+                IsTwoPlayerCareer = CareerNames.IsTwoPlayer(mode);
+            }
+            else CareerTypeText = "";
+            HasCareerType = CareerTypeText.Length > 0;
 
             IsDnf = r.ResultStatus != "Finished";
             FinishText = IsDnf ? r.ResultStatus : $"P{r.FinishPosition}";

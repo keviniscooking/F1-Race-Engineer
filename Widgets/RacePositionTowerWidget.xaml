@@ -103,6 +103,18 @@
                                     <Setter Property="Background" Value="Transparent"/>
                                     <Setter Property="BorderBrush" Value="Transparent"/>
                                     <Style.Triggers>
+                                        <!-- The other human in a two-player career. Cyan rather
+                                             than a second blue so the two rows are told apart at
+                                             a glance, and cyan specifically because red/amber/
+                                             purple already mean penalty/warning/fastest lap in
+                                             this widget - it's the one accent left with no
+                                             existing meaning to collide with. -->
+                                        <DataTrigger Binding="{Binding IsRival}" Value="True">
+                                            <Setter Property="Background" Value="#12313A"/>
+                                            <Setter Property="BorderBrush" Value="#37BEDD"/>
+                                        </DataTrigger>
+                                        <!-- Listed after the rival trigger so the player always
+                                             wins if both were ever somehow true on one row. -->
                                         <DataTrigger Binding="{Binding IsPlayer}" Value="True">
                                             <Setter Property="Background" Value="#1B2A42"/>
                                             <Setter Property="BorderBrush" Value="#1F6FEB"/>
@@ -181,6 +193,13 @@
                                                     <DataTrigger Binding="{Binding IsPlayer}" Value="True">
                                                         <Setter Property="FontWeight" Value="Bold"/>
                                                     </DataTrigger>
+                                                    <!-- Both humans read as bold in a two-player
+                                                         career; the row accent says which is which. -->
+                                                    <DataTrigger Binding="{Binding IsRival}" Value="True">
+                                                        <Setter Property="FontWeight" Value="Bold"/>
+                                                    </DataTrigger>
+                                                    <!-- Last, so a retired car greys out even if
+                                                         it's one of the two humans. -->
                                                     <DataTrigger Binding="{Binding IsOut}" Value="True">
                                                         <Setter Property="Foreground" Value="#4A5460"/>
                                                     </DataTrigger>

@@ -152,11 +152,19 @@ namespace F1RaceEngineer.Models
 
         // A season is labelled by the calendar year its races fall in (the game gives no season
         // year, only an opaque id), e.g. "2026 SEASON". Spanning a New Year shows both: "2025-26 SEASON".
+        // The career type is appended when known - "2026 SEASON · TWO-PLAYER CAREER". That's not
+        // decoration: two careers played in the same year used to collide here and fall through to
+        // the "(2)" suffix below, which said only "there is another one" and not how they differ.
+        // The type is taken from the newest weekend (weekends are newest-first), which is
+        // representative because a career save can't change its own mode.
         private static string YearLabel(List<WeekendCardView> weekends)
         {
             var years = weekends.Select(w => w.Race.Source.SavedAtUtc.ToLocalTime().Year).Distinct().OrderBy(y => y).ToList();
             string span = years.Count == 1 ? years[0].ToString() : $"{years.First()}-{years.Last() % 100:D2}";
-            return $"{span} SEASON";
+            string label = $"{span} SEASON";
+
+            var newest = weekends[0].Race;
+            return newest.HasCareerType ? $"{label} · {newest.CareerTypeText.ToUpperInvariant()}" : label;
         }
     }
 }
