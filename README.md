@@ -93,9 +93,12 @@ online docs.
 
 - **Won't connect / no data**: confirm Windows Firewall isn't blocking the app (it may
   prompt on first run - allow it), confirm the game is actively in a driving session
-  (not a menu or replay), and confirm no other telemetry tool (SimHub, RaceLab,
-  CrewChief, etc.) is already bound to the same UDP port - only one app can bind a
-  given port at a time.
+  (not a menu or replay), and confirm no other telemetry tool is already bound to the
+  same UDP port - only one app can bind a given port at a time.
+
+  The same checklist is built into the app: the **?** button in the top-right opens a
+  card with the exact in-game settings, your current port, and what the app is
+  receiving right now. The "Waiting for a session" screen links to it too.
 
 ## License
 

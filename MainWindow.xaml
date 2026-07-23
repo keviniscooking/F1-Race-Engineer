@@ -71,6 +71,21 @@
             </StackPanel>
 
             <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
+                <!-- Telemetry setup help. First in the group because it's the one a brand-new user
+                     needs before anything else works. Circled question mark, drawn as vectors to
+                     match the clock and cog exactly - same 15x15 Viewbox over a 24x24 canvas with
+                     Foreground-bound strokes, so all three dim and brighten together. -->
+                <ToggleButton x:Name="HelpButton" Style="{StaticResource IconToggleButtonStyle}" ToolTip="How to connect the game"
+                              Margin="0,0,6,0" Checked="HelpButton_Checked" Unchecked="HelpButton_Unchecked">
+                    <Viewbox Width="15" Height="15">
+                        <Canvas Width="24" Height="24">
+                            <Path Data="M12 3a9 9 0 1 0 0 18 9 9 0 1 0 0-18" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="1.9" StrokeLineJoin="Round"/>
+                            <Path Data="M9.2 9.3a2.9 2.9 0 0 1 5.6 1c0 1.9-2.8 2.4-2.8 4.2" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="1.9" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+                            <Path Data="M12 17.4v.2" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="2.2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                        </Canvas>
+                    </Viewbox>
+                </ToggleButton>
+
                 <!-- Race history: opens the saved-race overlay. Clock-with-back-arrow glyph,
                      stroke bound to the button's own Foreground so it dims/brightens with the
                      shared icon-button states. -->
@@ -103,6 +118,84 @@
             <Popup x:Name="SettingsPopup" PlacementTarget="{Binding ElementName=SettingsButton}"
                    Placement="Bottom" StaysOpen="False" Closed="SettingsPopup_Closed">
                 <widgets:SettingsPanel x:Name="SettingsFlyoutContent"/>
+            </Popup>
+
+            <!-- Telemetry setup card. A Popup, not a Window (no taskbar entry, closes on
+                 click-away) and not a full overlay like history - this is reference you want
+                 ON TOP of the dashboard while you fix settings, not instead of it. -->
+            <!-- HorizontalOffset pulls the card back by its own width so its RIGHT edge lines up
+                 with the button rather than its left. Anchored below a button this close to the
+                 window edge, the default placement threw most of the card off the right side of
+                 the window onto the desktop behind it. The offset is -(Width - button width), so
+                 the Border below carries a fixed Width rather than MaxWidth - a content-sized card
+                 would make the two disagree and drift. -->
+            <Popup x:Name="HelpPopup" PlacementTarget="{Binding ElementName=HelpButton}"
+                   Placement="Bottom" HorizontalOffset="-406" StaysOpen="False" Closed="HelpPopup_Closed" AllowsTransparency="True">
+                <Border Background="#161B22" BorderBrush="#30363D" BorderThickness="1" CornerRadius="10"
+                        Padding="18" Margin="0,6,0,10" Width="430">
+                    <Border.Effect><DropShadowEffect Color="#000000" BlurRadius="20" ShadowDepth="4" Direction="270" Opacity="0.6"/></Border.Effect>
+                    <StackPanel>
+                        <TextBlock Text="CONNECTING THE GAME" FontSize="12" FontWeight="Bold" Foreground="#E6EDF3"/>
+
+                        <!-- Live status first: "waiting for data" almost always means the game
+                             isn't sending, so naming what the app can see points the user at the
+                             right half of the problem before they read a single setting. -->
+                        <Border x:Name="HelpStatusBox" CornerRadius="6" Padding="10,7" Margin="0,12,0,0" Background="#11161D">
+                            <!-- A Grid, not a horizontal StackPanel: a StackPanel offers its child
+                                 infinite width, so TextWrapping never engages and the status line
+                                 was silently clipped mid-sentence. -->
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                <Ellipse x:Name="HelpStatusDot" Grid.Column="0" Width="8" Height="8" VerticalAlignment="Top" Margin="0,4,8,0"/>
+                                <TextBlock x:Name="HelpStatusText" Grid.Column="1" FontSize="11.5" Foreground="#E6EDF3" TextWrapping="Wrap"/>
+                            </Grid>
+                        </Border>
+
+                        <TextBlock Text="In F1 25:  Options → Settings → Telemetry Settings" FontSize="11.5"
+                                   Foreground="#9BA7B4" Margin="0,14,0,0" TextWrapping="Wrap"/>
+
+                        <!-- Values, not prose: this is a checklist to hold beside the game's menu.
+                             The port echoes the live port box - hardcoding 20777 here would
+                             actively mislead anyone who changed it. -->
+                        <Grid Margin="0,10,0,0">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="UDP Telemetry" Style="{StaticResource HelpKey}"/>
+                                <TextBlock Text="UDP IP Address" Style="{StaticResource HelpKey}"/>
+                                <TextBlock Text="UDP Port" Style="{StaticResource HelpKey}"/>
+                                <TextBlock Text="UDP Send Rate" Style="{StaticResource HelpKey}"/>
+                                <TextBlock Text="UDP Format" Style="{StaticResource HelpKey}"/>
+                                <TextBlock Text="UDP Broadcast Mode" Style="{StaticResource HelpKey}"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Text="On" Style="{StaticResource HelpVal}"/>
+                                <TextBlock Text="127.0.0.1" Style="{StaticResource HelpVal}"/>
+                                <TextBlock x:Name="HelpPortValue" Style="{StaticResource HelpVal}"/>
+                                <TextBlock Text="20Hz or 60Hz" Style="{StaticResource HelpVal}"/>
+                                <TextBlock Text="2025 or 2026" Style="{StaticResource HelpVal}"/>
+                                <TextBlock Text="Off" Style="{StaticResource HelpVal}"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <TextBlock Text="Then back out of the menu so the settings save." FontSize="11"
+                                   Foreground="#6B7684" Margin="0,10,0,0" TextWrapping="Wrap"/>
+
+                        <Border BorderBrush="#232B35" BorderThickness="0,1,0,0" Margin="0,14,0,0" Padding="0,12,0,0">
+                            <StackPanel>
+                                <TextBlock Text="STILL NO DATA?" FontSize="10" FontWeight="Bold" Foreground="#6B7684"/>
+                                <!-- Deliberately no third-party app names: they date badly and
+                                     reading like an endorsement isn't this card's job. The
+                                     behaviour is what matters, and it's true of any of them. -->
+                                <TextBlock Margin="0,7,0,0" FontSize="11" Foreground="#8B97A4" TextWrapping="Wrap"
+                                           Text="• Another telemetry app may already hold this port — only one app can use it at a time."/>
+                                <TextBlock Margin="0,5,0,0" FontSize="11" Foreground="#8B97A4" TextWrapping="Wrap"
+                                           Text="• Allow F1 Race Engineer through Windows Firewall if it prompted on first run."/>
+                                <TextBlock Margin="0,5,0,0" FontSize="11" Foreground="#8B97A4" TextWrapping="Wrap"
+                                           Text="• You must be in a driving session — menus and replays send nothing."/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Border>
             </Popup>
         </Grid>
 
@@ -198,6 +291,15 @@
                            FontSize="12" Foreground="#5A6470" Margin="0,8,0,0" HorizontalAlignment="Center"/>
                 <TextBlock Text="Or preview a layout from the &#9881; settings menu."
                            FontSize="11" Foreground="#4A5460" Margin="0,4,0,0" HorizontalAlignment="Center"/>
+
+                <!-- Offers help at the moment it's needed rather than waiting to be found. This is
+                     the screen a user stares at when it isn't working, so the prompt belongs here
+                     as well as behind the "?" icon - someone who doesn't know the icon exists will
+                     never click it. -->
+                <TextBlock HorizontalAlignment="Center" Margin="0,16,0,0" FontSize="11.5">
+                    <Hyperlink Click="HelpLink_Click" Foreground="#58A6FF" TextDecorations="None"
+                               ToolTip="Show the in-game telemetry settings">Not receiving data? Check your in-game telemetry settings</Hyperlink>
+                </TextBlock>
             </StackPanel>
         </Border>
 

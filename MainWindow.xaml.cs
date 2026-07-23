@@ -26,6 +26,11 @@ namespace F1RaceEngineer
         private const int DwmwaTextColor = 36;
 
         private readonly UdpListenerService _listener = new();
+
+        // True once ANY telemetry packet has arrived this run - see the subscription in the
+        // constructor. Only read by the help card, to tell "nothing is being sent" apart from
+        // "data is flowing but this session type has no layout".
+        private bool _hasReceivedPacket;
         private readonly TelemetryState _state = new();
         private readonly WindowStateStore _windowState = new();
 
@@ -113,6 +118,17 @@ namespace F1RaceEngineer
             WidgetGrid.SizeChanged += WidgetGrid_SizeChanged;
 
             _state.Attach(_listener);
+
+            // Distinguishes "bound to the port but the game has never sent anything" from
+            // "receiving fine, just not in a supported session type" - the help card gives those
+            // two very different advice, and CurrentPreset alone can't tell them apart. Set once;
+            // the handler unsubscribes itself so it costs nothing for the rest of the session.
+            void FirstPacket(F1Game.UDP.Packets.UnionPacket _)
+            {
+                _hasReceivedPacket = true;
+                _listener.PacketReceived -= FirstPacket;
+            }
+            _listener.PacketReceived += FirstPacket;
 
             // Try once on launch so the common case (game already configured to send to
             // the default port) needs no manual click. Deliberately no retry loop if
@@ -420,20 +436,69 @@ namespace F1RaceEngineer
         }
 
         /// <summary>
-        /// Esc closes the history overlay. The only other way out is the same icon that opened it,
-        /// which several users won't find - the preset pills above look like tabs but are a
-        /// read-only session indicator, so clicking them to "leave" does nothing and the app reads
-        /// as stuck. Handled on the window (not the panel) so it works wherever focus happens to
-        /// be, and only when the overlay is actually open so Esc stays free otherwise.
+        /// Esc closes whichever panel is open. Without it the only way out of the history overlay
+        /// was the same icon that opened it, which several users won't find - the preset pills
+        /// above look like tabs but are a read-only session indicator, so clicking them to "leave"
+        /// does nothing and the app reads as stuck. Handled on the window (not the panel) so it
+        /// works wherever focus happens to be, and only when something is actually open so Esc
+        /// stays free otherwise.
         /// </summary>
         protected override void OnPreviewKeyDown(System.Windows.Input.KeyEventArgs e)
         {
-            if (e.Key == System.Windows.Input.Key.Escape && HistoryButton.IsChecked == true)
+            if (e.Key == System.Windows.Input.Key.Escape)
             {
-                HistoryButton.IsChecked = false; // routes through Unchecked, so the icon un-highlights too
-                e.Handled = true;
+                // Unchecking routes through each button's Unchecked handler, so the icon
+                // un-highlights too rather than being left looking active over a closed panel.
+                if (HelpButton.IsChecked == true) { HelpButton.IsChecked = false; e.Handled = true; }
+                else if (HistoryButton.IsChecked == true) { HistoryButton.IsChecked = false; e.Handled = true; }
             }
             base.OnPreviewKeyDown(e);
+        }
+
+        // ---- telemetry help ----
+        private void HelpLink_Click(object sender, RoutedEventArgs e) => HelpButton.IsChecked = true;
+
+        private void HelpButton_Checked(object sender, RoutedEventArgs e)
+        {
+            RefreshHelpCard();
+            HelpPopup.IsOpen = true;
+        }
+
+        private void HelpButton_Unchecked(object sender, RoutedEventArgs e) => HelpPopup.IsOpen = false;
+
+        // Click-away closes the Popup itself (StaysOpen=False); this puts the toggle back in sync
+        // so the icon doesn't stay lit over a card that's gone.
+        private void HelpPopup_Closed(object sender, EventArgs e) => HelpButton.IsChecked = false;
+
+        /// <summary>
+        /// Fills the help card from live state rather than static text. The port echoes the port
+        /// box - printing a hardcoded 20777 would actively mislead anyone who changed it - and the
+        /// status line names what the app can actually see, because "connected but no data" and
+        /// "not listening at all" have completely different causes.
+        /// </summary>
+        private void RefreshHelpCard()
+        {
+            HelpPortValue.Text = string.IsNullOrWhiteSpace(PortTextBox.Text) ? "20777" : PortTextBox.Text.Trim();
+
+            string text;
+            string dot;
+            if (!_listener.IsRunning)
+            {
+                dot = "#F85149";
+                text = "Not listening. Press Connect above, then set the values below in the game.";
+            }
+            else if (_state.CurrentPreset == PresetType.Unsupported && !_hasReceivedPacket)
+            {
+                dot = "#E8C52E";
+                text = "Listening, but no telemetry has arrived yet — the settings below are usually why.";
+            }
+            else
+            {
+                dot = "#3FB950";
+                text = "Receiving telemetry. Everything is set up correctly.";
+            }
+            HelpStatusDot.Fill = (SolidColorBrush)new BrushConverter().ConvertFromString(dot)!;
+            HelpStatusText.Text = text;
         }
 
         private void HistoryButton_Checked(object sender, RoutedEventArgs e)
