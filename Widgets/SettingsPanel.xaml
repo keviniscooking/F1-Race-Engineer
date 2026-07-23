@@ -5,7 +5,11 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d">
 
-    <Border Background="#161B22" BorderBrush="#30363D" BorderThickness="1" CornerRadius="8" Padding="14" MinWidth="220">
+    <!-- Explicit Width, not MinWidth: MainWindow offsets this popup by exactly -(Width - button)
+         so its right edge meets the gear instead of running off the window. A content-sized panel
+         would make the two disagree the moment anything in here got wider - which is exactly what
+         happened when the CONNECTION row was added and the Disconnect button fell off the edge. -->
+    <Border Background="#161B22" BorderBrush="#30363D" BorderThickness="1" CornerRadius="8" Padding="14" Width="288">
         <StackPanel>
             <TextBlock Text="WIDGETS" FontSize="11" Foreground="#6B7684" Margin="0,0,0,10"/>
             <ItemsControl ItemsSource="{Binding}">
@@ -27,6 +31,27 @@
                 <Button x:Name="PreviewQualifyingButton" Content="Qualifying" Style="{StaticResource PreviewButtonStyle}" Click="PreviewQualifying_Click" Margin="4,0,0,0"/>
                 <Button x:Name="PreviewRaceButton" Content="Race" Style="{StaticResource PreviewButtonStyle}" Click="PreviewRace_Click" Margin="4,0,0,0"/>
             </StackPanel>
+
+            <Border BorderBrush="#232B35" BorderThickness="0,1,0,0" Margin="0,12,0,10"/>
+
+            <!-- CONNECTION lives here, not in the help card, because the port is app
+                 CONFIGURATION while the help card's copy of it is an INSTRUCTION ("set this
+                 in the game"). Making the same number editable inside an explainer would
+                 leave a troubleshooting user unsure whether they're changing what the app
+                 listens on or what the game sends to. Editable here, read-only there.
+                 This is also the permanent home for these controls now that the top bar
+                 hides them once telemetry is flowing. -->
+            <TextBlock Text="CONNECTION" FontSize="10" Foreground="#6B7684" Margin="0,0,0,4"/>
+            <TextBlock Text="The UDP port this app listens on. Must match the game's UDP Port setting."
+                       FontSize="10" Foreground="#4A5460" TextWrapping="Wrap" Margin="0,0,0,8"/>
+            <StackPanel Orientation="Horizontal">
+                <TextBox x:Name="SettingsPortBox" Width="70" Height="24" FontSize="11" VerticalContentAlignment="Center"/>
+                <Button x:Name="SettingsConnectButton" Content="Reconnect" Height="24" Margin="6,0,0,0" FontSize="11"
+                        Click="SettingsConnect_Click"/>
+                <Button x:Name="SettingsDisconnectButton" Content="Disconnect" Height="24" Margin="4,0,0,0" FontSize="11"
+                        Click="SettingsDisconnect_Click"/>
+            </StackPanel>
+            <TextBlock x:Name="SettingsConnStatus" FontSize="10" Foreground="#6B7684" TextWrapping="Wrap" Margin="0,7,0,0"/>
 
             <!-- Set from the assembly's informational version (App.csproj's <Version>)
                  in code-behind, not bound - this is static build metadata, not live

@@ -50,7 +50,9 @@
                  and Button both carry their own template chrome (focus rings, borders)
                  that would otherwise render taller than the plain Border+TextBlock tabs
                  even with visually-similar Padding values. -->
-            <StackPanel Grid.Column="0" Orientation="Horizontal" HorizontalAlignment="Left">
+            <!-- Collapses once the connection is proven (see UpdateConnectionBarVisibility). The
+                 permanent home for these controls is the settings panel's CONNECTION section. -->
+            <StackPanel x:Name="ConnectionBar" Grid.Column="0" Orientation="Horizontal" HorizontalAlignment="Left">
                 <TextBlock Text="Port:" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="11" Foreground="#6B7684"/>
                 <TextBox x:Name="PortTextBox" Width="70" Height="24" Text="20777" FontSize="11"/>
                 <Button x:Name="ConnectButton" Content="Connect" Height="24" Margin="10,0,0,0" FontSize="11" Click="ConnectButton_Click"/>
@@ -115,8 +117,10 @@
                     </Viewbox>
                 </ToggleButton>
             </StackPanel>
+            <!-- Offset so the panel's right edge meets the gear rather than extending past the
+                 window - see the Width note in SettingsPanel.xaml. -->
             <Popup x:Name="SettingsPopup" PlacementTarget="{Binding ElementName=SettingsButton}"
-                   Placement="Bottom" StaysOpen="False" Closed="SettingsPopup_Closed">
+                   Placement="Bottom" HorizontalOffset="-264" StaysOpen="False" Closed="SettingsPopup_Closed">
                 <widgets:SettingsPanel x:Name="SettingsFlyoutContent"/>
             </Popup>
 
@@ -179,6 +183,15 @@
 
                         <TextBlock Text="Then back out of the menu so the settings save." FontSize="11"
                                    Foreground="#6B7684" Margin="0,10,0,0" TextWrapping="Wrap"/>
+
+                        <!-- Closes the loop: the port above is READ-ONLY here (it's what to type
+                             into the game), and the top bar hides its own copy once telemetry is
+                             flowing - so without this line a user needing a different port would
+                             have nowhere to go. -->
+                        <TextBlock FontSize="11" Foreground="#6B7684" Margin="0,6,0,0" TextWrapping="Wrap">
+                            <Run Text="Need a different port? Change it in"/>
+                            <Hyperlink Click="HelpOpenSettings_Click" Foreground="#58A6FF" TextDecorations="None">Settings → Connection</Hyperlink>
+                        </TextBlock>
 
                         <Border BorderBrush="#232B35" BorderThickness="0,1,0,0" Margin="0,14,0,0" Padding="0,12,0,0">
                             <StackPanel>

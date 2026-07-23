@@ -96,6 +96,7 @@ namespace F1RaceEngineer
                 StatusText.Text = "Connected, waiting for data...";
                 StatusText.Foreground = Brushes.LimeGreen;
                 ConnectButton.Content = "Disconnect";
+                UpdateConnectionBarVisibility();
             });
 
             _listener.Stopped += () => Dispatcher.Invoke(() =>
@@ -103,6 +104,7 @@ namespace F1RaceEngineer
                 StatusText.Text = "Not connected";
                 StatusText.Foreground = Brushes.OrangeRed;
                 ConnectButton.Content = "Connect";
+                UpdateConnectionBarVisibility();
             });
 
             _listener.ErrorOccurred += ex => Dispatcher.Invoke(() =>
@@ -127,8 +129,17 @@ namespace F1RaceEngineer
             {
                 _hasReceivedPacket = true;
                 _listener.PacketReceived -= FirstPacket;
+                Dispatcher.Invoke(UpdateConnectionBarVisibility);
             }
             _listener.PacketReceived += FirstPacket;
+
+            SettingsFlyoutContent.ConnectRequested += port =>
+            {
+                PortTextBox.Text = port;   // the top-bar box stays the single source of truth
+                if (_listener.IsRunning) _listener.Stop();
+                Connect();
+            };
+            SettingsFlyoutContent.DisconnectRequested += () => { if (_listener.IsRunning) _listener.Stop(); };
 
             // Try once on launch so the common case (game already configured to send to
             // the default port) needs no manual click. Deliberately no retry loop if
@@ -455,8 +466,36 @@ namespace F1RaceEngineer
             base.OnPreviewKeyDown(e);
         }
 
+        /// <summary>
+        /// Hides the port / Connect / status group once the connection is proven, and shows it
+        /// whenever it isn't. The top bar spent its whole left third on plumbing that is idle in
+        /// the overwhelming majority of sessions - the app auto-connects on launch - so it now
+        /// only appears when there is actually something to do about it.
+        ///
+        /// Safe to collapse with no layout consequence, and that's by design rather than luck:
+        /// every element in this row carries an explicit Height="24", so the row can't change
+        /// height, and this group sits in a STAR column, so the preset pills stay centred on the
+        /// window and the icons stay pinned right regardless.
+        ///
+        /// The condition uses _hasReceivedPacket, which is once-true-forever on purpose: if the
+        /// game is closed mid-session the data stops but the port is still proven good, and the
+        /// controls flapping back in would be noise, not information.
+        /// </summary>
+        private void UpdateConnectionBarVisibility()
+        {
+            bool proven = _listener.IsRunning && _hasReceivedPacket;
+            ConnectionBar.Visibility = proven ? Visibility.Collapsed : Visibility.Visible;
+        }
+
         // ---- telemetry help ----
         private void HelpLink_Click(object sender, RoutedEventArgs e) => HelpButton.IsChecked = true;
+
+        /// <summary>Hands the user straight to the port field rather than just naming where it is.</summary>
+        private void HelpOpenSettings_Click(object sender, RoutedEventArgs e)
+        {
+            HelpButton.IsChecked = false;    // one panel at a time; also closes the popup
+            SettingsButton.IsChecked = true; // routes through Checked, so state is pushed in first
+        }
 
         private void HelpButton_Checked(object sender, RoutedEventArgs e)
         {
@@ -514,7 +553,19 @@ namespace F1RaceEngineer
 
         private void SettingsButton_Checked(object sender, RoutedEventArgs e)
         {
+            // Push live connection state in each time it opens, rather than binding - the panel
+            // holds no listener of its own, so this keeps one owner for the socket.
+            SettingsFlyoutContent.ShowConnection(PortTextBox.Text, _listener.IsRunning, ConnectionSummary());
             SettingsPopup.IsOpen = true;
+        }
+
+        /// <summary>Shared wording for the settings panel and the help card, so they can't drift.</summary>
+        private string ConnectionSummary()
+        {
+            if (!_listener.IsRunning) return "Not listening.";
+            return _hasReceivedPacket
+                ? "Receiving telemetry."
+                : "Listening — no telemetry has arrived yet.";
         }
 
         private void SettingsButton_Unchecked(object sender, RoutedEventArgs e)
