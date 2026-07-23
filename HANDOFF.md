@@ -1927,48 +1927,96 @@ before rebuilding a version of this.
   `DrsFault` are all received and unused.
 - **Weather forecast timeline — proposed, undecided.** Currently a single "next change"
   callout; a small timeline across the forecast samples would read like a pit-wall rain radar.
-- **Two-player career support — AGREED IN PRINCIPLE, design conversation paused mid-flight
-  (resumes next session). Do not build ahead of that conversation.** The user plays two-player
-  career with friends often and explicitly does not want a solution that relies on exchanging
-  files between machines.
-  - **The enabling discovery: no file exchange is needed at all.** In a two-player career both
-    humans are in the *same session*, and `SessionHistoryDataPacket` is **per car** (`CarIndex`) -
-    it carries the full lap history (up to 100 laps) with lap time, **all three sector times**,
-    validity flags, best-sector lap numbers **and** tyre stint history. The app already receives
-    and handles this packet but currently mines it only for best laps (§5 thirty-seventh round).
-    So the other player's complete lap-by-lap and strategy is already arriving and being discarded.
-  - **Detecting the mode, two independent ways.** `SessionDataPacket.GameMode` has explicit values
-    `Career25Online` (two-player career) and `SplitScreen` (local), alongside `DriverCareer25` /
-    `MyTeamCareer25` / `ChallengeCareer25` and the online/TimeTrial/StoryMode entries. Independently,
-    `ParticipantData.IsAiControlled` is per-car, so counting non-AI entries identifies the humans
-    without trusting the enum - the same belt-and-braces approach the sprint/race lap-count check
-    uses after F1 25 mislabelled session types.
-  - **AGREED to build:** (1) **highlight both human players in the Race Position Tower** - today only
-    the player's own row is marked, so a second human is indistinguishable from 19 AI cars, and this
-    gates everything else; (2) **store the other human's lap-by-lap and stints in `SavedRace`**
-    alongside `PlayerLaps` (roughly doubles a race file - negligible, the whole history is ~24KB).
-    The user restated the highlight requirement under the history item too, which reads as wanting
-    both humans marked in the **saved race's classification view** as well as the live tower -
-    confirm which surfaces next session.
-  - **AGREED in principle but PRESENTATION UNDECIDED - specify before building:** a head-to-head tab
-    in the saved-race detail (sector deltas, median race pace, consistency, the two strategy bars
-    stacked via `StintStripRenderer`), and a **season head-to-head** strip ("You 7 - 5 Alex" across
-    race finishes, plus qualifying and best-lap H2H, in the existing `SeasonGroupView`). The user
-    wants to work out exactly how these read before any of it is built.
-  - **DEFERRED, "maybe later":** a pinned always-visible gap to the other human (independent of
-    position), and a live during-the-race sector head-to-head.
-  - **Open question to settle:** with 3+ humans, is there one pinned "rival" or are all tracked?
-  - **Build nothing before one logged two-player session confirms the theory** - specifically that
-    `IsAiControlled` marks both humans and that `SessionHistory` populates for the other player's
-    car. All of the above is reasoned from the API dump, and this project has been burned by exactly
-    that before (the pit-tag saga, §6, and the sprint/race session-type inversion).
-  - **Superseded idea, recorded so it isn't re-proposed:** exporting/importing race JSON between
-    friends, plus capturing the "fairness fingerprint" (`AIDifficulty`, the ten assist flags,
-    `RuleSet`, `IsNetworkGame`) needed to make cross-machine comparisons honest. That solves the
-    *general* case - two different races on the same track, different difficulty and assists - which
-    the same-session case makes unnecessary. Note those fields are still captured nowhere, and
-    assists are session-level (they describe *your own* settings, not per-driver), so they remain the
-    only route if a general comparison is ever wanted.
+- **Two-player career head-to-head — DESIGN COMPLETE AND APPROVED, NOT BUILT.** Awaiting an
+  explicit go-ahead before any code is written; the user was emphatic that agreement on scope is
+  not agreement to build. Everything below is decided, not proposed.
+  - **Why no file exchange is needed.** In a two-player career both humans are in the *same*
+    session, and `SessionHistoryDataPacket` is **per car** (`CarIndex`), carrying the full lap
+    history (100 laps) with lap time, all three sector times, validity flags, best-sector lap
+    numbers **and** tyre stint history. This is not a theory: per-car session history is already
+    load-bearing in shipped code - the Practice/Qualifying timing board ranks the whole field from
+    `_carBestLapMs[packet.CarIndex]` in `HandleSessionHistory` (§5 thirty-seventh round). So "we
+    receive full lap history for cars that aren't the player" is proven production behaviour.
+  - **Activation gate: `GameMode == Career25Online` AND exactly 2 non-AI cars.** Per the user:
+    a two-player career never has more than two player-controlled cars; multiplayer lobbies do,
+    and those simply keep today's behaviour (own car highlighted only). Belt-and-braces on two
+    signals rather than one, matching the sprint/race lap-count check that caught F1 25 mislabelling
+    session types. This promotes `GameMode` from a display label to the **feature's gate** - it is
+    foundational, not cosmetic.
+  - **No backwards compatibility, and the slate is already clean.** `GameMode` can't be backfilled
+    into existing saves, so rather than carry a compat path the user cleared the entire race
+    history on **23 July 2026** - verified empty (0 files in `%LocalAppData%\F1RaceEngineer\
+    history\`) at the time this spec was written. Every saved race from here on will carry
+    `GameMode`, the rival's laps and everything else this feature needs. **Do not build a
+    fallback for saves that predate it - there are none.** This is the same call made in §5's
+    thirty-eighth round, when clearing the history removed the reason for the penalty compat layer.
+
+  **IN SCOPE (all decided):**
+  1. **Capture `GameMode`** on `SavedRace`, cached in `HandleSession` alongside `_currentTrack` /
+     `_seasonLinkId` (identical pattern). Career-type label in the season header:
+     `2026 SEASON · TWO-PLAYER CAREER`. This also **replaces the meaningless `(2)` suffix**
+     `HistoryGroups` appends when two careers share a calendar year, with the actual reason they
+     differ.
+  2. **Highlight both humans in the Race Position Tower** (`ParticipantData.IsAiControlled`).
+     Today only the player's row is marked, so a second human is indistinguishable from 19 AI.
+     Gates everything else.
+  3. **Store the rival's laps + stints in `SavedRace`** beside `PlayerLaps`. Roughly doubles a
+     race file - negligible, the whole history is ~24KB.
+  4. **`[ RESULT | HEAD TO HEAD ]` pill toggle** in the race detail, swapping the **whole body**
+     (row 3), header rows retained. **MUST be orthogonal to the existing `SessionTabs`**, which
+     picks *which session* (Race/Sprint) - merging the two axes would force a 2x2 tab matrix on
+     sprint weekends. Chosen specifically because the detail body is a 50/50 split with both
+     columns already full (classification + penalties | strategy + lap-by-lap) under a no-page-
+     scroll rule, so there is nowhere to insert H2H without damaging what's there.
+  5. **The H2H page**, mirroring the existing 50/50 split - left: verdict + tape; right: gap
+     evolution + strategy:
+     - **Verdict banner** - both drivers, finish, points, who won, gap at the flag.
+     - **Tale of the tape** - grid, finish, positions gained, best lap, **ideal lap** (sum of best
+       sectors), best S1/S2/S3 each (the game gives `BestSector1LapNum` etc. directly), race pace
+       (median green lap, excluding in/out/SC laps - the mean is wrecked by one pit lap),
+       consistency (spread), stops, penalties/warnings, laps ahead (from cumulative lap times).
+       The **ideal-lap row is the point of the whole table** - it shows *where* the time is, not
+       just who was faster.
+     - **Gap evolution** - line chart of the gap between the two cars, lap by lap; above the axis
+       ahead, below behind. Derived exactly from cumulative lap times in `SessionHistory`, needs
+       no events. Vector-drawn per the project's "drawn, not captured" rule.
+     - **Strategy** - two stint bars stacked with pit markers (`StintStripRenderer` as-is), stop
+       laps and stint lengths, so an undercut reads as a visible offset.
+  6. **Season H2H strip** in the season header (the list scrolls, so vertical space is cheap
+     there): broadcast-style split bars for races won, points, fastest laps, podiums - i.e. the
+     tale of the tape and the "mini-championship between just the two of you" are **one surface,
+     not two features**.
+  7. **Card verdict block** - one stat block in the history card's stat row, which has dead space
+     between `STOPS` and the right-pinned `POINTS`: `VS ALEX  ▲ P4-P7`, green if you beat them,
+     red if not. Deliberately NOT a full H2H - the card is far too small - but enough to scan a
+     season and see who won each round.
+
+  **OUT OF SCOPE (each explicitly declined by the user):** battle log ("no value to me") · live
+  rivalry alerts in the Race tab banner · lap chips for overtake/contact · split-screen support
+  (`GameMode.SplitScreen`, never played) · qualifying capture · pinned always-visible rival gap ·
+  live during-race sector H2H · top speed.
+
+  **The consequence of those cuts is the important part: the feature now has ZERO unverified
+  data dependencies.** `OvertakeEvent`, `CollisionEvent` and `SpeedTrapEvent` are the three
+  packets the app has never handled, and dropping the battle log, the live banner and top speed
+  removes the need for all three - including the `CollisionSettings.PlayerToPlayerOff` trap,
+  where contact between two players may never fire an event at all. Everything remaining is built
+  on `SessionHistory` and Final Classification, both already parsed in production.
+
+  **Still to verify before/while building** (observation only, no code needed): that `GameMode`
+  really reports `Career25Online`, and that `IsAiControlled` marks both humans. That the game
+  sends `SessionHistory` for a human-driven car is near-certain (it does for AI) but unobserved.
+  A **grid head-to-head comes free** either way - `GridPosition` is already on the saved
+  classification, so "who out-qualified whom" is answerable per race with no quali capture at all,
+  which recovers much of what deferring qualifying gave up.
+
+  **Superseded idea, recorded so it isn't re-proposed:** exchanging race JSON between friends plus
+  capturing a "fairness fingerprint" (`AIDifficulty`, the ten assist flags, `RuleSet`,
+  `IsNetworkGame`) to make cross-machine comparisons honest. That solves the *general* case - two
+  different races, different difficulty and assists - which the same-session case makes
+  unnecessary. Those fields are still captured nowhere, and assists are session-level (they
+  describe *your own* settings, not per-driver), so they remain the only route if a general
+  comparison is ever wanted.
 - **Uninstall-time race-history rescue — investigated and REJECTED by the user, don't rebuild
   without new information.** Uninstalling deletes the saved race history (see §2's release-steps
   correction). Several shapes were designed and all were declined: a tickbox during uninstall, an
