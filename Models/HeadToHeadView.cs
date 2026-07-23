@@ -301,6 +301,9 @@ namespace F1RaceEngineer.Models
         public List<H2HStopRow> Stops { get; }
         public bool HasStops { get; }
         public string StopTotalText { get; }
+        // Stop laps as plain numbers, for marking the gap chart - the big swings in that trace
+        // ARE the pit stops, and without markers the reader has to cross-reference the list.
+        public List<int> PitLaps { get; }
 
         public H2HSide(SavedH2HDriver d)
         {
@@ -326,6 +329,7 @@ namespace F1RaceEngineer.Models
             uint totalBox = 0;
             foreach (var s in d.Stops) totalBox += s.StationaryMs;
             StopTotalText = HasStops ? $"{totalBox / 1000.0:0.00}s" : "—";
+            PitLaps = d.Stops.Select(s => s.Lap).ToList();
         }
     }
 
@@ -356,6 +360,10 @@ namespace F1RaceEngineer.Models
         public string DeltaText { get; set; } = "";
         public bool YouBetter { get; set; }
         public bool RivalBetter { get; set; }
+
+        // Sector rows are a breakdown of the IDEAL LAP row above them, so they're indented to
+        // read as subordinate rather than as three more top-level comparisons.
+        public System.Windows.Thickness LabelIndent { get; set; }
 
         private static readonly SolidColorBrush Ink = Freeze(0xE6, 0xED, 0xF3);
         private static readonly SolidColorBrush Dim = Freeze(0x8B, 0x97, 0xA4);
@@ -397,8 +405,12 @@ namespace F1RaceEngineer.Models
 
         // Sectors read as plain seconds ("26.304"), not m:ss.mmm - the same convention the
         // lap-by-lap sector columns already use.
-        public static H2HRow Sector(string label, uint you, uint rival) =>
-            FromMs(label, you, rival, ms => $"{ms / 1000.0:0.000}");
+        public static H2HRow Sector(string label, uint you, uint rival)
+        {
+            var row = FromMs(label, you, rival, ms => $"{ms / 1000.0:0.000}");
+            row.LabelIndent = new System.Windows.Thickness(14, 0, 0, 0);
+            return row;
+        }
 
         private static H2HRow FromMs(string label, uint you, uint rival, Func<uint, string> fmt)
         {

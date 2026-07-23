@@ -28,8 +28,12 @@ namespace F1RaceEngineer.Widgets
         // are shown in), over a translucent fill so the side of the zero line the race was spent
         // on reads at a glance.
         private static readonly SolidColorBrush GapLineBrush = SavedRaceView.BrushFromHex("#79C0FF");
-        private static readonly SolidColorBrush GapZeroBrush = SavedRaceView.BrushFromHex("#30363D");
-        private static readonly SolidColorBrush GapFillBrush = FrozenAlpha(0x38, 0x79, 0xC0, 0xFF);
+        private static readonly SolidColorBrush GapZeroBrush = SavedRaceView.BrushFromHex("#4A5460");
+        private static readonly SolidColorBrush GapGridBrush = SavedRaceView.BrushFromHex("#232B35");
+        // Pit markers reuse the tower's player/rival accents, so the same two colours mean the
+        // same two people wherever the app distinguishes them.
+        private static readonly SolidColorBrush GapPitYouBrush = FrozenAlpha(0x99, 0x1F, 0x6F, 0xEB);
+        private static readonly SolidColorBrush GapPitRivalBrush = FrozenAlpha(0x99, 0x37, 0xBE, 0xDD);
 
         private static SolidColorBrush FrozenAlpha(byte a, byte r, byte g, byte b)
         {
@@ -318,46 +322,118 @@ namespace F1RaceEngineer.Widgets
             double mid = h / 2;
             double scale = (h / 2 - 6) / _h2h.GapMaxAbsSeconds;
 
-            // Zero line: the moment-by-moment "who's actually ahead" reference.
-            GapCanvas.Children.Add(new WShapes.Line
-            {
-                X1 = 0, X2 = w, Y1 = mid, Y2 = mid,
-                Stroke = GapZeroBrush, StrokeThickness = 1
-            });
-
             double StepX(int i) => series.Count == 1 ? w / 2 : w * i / (series.Count - 1.0);
+            double XForLap(int lap) => StepX(Math.Max(0, Math.Min(series.Count - 1, lap - series[0].Lap)));
             double Y(double gap) => mid - gap * scale;
 
-            // Filled area between the trace and the zero line, so which side of the line the race
-            // was spent on is obvious at a glance rather than needing the trace to be traced.
+            // ---- Y gridlines on a "nice" step (1/2/5 x a power of ten) chosen from the range,
+            //      so the chart reads the same whether the race was decided by 0.4s or 40s.
+            //      Majors are labelled gridlines; minors are unlabelled half-steps that give the
+            //      eye something to interpolate against without adding clutter.
+            double major = NiceStep(_h2h.GapMaxAbsSeconds, 3);
+            for (double v = major; v <= _h2h.GapMaxAbsSeconds + 0.001; v += major)
+            {
+                foreach (double s in new[] { v, -v })
+                {
+                    double y = Y(s);
+                    if (y < 2 || y > h - 2) continue;
+                    GapCanvas.Children.Add(new WShapes.Line { X1 = 28, X2 = w, Y1 = y, Y2 = y, Stroke = GapGridBrush, StrokeThickness = 1 });
+                    AddGapLabel($"{(s > 0 ? "+" : "")}{s:0.#}", 0, y - 7);
+                }
+                double minorV = v - major / 2;
+                foreach (double s in new[] { minorV, -minorV })
+                {
+                    double y = Y(s);
+                    if (y < 2 || y > h - 2) continue;
+                    GapCanvas.Children.Add(new WShapes.Line { X1 = 28, X2 = 34, Y1 = y, Y2 = y, Stroke = GapGridBrush, StrokeThickness = 1 });
+                }
+            }
+
+            // Zero line: the moment-by-moment "who's actually ahead" reference. Drawn after the
+            // gridlines and brighter, so it never gets lost among them.
+            GapCanvas.Children.Add(new WShapes.Line { X1 = 28, X2 = w, Y1 = mid, Y2 = mid, Stroke = GapZeroBrush, StrokeThickness = 1 });
+
+            // ---- Pit markers: the swings in this trace ARE the stops, so mark them. Colour
+            //      matches the tower's convention - the player's own accent blue, the rival in
+            //      cyan - so "which of us pitted" is the same visual language in both places.
+            foreach (var (laps, brush) in new[] { (_h2h.You.PitLaps, GapPitYouBrush), (_h2h.Rival.PitLaps, GapPitRivalBrush) })
+                foreach (int lap in laps)
+                {
+                    double x = XForLap(lap);
+                    if (x < 28 || x > w) continue;
+                    GapCanvas.Children.Add(new WShapes.Line
+                    {
+                        X1 = x, X2 = x, Y1 = 0, Y2 = h, Stroke = brush, StrokeThickness = 1,
+                        StrokeDashArray = new DoubleCollection { 3, 3 }
+                    });
+                }
+
+            // ---- Filled area between the trace and the zero line. The fill is a vertical
+            //      gradient with a hard stop at the zero line, so "ahead" reads green and
+            //      "behind" reads red without having to split the geometry at every crossing.
             var fill = new System.Windows.Media.PathGeometry();
             var fig = new System.Windows.Media.PathFigure { StartPoint = new Point(StepX(0), mid), IsClosed = true, IsFilled = true };
             for (int i = 0; i < series.Count; i++)
                 fig.Segments.Add(new System.Windows.Media.LineSegment(new Point(StepX(i), Y(series[i].GapSeconds)), false));
             fig.Segments.Add(new System.Windows.Media.LineSegment(new Point(StepX(series.Count - 1), mid), false));
             fill.Figures.Add(fig);
-            GapCanvas.Children.Add(new WShapes.Path { Data = fill, Fill = GapFillBrush });
+            GapCanvas.Children.Add(new WShapes.Path { Data = fill, Fill = SplitFill(h, mid) });
 
             var poly = new WShapes.Polyline { Stroke = GapLineBrush, StrokeThickness = 2, StrokeLineJoin = PenLineJoin.Round };
             for (int i = 0; i < series.Count; i++)
                 poly.Points.Add(new Point(StepX(i), Y(series[i].GapSeconds)));
             GapCanvas.Children.Add(poly);
 
-            // Scale labels. Without these the trace is only a shape - a 2s swing and a 20s swing
-            // would draw identically, since the axis is normalised to whatever the biggest gap was.
-            AddGapLabel($"+{_h2h.GapMaxAbsSeconds:0.0}s", 2, 0);
-            AddGapLabel($"-{_h2h.GapMaxAbsSeconds:0.0}s", 2, h - 14);
-            AddGapLabel("0", 2, mid - 14);
-
-            // Lap axis under the trace: first and last lap, plus the biggest-swing lap so the
-            // decisive moment is identifiable rather than just visible.
+            // ---- Lap axis: majors on a nice step scaled to race length (a 5-lap sprint and a
+            //      78-lap grand prix both get a readable number of labels), minors between.
             GapAxis.Children.Clear();
-            int peak = 0;
-            for (int i = 1; i < series.Count; i++)
-                if (Math.Abs(series[i].GapSeconds) > Math.Abs(series[peak].GapSeconds)) peak = i;
-            AddAxisLabel($"L{series[0].Lap}", 0);
-            if (peak > 0 && peak < series.Count - 1) AddAxisLabel($"L{series[peak].Lap}", StepX(peak) - 10);
-            AddAxisLabel($"L{series[^1].Lap}", w - 24);
+            int firstLap = series[0].Lap, lastLap = series[^1].Lap;
+            int lapMajor = Math.Max(1, (int)NiceStep(Math.Max(1, lastLap - firstLap), 5));
+            for (int lap = firstLap; lap <= lastLap; lap++)
+            {
+                bool isMajor = lap == firstLap || lap == lastLap || (lap - firstLap) % lapMajor == 0;
+                double x = XForLap(lap);
+                if (isMajor) AddAxisLabel($"{lap}", x - 6);
+                else if (lapMajor > 2)
+                    GapAxis.Children.Add(new WShapes.Line { X1 = x, X2 = x, Y1 = 0, Y2 = 3, Stroke = GapGridBrush, StrokeThickness = 1 });
+            }
+        }
+
+        /// <summary>
+        /// A "nice" axis step - 1, 2 or 5 times a power of ten - closest to range/target. Keeps
+        /// gridlines on round values at any scale, so the same chart code reads correctly whether
+        /// the two drivers finished 0.4s or 40s apart.
+        /// </summary>
+        private static double NiceStep(double range, int target)
+        {
+            if (range <= 0 || target <= 0) return 1;
+            double raw = range / target;
+            double mag = Math.Pow(10, Math.Floor(Math.Log10(raw)));
+            double norm = raw / mag;
+            double step = norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10;
+            return step * mag;
+        }
+
+        /// <summary>
+        /// Green above the zero line, red below, with a hard transition exactly on it. Absolute
+        /// mapping ties the gradient to the canvas rather than the path's own bounds, which shift
+        /// with the data and would otherwise put the colour change in the wrong place.
+        /// </summary>
+        private static Brush SplitFill(double h, double mid)
+        {
+            double t = h <= 0 ? 0.5 : mid / h;
+            var b = new LinearGradientBrush
+            {
+                MappingMode = BrushMappingMode.Absolute,
+                StartPoint = new Point(0, 0),
+                EndPoint = new Point(0, h)
+            };
+            b.GradientStops.Add(new GradientStop(Color.FromArgb(0x3C, 0x97, 0xC4, 0x59), 0));
+            b.GradientStops.Add(new GradientStop(Color.FromArgb(0x3C, 0x97, 0xC4, 0x59), t));
+            b.GradientStops.Add(new GradientStop(Color.FromArgb(0x3C, 0xE1, 0x2E, 0x2E), t));
+            b.GradientStops.Add(new GradientStop(Color.FromArgb(0x3C, 0xE1, 0x2E, 0x2E), 1));
+            b.Freeze();
+            return b;
         }
 
         private void AddGapLabel(string text, double x, double y)
