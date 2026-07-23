@@ -410,6 +410,11 @@ namespace F1RaceEngineer.Telemetry
         // through end to end.
         public ObservableCollection<LapHistoryEntry> LapHistory { get; } = new();
 
+        // Lap number of the newest row, so a jump in the game's own lap counter can be spotted.
+        // A red flag can advance it by more than one (a real race went 9 -> 11), and without this
+        // the missing lap simply vanished from the list with nothing to show it had.
+        private int _lastHistoryLapNum;
+
         // ---- Tyres (bindable) ----
         private string _tyreCompoundLetter = "?";
         public string TyreCompoundLetter { get => _tyreCompoundLetter; private set => SetProperty(ref _tyreCompoundLetter, value); }
@@ -608,7 +613,14 @@ namespace F1RaceEngineer.Telemetry
             // non-Qualifying preset). One line per session change tells us exactly what to map.
             if (sessionChanged)
                 LogPitEvent(0, DriverStatus.InGarage, PitStatus.None, false, 0, 0, session.TotalLaps,
-                    $"SESSION type={session.SessionType} preset={preset} totalLaps={session.TotalLaps}");
+                    // GameMode is logged as its NUMBER as well as its name. F1Game.UDP 26.0.0 only
+                    // names the 2025 career modes (27-30), so a 2026 career arrives unnamed - a
+                    // real race logged 78, which is DriverCareer25 (28) + 50. Logging the raw
+                    // value is how the 2026 set gets learned from real sessions instead of guessed
+                    // at from that offset. Human count is logged for the same reason: it's the
+                    // other half of the two-player gate and has never been seen live.
+                    $"SESSION type={session.SessionType} preset={preset} totalLaps={session.TotalLaps} " +
+                    $"gameMode={(int)session.GameMode}({session.GameMode}) humans={_humanCarIndices.Count}");
             if (preset != CurrentPreset)
             {
                 CurrentPreset = preset;
@@ -734,6 +746,7 @@ namespace F1RaceEngineer.Telemetry
             // reserves its own space in the layout, so there's no need to pad with placeholder
             // rows - real laps just fill in from the top as they complete.
             LapHistory.Clear();
+            _lastHistoryLapNum = 0;
 
             PositionList.Clear();
             RaceStandings.Clear();
@@ -1172,8 +1185,17 @@ namespace F1RaceEngineer.Telemetry
                 // stint. That's what puts the bar's pit marker on the lap you actually pitted,
                 // matching the lap-by-lap "IN" tag and the saved-race bar (AlignStintsToInLaps),
                 // instead of a lap early. The opening stint is exempt - it starts on lap 1.
-                int fittedLap = _playerCurrentLap - age;
-                int startLap = Math.Max(1, first ? fittedLap : fittedLap + 1);
+                // A LATER stint starts on the lap after the change was OBSERVED - not on a lap
+                // derived from tyre age. Age arithmetic (currentLap - age) assumes the game resets
+                // TyresAgeLaps when tyres are fitted, and after a RED-FLAG tyre change it doesn't:
+                // a real Chinese GP showed fresh hards still reporting ~10 laps of age, which put
+                // the stint boundary at lap 1 and drew a pit stop on the opening lap that never
+                // happened. The observed change moment needs no such assumption. Age is still used
+                // for the FIRST stint, which is the one case it's needed for - it's how a mid-race
+                // connect works out when the opening set went on.
+                int startLap = first
+                    ? Math.Max(1, _playerCurrentLap - age)
+                    : Math.Max(1, _playerCurrentLap + 1);
                 var last = _liveStints.Count > 0 ? _liveStints[^1] : default;
                 if (_liveStints.Count == 0 || last.StartLap != startLap || last.Compound != compound)
                 {
@@ -2125,6 +2147,31 @@ namespace F1RaceEngineer.Telemetry
             return laps;
         }
 
+        /// <summary>
+        /// Fills in placeholder rows for lap numbers the game skipped. The lap counter can jump -
+        /// a red-flagged Chinese GP went straight from 9 to 11 - and those laps have no time
+        /// because they were never run as timed laps. Showing them as numbered blanks keeps the
+        /// list continuous, so a gap reads as "the game skipped this" rather than as the app
+        /// having lost a lap. Nothing is invented: no time, no sectors, no events.
+        /// </summary>
+        private void InsertSkippedLapRows(int completedLapNum)
+        {
+            if (_lastHistoryLapNum <= 0) return;                 // first lap of the session
+            if (completedLapNum <= _lastHistoryLapNum + 1) return; // no gap
+            // Guard against a nonsense jump (a corrupt packet) filling the list with hundreds of
+            // blanks - beyond a handful this isn't a skipped lap, it's bad data.
+            if (completedLapNum - _lastHistoryLapNum > 10) return;
+
+            for (int lap = _lastHistoryLapNum + 1; lap < completedLapNum; lap++)
+                LapHistory.Insert(0, new LapHistoryEntry
+                {
+                    LapNumberText = $"Lap {lap}",
+                    LapTimeText = "—",
+                    DeltaText = "",
+                    ColorBrush = TimingColorPalette.NeutralText
+                });
+        }
+
         private static int ParseLapNumber(string lapText)
         {
             var digits = new string(lapText.Where(char.IsDigit).ToArray());
@@ -2195,10 +2242,33 @@ namespace F1RaceEngineer.Telemetry
 
         private void RegisterLapTime(uint ms, uint sector1Ms, uint sector2Ms, uint sector3Ms, bool isPlayer, string lapTag, uint pitLaneTimeMs, int completedLapNum)
         {
-            bool newSessionBest = _sessionBestLapMs == null || ms < _sessionBestLapMs;
+            // A lap the car never actually ran: no sector was ever timed, yet the game still
+            // reports a "lap time" because its clock ran through a stoppage. A red-flagged lap
+            // arrives as 4:08.315 with three blank sectors - that number is the length of the
+            // interruption, not a lap, and letting it through would poison the session best, the
+            // personal best and every delta after it. Excluded from all of those and shown with no
+            // time at all, which is what actually happened.
+            bool abandoned = sector1Ms == 0 && sector2Ms == 0;
+
+            bool newSessionBest = !abandoned && (_sessionBestLapMs == null || ms < _sessionBestLapMs);
             if (newSessionBest) _sessionBestLapMs = ms;
 
             if (!isPlayer) return;
+
+            if (abandoned)
+            {
+                InsertSkippedLapRows(completedLapNum);
+                LapHistory.Insert(0, new LapHistoryEntry
+                {
+                    LapNumberText = $"Lap {completedLapNum}",
+                    LapTimeText = "—",
+                    DeltaText = "",
+                    ColorBrush = TimingColorPalette.NeutralText,
+                    Events = BuildLapEvents()   // the Red Flag chip still belongs on this row
+                });
+                _lastHistoryLapNum = completedLapNum;
+                return;
+            }
 
             bool newPersonalBest = _personalBestLapMs == null || ms < _personalBestLapMs;
             TimingColor color = newSessionBest ? TimingColor.Purple
@@ -2240,6 +2310,8 @@ namespace F1RaceEngineer.Telemetry
             DeltaToPbText = deltaText;
             DeltaToPbColorBrush = deltaBrush;
 
+            InsertSkippedLapRows(completedLapNum);
+            _lastHistoryLapNum = completedLapNum;
             LapHistory.Insert(0, new LapHistoryEntry
             {
                 // The GAME's lap number, not a count of laps this app happened to witness.

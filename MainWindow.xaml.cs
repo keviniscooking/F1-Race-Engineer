@@ -343,6 +343,14 @@ namespace F1RaceEngineer
                 if (toggle.IsEnabled) visible.Add(widget);
             }
 
+            // Lap Timing's 6px bottom margin exists to separate it from the catalog widgets. With
+            // every catalog widget toggled off there's nothing to separate from, but the margin
+            // still reserved its 6px - so this column stopped 6px short of the Position board
+            // beside it, which has no bottom margin and reaches the full height. Measured exactly:
+            // board bottom 1384, lap timing 1378. Most visible on Qualifying and Practice, where
+            // the catalog defaults to off.
+            LapTiming.Margin = new Thickness(0, 0, 0, visible.Count > 0 ? 6 : 0);
+
             _lastCatalogColumns = ColumnsFor(visible.Count, WidgetGrid.ActualWidth);
             ArrangeWidgets(WidgetGrid, _catalogWidgetsByKey.Values, visible);
         }
