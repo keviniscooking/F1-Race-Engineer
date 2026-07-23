@@ -56,9 +56,14 @@
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="Bg" Property="Background" Value="#1C2733"/>
                             </Trigger>
+                            <!-- Checked uses the app ACCENT, not the same #1C2733 as hover above.
+                                 With both states identical, an open panel looked exactly like a
+                                 hovered icon, so there was no visible cue that the button was a
+                                 toggle you press again to come back - users read the app as stuck.
+                                 Listed after IsMouseOver so the checked state survives hovering. -->
                             <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="Bg" Property="Background" Value="#1C2733"/>
-                                <Setter Property="Foreground" Value="#E6EDF3"/>
+                                <Setter TargetName="Bg" Property="Background" Value="#1F6FEB"/>
+                                <Setter Property="Foreground" Value="#FFFFFF"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>

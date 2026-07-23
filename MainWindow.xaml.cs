@@ -419,6 +419,23 @@ namespace F1RaceEngineer
             RaceTab.Background = _state.CurrentPreset == PresetType.Race ? ActiveTabBrush : InactiveTabBrush;
         }
 
+        /// <summary>
+        /// Esc closes the history overlay. The only other way out is the same icon that opened it,
+        /// which several users won't find - the preset pills above look like tabs but are a
+        /// read-only session indicator, so clicking them to "leave" does nothing and the app reads
+        /// as stuck. Handled on the window (not the panel) so it works wherever focus happens to
+        /// be, and only when the overlay is actually open so Esc stays free otherwise.
+        /// </summary>
+        protected override void OnPreviewKeyDown(System.Windows.Input.KeyEventArgs e)
+        {
+            if (e.Key == System.Windows.Input.Key.Escape && HistoryButton.IsChecked == true)
+            {
+                HistoryButton.IsChecked = false; // routes through Unchecked, so the icon un-highlights too
+                e.Handled = true;
+            }
+            base.OnPreviewKeyDown(e);
+        }
+
         private void HistoryButton_Checked(object sender, RoutedEventArgs e)
         {
             History.Reload(); // pull in any newly-saved races each time it opens

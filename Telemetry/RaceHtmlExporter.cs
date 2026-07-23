@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Net;
@@ -25,14 +26,34 @@ namespace F1RaceEngineer.Telemetry
         private static string Hex(SolidColorBrush b) => $"#{b.Color.R:X2}{b.Color.G:X2}{b.Color.B:X2}";
         private static string Pct(double v) => v.ToString("0.###", CultureInfo.InvariantCulture);
 
-        public static string Export(SavedRaceView v)
+        /// <summary>
+        /// Exports a whole WEEKEND: the race, the sprint if there was one, and each session's
+        /// head-to-head. Previously this took a single session, so a sprint weekend silently
+        /// exported only the feature race and the head-to-head never left the app at all - the
+        /// file didn't contain what the user had been looking at.
+        /// </summary>
+        public static string Export(WeekendCardView w)
         {
-            var r = v.Source;
+            var head = w.Race;
             var sb = new StringBuilder();
             sb.Append("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">");
             sb.Append("<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">");
-            sb.Append($"<title>{Enc(r.GrandPrix)} — Race History</title>");
+            sb.Append($"<title>{Enc(head.Source.GrandPrix)} — Race History</title>");
             sb.Append("<style>").Append(Css()).Append("</style></head><body><div class=\"wrap\">");
+
+            foreach (var v in w.Sessions)
+                sb.Append(SessionBlock(v, w.Sessions.Count > 1));
+
+            sb.Append("<div class=\"foot\">Exported from F1 Race Engineer</div>");
+            sb.Append("</div></body></html>");
+            return sb.ToString();
+        }
+
+        /// <summary>One session: its header, result, classification, laps, strategy and H2H.</summary>
+        private static string SessionBlock(SavedRaceView v, bool labelSession)
+        {
+            var r = v.Source;
+            var sb = new StringBuilder();
 
             // ---- header: name + subtitle, then Finish / Grid / Gained / Points ----
             sb.Append("<div class=\"head\"><div><div class=\"gp\">");
@@ -60,9 +81,138 @@ namespace F1RaceEngineer.Telemetry
             sb.Append(Strategy(v));
             sb.Append("</div></div>");
 
-            sb.Append("<div class=\"foot\">Exported from F1 Race Engineer</div>");
-            sb.Append("</div></body></html>");
+            sb.Append(HeadToHead(v));
             return sb.ToString();
+        }
+
+        /// <summary>
+        /// The head-to-head, or nothing when this session isn't a two-player career. Mirrors the
+        /// in-app page: verdict, tale of the tape, gap evolution and pit stops - so the exported
+        /// file shows what was on screen rather than a subset of it.
+        /// </summary>
+        private static string HeadToHead(SavedRaceView v)
+        {
+            var h = v.BuildHeadToHead();
+            if (h == null) return "";
+
+            var sb = new StringBuilder();
+            sb.Append("<div class=\"card h2h\"><div class=\"h\">Head to head</div>");
+
+            // verdict
+            sb.Append("<div class=\"verdict\">");
+            sb.Append("<div class=\"side\"><div class=\"nm\">").Append(Enc(h.You.Name)).Append("</div>")
+              .Append("<div class=\"pos\">").Append(Enc(h.You.PositionText)).Append(" <span class=\"pts\">")
+              .Append(Enc(h.You.PointsText)).Append("</span></div></div>");
+            sb.Append("<div class=\"mid\"><div class=\"vd\" style=\"color:").Append(Hex(h.VerdictBrush)).Append("\">")
+              .Append(Enc(h.VerdictText)).Append("</div><div class=\"mg\">").Append(Enc(h.MarginText)).Append("</div></div>");
+            sb.Append("<div class=\"side r\"><div class=\"nm\">").Append(Enc(h.Rival.Name)).Append("</div>")
+              .Append("<div class=\"pos\"><span class=\"pts\">").Append(Enc(h.Rival.PointsText)).Append("</span> ")
+              .Append(Enc(h.Rival.PositionText)).Append("</div></div>");
+            sb.Append("</div>");
+
+            // tale of the tape - values on their own sides, metric centred, matching the app
+            sb.Append("<table class=\"tape\"><tbody>");
+            foreach (var row in h.Rows)
+            {
+                sb.Append("<tr><td class=\"you\" style=\"color:").Append(Hex(row.YouBrush)).Append("\">")
+                  .Append(Enc(row.YouText)).Append("</td>");
+                sb.Append("<td class=\"lbl\">").Append(Enc(row.Label));
+                if (row.DeltaText.Length > 0) sb.Append("<span class=\"dl\">").Append(Enc(row.DeltaText)).Append("</span>");
+                sb.Append("</td>");
+                sb.Append("<td class=\"riv\" style=\"color:").Append(Hex(row.RivalBrush)).Append("\">")
+                  .Append(Enc(row.RivalText)).Append("</td></tr>");
+            }
+            sb.Append("</tbody></table>");
+
+            sb.Append(GapChartSvg(h));
+
+            // pit stops, one column per driver
+            sb.Append("<div class=\"grid2\">");
+            foreach (var side in new[] { h.You, h.Rival })
+            {
+                sb.Append("<div class=\"col\"><div class=\"stops\"><div class=\"sh\">").Append(Enc(side.Name))
+                  .Append("<span class=\"hint\">lap · box · lane</span></div>");
+                if (side.HasStops)
+                {
+                    sb.Append("<table class=\"stoptbl\"><tbody>");
+                    foreach (var s in side.Stops)
+                        sb.Append("<tr><td class=\"lp\">").Append(Enc(s.LapText)).Append("</td><td class=\"bx\">")
+                          .Append(Enc(s.BoxText)).Append("</td><td class=\"ln\">").Append(Enc(s.LaneText)).Append("</td></tr>");
+                    sb.Append("</tbody></table>");
+                }
+                else sb.Append("<div class=\"none\">No stops</div>");
+                sb.Append("<div class=\"tot\"><span>Total box</span><b>").Append(Enc(side.StopTotalText)).Append("</b></div>");
+                sb.Append("</div></div>");
+            }
+            sb.Append("</div></div>");
+            return sb.ToString();
+        }
+
+        /// <summary>
+        /// The gap trace as inline SVG - vector, self-contained, no script or external file, so it
+        /// survives being emailed around. Same conventions as the in-app chart: above the zero line
+        /// is the player ahead, the fill switches green/red across it via a gradient with a hard
+        /// stop, and pit stops are dashed verticals.
+        /// </summary>
+        private static string GapChartSvg(HeadToHeadView h)
+        {
+            if (!h.HasGapSeries) return "";
+            const double W = 900, H = 190, Pad = 42, Mid = H / 2;
+            var pts = h.GapSeries;
+            double plotW = W - Pad - 14;
+            double scale = (H / 2 - 10) / h.GapMaxAbsSeconds;
+            double X(int i) => pts.Count == 1 ? Pad + plotW / 2 : Pad + plotW * i / (pts.Count - 1.0);
+            double Y(double g) => Mid - g * scale;
+
+            var sb = new StringBuilder();
+            sb.Append("<div class=\"card\"><div class=\"h\">Gap evolution <span class=\"hint\">above = ")
+              .Append(Enc(h.You.Name)).Append(" ahead</span></div>");
+            sb.Append($"<svg class=\"gap\" viewBox=\"0 0 {Pct(W)} {Pct(H)}\" preserveAspectRatio=\"none\" role=\"img\">");
+            sb.Append("<defs><linearGradient id=\"gf\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\">")
+              .Append("<stop offset=\"0\" stop-color=\"#97C459\" stop-opacity=\".24\"/>")
+              .Append("<stop offset=\"50%\" stop-color=\"#97C459\" stop-opacity=\".24\"/>")
+              .Append("<stop offset=\"50%\" stop-color=\"#E12E2E\" stop-opacity=\".24\"/>")
+              .Append("<stop offset=\"1\" stop-color=\"#E12E2E\" stop-opacity=\".24\"/></linearGradient></defs>");
+
+            // gridlines on the same nice step the app uses
+            double major = NiceStep(h.GapMaxAbsSeconds, 3);
+            for (double val = major; val <= h.GapMaxAbsSeconds + 0.001; val += major)
+                foreach (double s in new[] { val, -val })
+                {
+                    double y = Y(s);
+                    if (y < 2 || y > H - 2) continue;
+                    sb.Append($"<line x1=\"{Pct(Pad)}\" x2=\"{Pct(W - 14)}\" y1=\"{Pct(y)}\" y2=\"{Pct(y)}\" stroke=\"#232B35\"/>");
+                    sb.Append($"<text x=\"2\" y=\"{Pct(y + 3)}\" class=\"ax\">{(s > 0 ? "+" : "")}{Pct(s)}</text>");
+                }
+            sb.Append($"<line x1=\"{Pct(Pad)}\" x2=\"{Pct(W - 14)}\" y1=\"{Pct(Mid)}\" y2=\"{Pct(Mid)}\" stroke=\"#4A5460\"/>");
+
+            foreach (var (laps, colour) in new[] { (h.You.PitLaps, "#1F6FEB"), (h.Rival.PitLaps, "#37BEDD") })
+                foreach (int lap in laps)
+                {
+                    int i = lap - pts[0].Lap;
+                    if (i < 0 || i >= pts.Count) continue;
+                    sb.Append($"<line x1=\"{Pct(X(i))}\" x2=\"{Pct(X(i))}\" y1=\"0\" y2=\"{Pct(H)}\" stroke=\"{colour}\" stroke-dasharray=\"3 3\" opacity=\".6\"/>");
+                }
+
+            var poly = new StringBuilder();
+            for (int i = 0; i < pts.Count; i++) poly.Append(Pct(X(i))).Append(',').Append(Pct(Y(pts[i].GapSeconds))).Append(' ');
+            sb.Append($"<polygon points=\"{Pct(X(0))},{Pct(Mid)} {poly}{Pct(X(pts.Count - 1))},{Pct(Mid)}\" fill=\"url(#gf)\"/>");
+            sb.Append($"<polyline points=\"{poly}\" fill=\"none\" stroke=\"#79C0FF\" stroke-width=\"2\"/>");
+
+            sb.Append($"<text x=\"{Pct(Pad)}\" y=\"{Pct(H - 2)}\" class=\"ax\">L{pts[0].Lap}</text>");
+            sb.Append($"<text x=\"{Pct(W - 40)}\" y=\"{Pct(H - 2)}\" class=\"ax\">L{pts[^1].Lap}</text>");
+            sb.Append("</svg></div>");
+            return sb.ToString();
+        }
+
+        // Mirrors the in-app axis stepping so the exported chart is gridded identically.
+        private static double NiceStep(double range, int target)
+        {
+            if (range <= 0 || target <= 0) return 1;
+            double raw = range / target;
+            double mag = Math.Pow(10, Math.Floor(Math.Log10(raw)));
+            double norm = raw / mag;
+            return (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10) * mag;
         }
 
         private static string Stat(string label, string value, string hex) =>
@@ -250,6 +400,37 @@ tr.me td:last-child{border-top-right-radius:6px;border-bottom-right-radius:6px}
 .axis .tk.pit i{width:2px;height:6px;background:#79C0FF}
 .axis .tk.pit span{color:#79C0FF;font-weight:700}
 .foot{text-align:center;color:#4A5460;font-size:11px;margin-top:24px}
+
+/* ---- head to head ---- */
+.h2h{margin-top:16px}
+.hint{float:right;color:#4A5460;font-size:10px;font-weight:400;text-transform:none}
+.verdict{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:4px 0 14px}
+.verdict .side{min-width:0}
+.verdict .side.r{text-align:right}
+.verdict .nm{font-size:13px;font-weight:700;color:#E6EDF3}
+.verdict .pos{font-family:Consolas,monospace;font-size:17px;font-weight:700;color:#E6EDF3;margin-top:3px}
+.verdict .pts{font-size:11px;color:#6B7684;font-family:inherit;font-weight:400}
+.verdict .mid{text-align:center;white-space:nowrap}
+.verdict .vd{font-size:15px;font-weight:700}
+.verdict .mg{font-size:11px;color:#6B7684;margin-top:4px}
+/* Values on their own side, metric centred - the same structure as the in-app tape. */
+table.tape{width:100%;border-collapse:collapse;max-width:620px;margin:0 auto}
+table.tape td{padding:4px 0;font-family:Consolas,monospace;font-size:13px}
+table.tape td.you{text-align:right;width:34%}
+table.tape td.riv{text-align:left;width:34%}
+table.tape td.lbl{text-align:center;width:32%;font-family:inherit;font-size:11px;color:#6B7684}
+table.tape td.lbl .dl{display:block;font-family:Consolas,monospace;font-size:10px;color:#8B97A4}
+svg.gap{width:100%;height:190px;display:block}
+svg.gap .ax{fill:#6B7684;font-size:9px;font-family:Consolas,monospace}
+.stops .sh{font-size:11px;font-weight:700;color:#8B97A4;margin-bottom:6px}
+table.stoptbl{width:100%;border-collapse:collapse;font-family:Consolas,monospace}
+table.stoptbl td{padding:3px 0;font-size:12px}
+table.stoptbl td.lp{color:#6B7684;width:22%}
+table.stoptbl td.bx{color:#79C0FF;text-align:right;width:39%}
+table.stoptbl td.ln{color:#6B7684;text-align:right;width:39%}
+.stops .none{color:#4A5460;font-size:11px}
+.stops .tot{display:flex;justify-content:space-between;border-top:1px solid #232B35;margin-top:8px;padding-top:6px;font-size:10px;color:#4A5460}
+.stops .tot b{font-family:Consolas,monospace;font-size:12px;color:#E6EDF3}
 ";
     }
 }

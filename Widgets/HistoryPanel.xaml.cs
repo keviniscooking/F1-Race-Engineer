@@ -485,27 +485,32 @@ namespace F1RaceEngineer.Widgets
         private void Export_Click(object sender, RoutedEventArgs e)
         {
             e.Handled = true; // don't also open the card
-            if ((sender as FrameworkElement)?.Tag is WeekendCardView w) ExportRace(w.Race);
+            if ((sender as FrameworkElement)?.Tag is WeekendCardView w) ExportRace(w);
         }
 
         private void DetailExport_Click(object sender, RoutedEventArgs e)
         {
-            if (_current != null) ExportRace(_current);
+            if (_currentWeekend != null) ExportRace(_currentWeekend);
         }
 
-        private void ExportRace(SavedRaceView v)
+        /// <summary>
+        /// Exports the whole WEEKEND, not one session: a sprint weekend used to export only the
+        /// feature race, and the head-to-head never left the app at all. Both export buttons now
+        /// produce the same complete document, so which one was pressed can't change what you get.
+        /// </summary>
+        private void ExportRace(WeekendCardView w)
         {
             var dlg = new SaveFileDialog
             {
                 Filter = "Web page (*.html)|*.html",
-                FileName = Sanitize($"{v.Source.Circuit}-{v.GrandPrix}") + ".html"
+                FileName = Sanitize($"{w.Race.Source.Circuit}-{w.Race.GrandPrix}") + ".html"
             };
             if (dlg.ShowDialog() != true) return;
             try
             {
                 // Explicit UTF-8 BOM so the em-dashes / arrows / flag glyphs decode correctly no
                 // matter what a consumer assumes, not just when it honours the meta charset.
-                File.WriteAllText(dlg.FileName, RaceHtmlExporter.Export(v), new UTF8Encoding(true));
+                File.WriteAllText(dlg.FileName, RaceHtmlExporter.Export(w), new UTF8Encoding(true));
                 ShowToast($"Exported {Path.GetFileName(dlg.FileName)}");
             }
             catch (Exception ex)
