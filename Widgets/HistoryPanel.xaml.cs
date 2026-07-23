@@ -266,6 +266,8 @@ namespace F1RaceEngineer.Widgets
             H2HVerdict.Foreground = v.VerdictBrush;
             H2HMargin.Text = v.MarginText;
 
+            // No separate driver header on the tape: it now shares a card with the verdict, which
+            // already names both drivers over their own sides.
             TapeList.ItemsSource = v.Rows;
 
             GapLegend.Text = $"above = {v.You.Name} ahead";
@@ -322,7 +324,14 @@ namespace F1RaceEngineer.Widgets
             double mid = h / 2;
             double scale = (h / 2 - 6) / _h2h.GapMaxAbsSeconds;
 
-            double StepX(int i) => series.Count == 1 ? w / 2 : w * i / (series.Count - 1.0);
+            // The plot is inset from the left to clear the y-axis labels, and from the right so
+            // the final lap number can't overflow the card. Previously the trace started at x=0
+            // and ran underneath its own "+20s" label, while the last lap label spilled 4px past
+            // the card edge.
+            const double PlotLeft = 40, PlotRight = 14;
+            double plotW = Math.Max(1, w - PlotLeft - PlotRight);
+
+            double StepX(int i) => series.Count == 1 ? PlotLeft + plotW / 2 : PlotLeft + plotW * i / (series.Count - 1.0);
             double XForLap(int lap) => StepX(Math.Max(0, Math.Min(series.Count - 1, lap - series[0].Lap)));
             double Y(double gap) => mid - gap * scale;
 
@@ -337,7 +346,7 @@ namespace F1RaceEngineer.Widgets
                 {
                     double y = Y(s);
                     if (y < 2 || y > h - 2) continue;
-                    GapCanvas.Children.Add(new WShapes.Line { X1 = 28, X2 = w, Y1 = y, Y2 = y, Stroke = GapGridBrush, StrokeThickness = 1 });
+                    GapCanvas.Children.Add(new WShapes.Line { X1 = PlotLeft, X2 = w - PlotRight, Y1 = y, Y2 = y, Stroke = GapGridBrush, StrokeThickness = 1 });
                     AddGapLabel($"{(s > 0 ? "+" : "")}{s:0.#}", 0, y - 7);
                 }
                 double minorV = v - major / 2;
@@ -345,13 +354,13 @@ namespace F1RaceEngineer.Widgets
                 {
                     double y = Y(s);
                     if (y < 2 || y > h - 2) continue;
-                    GapCanvas.Children.Add(new WShapes.Line { X1 = 28, X2 = 34, Y1 = y, Y2 = y, Stroke = GapGridBrush, StrokeThickness = 1 });
+                    GapCanvas.Children.Add(new WShapes.Line { X1 = PlotLeft, X2 = PlotLeft + 6, Y1 = y, Y2 = y, Stroke = GapGridBrush, StrokeThickness = 1 });
                 }
             }
 
             // Zero line: the moment-by-moment "who's actually ahead" reference. Drawn after the
             // gridlines and brighter, so it never gets lost among them.
-            GapCanvas.Children.Add(new WShapes.Line { X1 = 28, X2 = w, Y1 = mid, Y2 = mid, Stroke = GapZeroBrush, StrokeThickness = 1 });
+            GapCanvas.Children.Add(new WShapes.Line { X1 = PlotLeft, X2 = w - PlotRight, Y1 = mid, Y2 = mid, Stroke = GapZeroBrush, StrokeThickness = 1 });
 
             // ---- Pit markers: the swings in this trace ARE the stops, so mark them. Colour
             //      matches the tower's convention - the player's own accent blue, the rival in
@@ -360,7 +369,7 @@ namespace F1RaceEngineer.Widgets
                 foreach (int lap in laps)
                 {
                     double x = XForLap(lap);
-                    if (x < 28 || x > w) continue;
+                    if (x < PlotLeft || x > w - PlotRight) continue;
                     GapCanvas.Children.Add(new WShapes.Line
                     {
                         X1 = x, X2 = x, Y1 = 0, Y2 = h, Stroke = brush, StrokeThickness = 1,
