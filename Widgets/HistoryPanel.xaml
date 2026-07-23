@@ -662,11 +662,13 @@
                         <!-- Top-aligned and content-sized. Stretching it to fill the row left a
                              large void inside the card under the last row; the leftover height is
                              better spent on the gap chart opposite, which actually uses it. -->
-                        <!-- Top-aligned and content-sized. The leftover height below it is
-                             deliberately left empty for now - spreading the tape's rows to fill it
-                             was tried and rejected as too airy; the space is reserved for further
-                             head-to-head content rather than padding out what's already there. -->
-                        <Border Grid.Row="0" Grid.Column="0" VerticalAlignment="Top" Background="#161B22" BorderBrush="#232B35" BorderThickness="1" CornerRadius="10" Padding="14">
+                        <!-- Stretches to fill the row, so its bottom edge meets the pit-stops card
+                             below and lines up with the gap chart opposite - all four cards then
+                             share the same two horizontal edges. The empty space sits INSIDE the
+                             card, below the last row, and is reserved for further head-to-head
+                             content. (Spreading the rows to fill it instead was tried and rejected
+                             as too airy.) -->
+                        <Border Grid.Row="0" Grid.Column="0" Background="#161B22" BorderBrush="#232B35" BorderThickness="1" CornerRadius="10" Padding="14">
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>
