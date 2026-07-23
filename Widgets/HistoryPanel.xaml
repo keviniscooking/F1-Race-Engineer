@@ -174,47 +174,64 @@
                                          HasHeadToHead), fails silently, and the panel stays
                                          visible - which showed an empty "HEAD TO HEAD" heading on
                                          every solo-career season. -->
-                                    <StackPanel Margin="2,4,2,0" Visibility="{Binding HasHeadToHead, Converter={StaticResource BoolToVis}}">
-                                      <!-- Boxed and left-aligned at a fixed width rather than spanning
-                                           the window. Stretched full-width the bars became metre-long
-                                           rules with a number stranded at each end - the split, which
-                                           is the whole point, was impossible to judge at a glance.
-                                           Contained, it reads as one compact scoreboard. -->
-                                      <Border DataContext="{Binding HeadToHead}" HorizontalAlignment="Left" Width="430"
-                                              Background="#12171F" BorderBrush="#232B35" BorderThickness="1"
-                                              CornerRadius="8" Padding="14,12">
-                                        <StackPanel>
-                                        <Grid Margin="0,0,0,11">
-                                            <TextBlock Text="HEAD TO HEAD" FontSize="9.5" FontWeight="Bold" Foreground="#6B7684" VerticalAlignment="Center"/>
-                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                                                <TextBlock Text="vs" FontSize="10.5" Foreground="#4A5460" Margin="0,0,5,0" VerticalAlignment="Center"/>
-                                                <TextBlock Text="{Binding RivalName}" FontSize="11" FontWeight="Bold" Foreground="#37BEDD" VerticalAlignment="Center"/>
-                                                <TextBlock Text="{Binding RivalTeam}" FontSize="10" Foreground="#6B7684" Margin="6,0,0,0" VerticalAlignment="Center"
-                                                           TextTrimming="CharacterEllipsis" MaxWidth="110"
-                                                           Visibility="{Binding HasRivalTeam, Converter={StaticResource BoolToVis}}"/>
-                                            </StackPanel>
+                                    <StackPanel Margin="2,10,2,0" Visibility="{Binding HasHeadToHead, Converter={StaticResource BoolToVis}}">
+                                      <!-- NOT a card. Boxed, it read as a floating panel dropped into
+                                           the header - the only bordered thing between a borderless
+                                           season summary above and the bordered race cards below, so
+                                           it belonged to neither. Unboxed and set on the same left
+                                           margin as the season label, it reads as part of the header
+                                           it describes. A single hairline rule carries the grouping
+                                           that the border used to.
+
+                                           Row structure mirrors the H2H page's tale of the tape:
+                                           each driver's number on their OWN side, metric name centred
+                                           between them. Same comparison, same shape, wherever it
+                                           appears - and the two sides line up with the header's
+                                           "you vs them" above them. -->
+                                      <StackPanel DataContext="{Binding HeadToHead}" HorizontalAlignment="Left" Width="270">
+                                        <!-- Width is set close to the widest row's natural size on
+                                             purpose. Wider, the bars ran on well past the numbers
+                                             they describe - long empty tails either side of a
+                                             cluster of digits in the middle. Matching the two makes
+                                             each bar read as the row's own measure. -->
+                                        <Border BorderBrush="#232B35" BorderThickness="0,1,0,0" Margin="0,0,0,10"/>
+                                        <Grid Margin="0,0,0,9">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="YOU" FontSize="9.5" FontWeight="Bold" Foreground="#1F6FEB"
+                                                       HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="1" Text="HEAD TO HEAD" FontSize="9" FontWeight="Bold" Foreground="#4A5460"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center" Margin="14,0"/>
+                                            <TextBlock Grid.Column="2" Text="{Binding RivalName}" FontSize="9.5" FontWeight="Bold" Foreground="#37BEDD"
+                                                       HorizontalAlignment="Left" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
                                         </Grid>
 
                                         <ItemsControl ItemsSource="{Binding Rows}">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
-                                                    <Grid Margin="0,0,0,7">
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="96"/>
-                                                            <ColumnDefinition Width="34"/>
-                                                            <ColumnDefinition Width="*"/>
-                                                            <ColumnDefinition Width="34"/>
-                                                        </Grid.ColumnDefinitions>
-                                                        <TextBlock Grid.Column="0" Text="{Binding Label}" FontSize="9.5" Foreground="#4A5460" VerticalAlignment="Center"/>
-                                                        <TextBlock Grid.Column="1" Text="{Binding YouText}" FontSize="12.5" FontFamily="Consolas" Foreground="#E6EDF3"
-                                                                   HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                                    <StackPanel Margin="0,0,0,9">
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock Grid.Column="0" Text="{Binding YouText}" FontSize="12.5" FontFamily="Consolas"
+                                                                       Foreground="{Binding YouBrush}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                                            <TextBlock Grid.Column="1" Text="{Binding Label}" FontSize="9.5" Foreground="#6B7684"
+                                                                       HorizontalAlignment="Center" VerticalAlignment="Center" Margin="14,0"/>
+                                                            <TextBlock Grid.Column="2" Text="{Binding RivalText}" FontSize="12.5" FontFamily="Consolas"
+                                                                       Foreground="{Binding RivalBrush}" HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                                                        </Grid>
 
-                                                        <!-- Split bar. The two halves are star-sized from the
-                                                             values themselves, so the split IS the data and
-                                                             scales with the panel at any width. The leader's
-                                                             half is the full accent, the other dimmed - which
-                                                             reads at a glance without needing a third colour. -->
-                                                        <Border Grid.Column="2" Height="7" CornerRadius="4" Background="#1C2733" ClipToBounds="True">
+                                                        <!-- The bar sits UNDER its row rather than between the
+                                                             numbers, so the label keeps the centre line. Halves
+                                                             are star-sized from the values, so the split IS the
+                                                             data and needs no percentage anywhere. -->
+                                                        <Border Height="4" CornerRadius="2" Background="#1A222C" ClipToBounds="True" Margin="0,5,0,0">
                                                             <Grid>
                                                                 <Grid.ColumnDefinitions>
                                                                     <ColumnDefinition Width="{Binding YouWidth}"/>
@@ -224,15 +241,11 @@
                                                                 <Border Grid.Column="1" Background="{Binding RivalBrush}"/>
                                                             </Grid>
                                                         </Border>
-
-                                                        <TextBlock Grid.Column="3" Text="{Binding RivalText}" FontSize="12.5" FontFamily="Consolas" Foreground="#E6EDF3"
-                                                                   HorizontalAlignment="Left" VerticalAlignment="Center" Margin="10,0,0,0"/>
-                                                    </Grid>
+                                                    </StackPanel>
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>
                                         </ItemsControl>
-                                        </StackPanel>
-                                      </Border>
+                                      </StackPanel>
                                     </StackPanel>
 
                                     <Border Height="1" Background="#1B222C" Margin="2,12,2,12"/>
