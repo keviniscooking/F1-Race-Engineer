@@ -1991,6 +1991,27 @@ before rebuilding a version of this.
      red if not. Deliberately NOT a full H2H - the card is far too small - but enough to scan a
      season and see who won each round.
 
+  **SPRINT-WEEKEND SEMANTICS (decided - the user raised this specifically, worried H2H would be
+  ambiguous about which session it was describing):**
+  - **The weekend card is NOT split into separate race/sprint cards.** Splitting was considered and
+    rejected: it would undo the deliberate weekend-collapsing design in `HistoryGroups`, double the
+    cards in the list, and break both `WeekendPointsText` (race + sprint combined) and the
+    mains-only season counting. The ambiguity it was meant to solve doesn't actually exist in the
+    detail view.
+  - **The two toggles compose, they don't conflict.** `SessionTabs` picks *which session*
+    (Race/Sprint), the new pill picks *which view* (Result/H2H), and both stay visible at once, so
+    "Sprint" + "HEAD TO HEAD" reads unambiguously. **The H2H page header must name the session
+    explicitly** (`Chinese Grand Prix · Sprint — HEAD TO HEAD`) - that label is what removes the
+    doubt, and is the whole reason splitting the cards isn't needed.
+  - **Card verdict block: MAIN RACE ONLY.** Consistent with the card as it already behaves - the
+    large finish badge and delta are main-race-only today, with the sprint reachable in the detail
+    view. The stat row also has only one spare gap, so two verdicts would crowd it.
+  - **Season H2H follows the EXISTING precedent exactly, no new rule:** race-count style rows
+    (races won, podiums) count **main races only**; the points row **includes sprint points**.
+    This is precisely what `SeasonGroupView` already does one strip above it (`RacesText`/
+    `WinsText`/`PodiumsText` from `mains`, `PointsText` from `Race.Points + Sprint.Points`), so the
+    two strips can never disagree. Counting sprints as races was rejected for exactly that reason.
+
   **OUT OF SCOPE (each explicitly declined by the user):** battle log ("no value to me") · live
   rivalry alerts in the Race tab banner · lap chips for overtake/contact · split-screen support
   (`GameMode.SplitScreen`, never played) · qualifying capture · pinned always-visible rival gap ·
