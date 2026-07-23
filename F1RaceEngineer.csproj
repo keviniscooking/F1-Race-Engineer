@@ -49,4 +49,13 @@
     <Resource Include="AppIcon.ico" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Waiting-screen reference data (see docs/waiting-screen). LogicalName flattens the
+         manifest name so WaitingData loads them as plain "tracks.json" etc. Embedded, not
+         Content, so they travel inside the single self-contained exe. -->
+    <EmbeddedResource Include="docs\waiting-screen\tracks.json"><LogicalName>tracks.json</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="docs\waiting-screen\trivia.json"><LogicalName>trivia.json</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="docs\waiting-screen\corners.json"><LogicalName>corners.json</LogicalName></EmbeddedResource>
+  </ItemGroup>
+
 </Project>

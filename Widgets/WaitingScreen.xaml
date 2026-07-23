@@ -1,0 +1,51 @@
+<UserControl x:Class="F1RaceEngineer.Widgets.WaitingScreen"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             mc:Ignorable="d">
+    <Grid Background="#0D1117">
+        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Margin="20">
+            <TextBlock Text="Waiting for a session&#8230;" FontSize="18" FontWeight="SemiBold"
+                       Foreground="#8B98A6" HorizontalAlignment="Center"/>
+            <TextBlock Text="Start Practice, Qualifying or a Race in F1 25 &#8212; the dashboard fills in automatically."
+                       FontSize="12" Foreground="#5A6470" Margin="0,7,0,0" HorizontalAlignment="Center"/>
+
+            <!-- Did-you-know: a real question, then the answer reveals after a beat. FIXED width AND
+                 height (sized for the longest 2-line question + 2-line answer), so the box never
+                 resizes between questions - only the text cross-fades. Content is top-aligned; a
+                 short question just leaves space below rather than shrinking the box. -->
+            <Border Background="#11161D" BorderBrush="#232B35" BorderThickness="1" CornerRadius="10"
+                    Padding="16,13" Margin="0,15,0,0" Width="560" Height="118" HorizontalAlignment="Center">
+                <StackPanel VerticalAlignment="Top">
+                    <TextBlock Text="DID YOU KNOW" FontSize="9" FontWeight="Bold" Foreground="#58A6FF"/>
+                    <!-- Q+A share one wrapper whose opacity cross-fades between questions; the
+                         answer's own opacity handles the delayed reveal, so the two effects
+                         compose without fighting. The eyebrow above stays put. -->
+                    <StackPanel x:Name="TriviaQA">
+                        <TextBlock x:Name="TriviaQ" FontSize="14" Foreground="#E6EDF3" TextWrapping="Wrap" Margin="0,7,0,0"/>
+                        <TextBlock x:Name="TriviaA" FontSize="13" FontWeight="SemiBold" Foreground="#3FB950"
+                                   TextWrapping="Wrap" Margin="0,6,0,0" Opacity="0"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- The circuit + formation lap. A Viewbox scales the fixed 1000x1000 canvas to fit. -->
+            <Viewbox MaxWidth="500" MaxHeight="440" Margin="0,14,0,4" HorizontalAlignment="Center">
+                <Canvas x:Name="TrackCanvas" Width="1000" Height="1000"/>
+            </Viewbox>
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                <TextBlock x:Name="TrackCc" FontFamily="Consolas" FontSize="11" FontWeight="Bold" Foreground="#58A6FF" VerticalAlignment="Center"/>
+                <TextBlock x:Name="TrackName" FontSize="12" FontWeight="SemiBold" Foreground="#8B98A6" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                <TextBlock Text="&#183;" Foreground="#4A5460" Margin="8,0,8,0" VerticalAlignment="Center"/>
+                <TextBlock x:Name="TrackLen" FontFamily="Consolas" FontSize="11" Foreground="#6B7684" VerticalAlignment="Center"/>
+            </StackPanel>
+
+            <TextBlock HorizontalAlignment="Center" Margin="0,15,0,0" FontSize="11.5">
+                <Hyperlink Click="Help_Click" Foreground="#58A6FF" TextDecorations="None"
+                           ToolTip="Show the in-game telemetry settings">Not receiving data? Check your in-game telemetry settings</Hyperlink>
+            </TextBlock>
+        </StackPanel>
+    </Grid>
+</UserControl>

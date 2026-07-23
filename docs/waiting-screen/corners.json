@@ -1,7 +1,13 @@
 {
-  "_comment": "Named corners as FRACTION OF LAP from the start/finish line. Validated by curvature detection over the real geometry, which confirmed every bacinger geojson starts at start/finish and runs in racing direction - so these fractions land on the correct bends. Only 4 of the 24 tracks are done here; the remaining 20 are added the same way (run the detection, place famous corners at the detected apex fractions). Keyed by the same file id as geojson/ and tracks.json.",
+  "_comment": "Named corners as FRACTION OF LAP from start/finish. Validated by curvature detection over the real geometry, which confirmed every bacinger geojson starts at start/finish and runs in racing direction, and whose detected apexes these fractions match. Famous names where a track has them; a few notable turn numbers otherwise. Keyed by the same file id as geojson/ and tracks.json. Remaining tracks (mostly numbered layouts with few famous names) get added the same way.",
   "it-1922": [["Rettifilo", 0.055], ["Curva Grande", 0.12], ["Roggia", 0.30], ["Lesmo", 0.37], ["Ascari", 0.63], ["Parabolica", 0.87]],
   "be-1925": [["La Source", 0.04], ["Eau Rouge", 0.135], ["Raidillon", 0.165], ["Les Combes", 0.33], ["Pouhon", 0.52], ["Blanchimont", 0.86], ["Bus Stop", 0.95]],
   "jp-1962": [["S Curves", 0.18], ["Degner", 0.46], ["Hairpin", 0.585], ["Spoon", 0.68], ["130R", 0.89], ["Casio Triangle", 0.915]],
-  "mc-1929": [["Ste Devote", 0.05], ["Casino", 0.15], ["Fairmont Hairpin", 0.30], ["Nouvelle Chicane", 0.50], ["Swimming Pool", 0.60], ["Rascasse", 0.90]]
+  "mc-1929": [["Ste Devote", 0.05], ["Casino", 0.15], ["Fairmont Hairpin", 0.30], ["Nouvelle Chicane", 0.50], ["Swimming Pool", 0.60], ["Rascasse", 0.90]],
+  "gb-1948": [["Abbey", 0.04], ["Copse", 0.59], ["Maggotts", 0.65], ["Becketts", 0.70], ["Stowe", 0.86], ["Club", 0.90]],
+  "nl-1948": [["Tarzan", 0.10], ["Hugenholtz", 0.22], ["Arie Luyendyk", 0.92]],
+  "br-1940": [["Senna S", 0.08], ["Descida do Lago", 0.32], ["Junção", 0.75]],
+  "cn-2004": [["Turn 1", 0.03], ["Turn 6", 0.22], ["Turn 14", 0.88]],
+  "bh-2002": [["Turn 1", 0.11], ["Turn 4", 0.34], ["Turn 10", 0.69]],
+  "us-2012": [["Turn 1", 0.06], ["Esses", 0.23]]
 }

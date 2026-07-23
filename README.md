@@ -58,6 +58,11 @@ to alt-tab out of the game mid-session.
   session, so your copy of the app already receives everything it needs.
 - Automatically switches between **Practice / Qualifying / Race** layouts based on the
   live session type — no manual tab clicking required.
+- **Waiting-screen formation lap** — while there's no live session, the empty screen comes alive:
+  a formation lap of cars circulating a real, accurate circuit (drawn from survey geometry, with
+  named corners and its length and first-GP year), running in your last saved race's finishing
+  order and liveries — plus rotating F1 trivia. The animation stops the instant real telemetry
+  arrives, so it costs nothing while you're racing.
 - **Built-in setup help** — a **?** icon opens a card with the exact in-game telemetry
   settings, your current port, what the app is receiving right now, and what to check if
   nothing arrives. The "Waiting for a session" screen links to it too, so the answer is

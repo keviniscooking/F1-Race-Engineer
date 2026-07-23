@@ -1758,6 +1758,36 @@ red-flagged Chinese GP.
   - Terminal faults (blown/seized engine) get no cleared chip: an engine that "un-blows" is the
     flag resetting at a restart, not a repair, and calling that fixed would be worse than silence.
 
+### Forty-third round — the waiting-screen formation lap, built
+Implemented the feature designed in §8. `Widgets/WaitingScreen` replaces the plain "Waiting for a
+session…" placeholder with a formation lap of F1 cars circulating a real circuit, plus rotating
+trivia. Verified live: it renders Shanghai (the last saved race's track) with the cars in that
+race's finishing order and driver codes, animates, cycles trivia with the 3-second reveal, and -
+the hard requirement - the render loop stops the instant the placeholder is hidden (confirmed by
+previewing a preset, which hid it).
+
+- **Data is bundled, not fetched.** `docs/waiting-screen/{tracks,corners,trivia}.json` are embedded
+  resources (LogicalName-flattened) loaded by `Models/WaitingData` - real OSM-derived circuit
+  outlines (pre-projected to a 0-1000 box), named corners, 110 trivia Q&A. All parsing is defensive:
+  a missing/broken resource leaves that collection empty and the screen degrades, never throws.
+- **Track + car order come from the newest saved race.** `WaitingData.CircuitToId` maps the saved
+  race's circuit to its outline; the cars take the top 10 of its classification, leader first, in
+  their liveries, with a 3-letter code derived from the driver name. No saved race: a random circuit
+  and a shuffled fallback palette with no names. Needs no network - the point of choosing this over
+  live/real-world standings (see §8).
+- **Rendering.** Catmull-Rom over the points -> a closed `PathGeometry`, drawn as the ribbon + a
+  dashed centre line. Cars are positioned with `PathGeometry.GetPointAtFractionLength` (point +
+  tangent for heading) on `CompositionTarget.Rendering`, spaced one car length apart. Corner labels
+  are placed at their lap-fraction and pushed outward from the canvas centre so they clear the track.
+- **The hard rule, honoured:** `UpdateWaitingPlaceholder` calls `Start()`/`Stop()` only on the
+  visible<->hidden transition, and `Stop()` unsubscribes the render loop and the trivia timer - so
+  nothing ticks while racing.
+- **Polish from user feedback in the same round:** cars halved to a ~52s lap; the trivia box is a
+  FIXED 560x118 (sized for the longest 2-line Q+A) so it never resizes between questions, with a
+  cross-fade between them and a 12s cadence; the facts line gained the first-Grand-Prix year (from
+  the geojson metadata); corner coverage went from 4 to 10 tracks (Shanghai, Silverstone, Zandvoort,
+  Interlagos, Bahrain, Austin added), placed on curvature-detected apexes.
+
 ## 6. Known caveats — built, but not yet trustworthy
 
 Everything in this section is shipped and *looks* right, but has either not been verified
@@ -2139,10 +2169,15 @@ before rebuilding a version of this.
   rejoin position as the hero number). **Do not build before logging these for a real race**:
   it's unverified that the game populates them outside certain modes, and this project has a
   history of theories that didn't survive contact with live data (see the pit-tag saga, §6).
-- **Waiting-screen formation lap — FULLY DESIGNED, proven in a mockup, NOT built.** Replace the
-  plain "Waiting for a session…" placeholder with a formation lap of F1 cars circulating a real,
-  accurate circuit, plus rotating F1 trivia. All assets and the interactive mockup are in
-  `docs/waiting-screen/` (see its README); the mockup URL is recorded there. Every decision below
+- **Waiting-screen formation lap — BUILT (§5 forty-third round).** Everything below was the design;
+  it is now implemented in `Widgets/WaitingScreen`. What remains: named corners exist for 10 of 24
+  tracks (the rest are mostly numbered layouts with few famous names - add the same way via
+  `docs/waiting-screen/corners.json`), Imola (`it-1953`) still isn't bundled, and driver-code
+  labels can overlap where the field bunches in a slow corner (a fade-when-crowded pass would fix
+  it). Replace the plain "Waiting for a session…" placeholder with a formation lap of F1 cars
+  circulating a real, accurate circuit, plus rotating F1 trivia. All assets and the interactive
+  mockup are in `docs/waiting-screen/` (see its README); the mockup URL is recorded there. Every
+  decision below
   was made with the user during the design session.
   - **Real track outlines, not hand-drawn.** Two failed attempts at hand-drawing a circuit proved
     the point: accuracy has to come from real coordinates. Source is the MIT-licensed

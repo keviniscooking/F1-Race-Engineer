@@ -305,25 +305,11 @@
              (UpdateWaitingPlaceholder) on Unsupported preset AND no data yet - so it steps
              aside both for a manual settings-menu preview (which forces a concrete preset)
              and for a live Time Trial (Unsupported but with data flowing). -->
-        <Border x:Name="WaitingPlaceholder" Grid.Row="2" Background="#0D1117" Visibility="Collapsed">
-            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                <TextBlock Text="Waiting for a session&#8230;" FontSize="18" FontWeight="SemiBold"
-                           Foreground="#8B98A6" HorizontalAlignment="Center"/>
-                <TextBlock Text="Start Practice, Qualifying or a Race in F1 25 &#8212; the dashboard fills in automatically."
-                           FontSize="12" Foreground="#5A6470" Margin="0,8,0,0" HorizontalAlignment="Center"/>
-                <TextBlock Text="Or preview a layout from the &#9881; settings menu."
-                           FontSize="11" Foreground="#4A5460" Margin="0,4,0,0" HorizontalAlignment="Center"/>
-
-                <!-- Offers help at the moment it's needed rather than waiting to be found. This is
-                     the screen a user stares at when it isn't working, so the prompt belongs here
-                     as well as behind the "?" icon - someone who doesn't know the icon exists will
-                     never click it. -->
-                <TextBlock HorizontalAlignment="Center" Margin="0,16,0,0" FontSize="11.5">
-                    <Hyperlink Click="HelpLink_Click" Foreground="#58A6FF" TextDecorations="None"
-                               ToolTip="Show the in-game telemetry settings">Not receiving data? Check your in-game telemetry settings</Hyperlink>
-                </TextBlock>
-            </StackPanel>
-        </Border>
+        <!-- The waiting screen is a self-contained control (formation lap + trivia). Its animation
+             loop is started/stopped from UpdateWaitingPlaceholder as this becomes visible/hidden,
+             which is the hard rule: nothing animates while racing. The "not receiving data?" link
+             it hosts raises HelpRequested, wired to the help card in code-behind. -->
+        <widgets:WaitingScreen x:Name="WaitingPlaceholder" Grid.Row="2" Visibility="Collapsed"/>
 
         <!-- Race-history overlay: covers the whole widget viewport (on top of the waiting
              placeholder too) when the history icon is toggled on. Toggled in code-behind,

@@ -116,6 +116,8 @@ namespace F1RaceEngineer
             });
 
             SettingsFlyoutContent.PreviewPresetRequested += _state.DebugForcePreset;
+            // The waiting screen's "not receiving data?" link opens the help card, same as the ? icon.
+            WaitingPlaceholder.HelpRequested += (_, _) => HelpButton.IsChecked = true;
 
             // The catalog's column count is width-derived, so re-evaluate it whenever the grid's
             // own width changes - not just on toggle changes. Watching the grid (rather than the
@@ -301,7 +303,14 @@ namespace F1RaceEngineer
         private void UpdateWaitingPlaceholder()
         {
             bool waiting = _state.CurrentPreset == PresetType.Unsupported && !_state.IsTimeTrial;
+            bool wasVisible = WaitingPlaceholder.Visibility == Visibility.Visible;
             WaitingPlaceholder.Visibility = waiting ? Visibility.Visible : Visibility.Collapsed;
+
+            // Start/stop the formation-lap animation with visibility - the hard rule is it must
+            // NEVER tick while racing. Only act on an actual transition so a rebuild isn't kicked
+            // off every LapData refresh.
+            if (waiting && !wasVisible) WaitingPlaceholder.Start();
+            else if (!waiting && wasVisible) WaitingPlaceholder.Stop();
         }
 
         private void UpdateWidgetVisibility()
@@ -534,7 +543,6 @@ namespace F1RaceEngineer
         }
 
         // ---- telemetry help ----
-        private void HelpLink_Click(object sender, RoutedEventArgs e) => HelpButton.IsChecked = true;
 
         /// <summary>Hands the user straight to the port field rather than just naming where it is.</summary>
         private void HelpOpenSettings_Click(object sender, RoutedEventArgs e)
