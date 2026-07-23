@@ -37,10 +37,30 @@ to alt-tab out of the game mid-session.
 - **Race History** — a clock icon (next to the gear) opens your saved races. Every race
   is captured automatically when it finishes: a card per Grand Prix (finish, best lap,
   points, stint bar) opening into a full detail view — final classification, your
-  lap-by-lap, and a tyre-strategy graphic with pit-lap markers. Delete any race, or
-  **export one to a self-contained HTML file** to share. All stored locally on your PC.
+  lap-by-lap, and a tyre-strategy graphic with pit-lap markers. Seasons are labelled by
+  career type ("2026 SEASON · TWO-PLAYER CAREER"), so two saves from the same year are
+  told apart at a glance. Delete any race, or **export a whole weekend to a
+  self-contained HTML file** — race, sprint and head-to-head in one document. All stored
+  locally on your PC.
+- **Two-player career head-to-head** — in the game's two-player career, both drivers are
+  highlighted in the position tower (you in blue, your rival in cyan), and each saved race
+  gains a **HEAD TO HEAD** tab beside RESULT:
+  - a verdict banner — who finished ahead and by how much;
+  - a **tale of the tape** — grid, finish, positions gained, best lap, **ideal lap** (your
+    best sectors combined) with a per-sector breakdown, race pace, consistency, stops,
+    total time stationary in the pits, penalties and laps spent ahead;
+  - a **gap evolution** chart — the gap between the two of you lap by lap, green where
+    you're ahead and red where you aren't, with each driver's pit stops marked;
+  - both **tyre strategies** side by side, and every pit stop with its box and pit-lane time.
+
+  Nothing needs sharing between machines: in a two-player career both cars are in the same
+  session, so your copy of the app already receives everything it needs.
 - Automatically switches between **Practice / Qualifying / Race** layouts based on the
   live session type — no manual tab clicking required.
+- **Built-in setup help** — a **?** icon opens a card with the exact in-game telemetry
+  settings, your current port, what the app is receiving right now, and what to check if
+  nothing arrives. The "Waiting for a session" screen links to it too, so the answer is
+  where the problem is.
 
 ## Getting the app
 
@@ -51,12 +71,16 @@ silently updates itself when a new version is published - no need to re-download
 
 ## In-game setup (F1 25 / F1 25: 2026 Season Pack)
 
+The app has this same checklist built in - press **?** in the top-right at any time, and
+it shows your actual port alongside what it's currently receiving.
+
 1. Launch the game.
 2. Go to **Options → Settings → Telemetry Settings**.
 3. Set **UDP Telemetry** to On.
 4. Set **UDP IP Address** to `127.0.0.1` (the app runs on the same PC as the game).
-5. Set **UDP Port** to `20777` (the app's default - change both together if you ever
-   need a different port).
+5. Set **UDP Port** to `20777` (the app's default). To use a different one, change it in
+   the game and in the app's **⚙ Settings → Connection** - the app remembers your choice
+   between launches.
 6. Set **UDP Send Rate** to `20Hz` or `60Hz`.
 7. Set **UDP Format** to `2025` or `2026` - both work (`F1Game.UDP` 26.0.0 parses
    either schema; confirmed live against a real `2026` setting).
@@ -69,10 +93,10 @@ silently updates itself when a new version is published - no need to re-download
 ```
 dotnet run
 ```
-The app tries to connect automatically on launch using the port above - if the game's
-already running and pointed at it, no further action needed. The Connect/Disconnect
-button in the top bar is there for a manual attempt if that first try fails (e.g. wrong
-port, or another telemetry tool already bound to it).
+The app connects automatically on launch using its remembered port - if the game's
+already running and pointed at it, no further action needed, and the connection controls
+stay out of the way entirely. If telemetry isn't arriving, a status line appears in the
+top-left; **⚙ Settings → Connection** has the port, Reconnect and Disconnect.
 
 **Without VS Code**, see "Getting the app" above - install once via `Setup.exe` from
 Releases, then it stays current on its own. See `HANDOFF.md`'s "Cutting a release"

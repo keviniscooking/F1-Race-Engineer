@@ -81,7 +81,7 @@ and must switch context automatically.
   **CORRECTION (§5 fortieth round) - the "not expected to recur" note that used to sit
   here was wrong, and stayed wrong for many rounds.** It claimed nothing writes to that
   path anymore once Track Map was removed. Three things do, all added later:
-  `RaceHistoryStore` (`history\`), `WindowStateStore` (`window.json`) and the pit
+  `RaceHistoryStore` (`history\`), `AppStateStore` (`settings.json`) and the pit
   diagnostic (`pit-debug.log`) - all under `%LocalAppData%\F1RaceEngineer\`, i.e. inside
   Velopack's own install root. Consequences, in order of how likely they are to bite:
   - **The "already installed" false positive CAN recur**, and most easily for the project
@@ -110,9 +110,10 @@ and must switch context automatically.
 - **UDP listener** (`UdpListenerService`) — binds to a port (default 20777), parses
   packets on a background thread, raises a single `PacketReceived` event with the
   raw `UnionPacket`. `MainWindow` calls `Connect()` once at startup so the common case
-  (game already pointed at the default port) needs no manual click - deliberately no
-  retry loop if that first attempt fails (e.g. port already in use); the
-  Connect/Disconnect button is still there for a manual attempt either way.
+  (game already pointed at the remembered port) needs no manual click - deliberately no
+  retry loop if that first attempt fails (e.g. port already in use); **Settings →
+  Connection** carries Reconnect/Disconnect for a manual attempt either way (§5,
+  forty-first round - these used to be a button in the top bar).
 - **Central state** (`TelemetryState`) — one instance, subscribes to the listener,
   maintains all live state, exposes bindable properties to widgets.
 - **Preset auto-switching** — reads `SessionDataPacket.SessionType`, maps to one of
@@ -707,6 +708,10 @@ F1 25 game ──UDP──> UdpListenerService (background thread)
   relying on Padding alone to coincidentally match across different control types. The
   settings gear (`IconToggleButtonStyle` in `App.xaml`) was resized to match too -
   24x24 (`CornerRadius="12"` to stay circular), down from its original 32x32.
+  **Annotation (§5, forty-first round): the port TextBox and Connect button are gone** - the
+  port moved to Settings and the top bar keeps a read-only status line. The uniform `Height="24"`
+  rule earned its keep on the way out: because every element in the row shares it, hiding the
+  whole connection group once telemetry flows changes the row's height by nothing at all.
 - **Vertical spacing between widgets was inconsistent** - four different gap values
   were in play (10px header-to-widgets, 14px tower-to-right-column, 12px between most
   widgets, and an unintended 18px between Lap Timing/Position List and the catalog
@@ -1215,6 +1220,9 @@ All four had been agreed and mocked in prior rounds; this round built them. They
   `%LocalAppData%\F1RaceEngineer\` root and same defensive best-effort IO as `RaceHistoryStore` -
   a corrupt/missing `window.json` just means "open at the default size", never a crash). This is
   the **first thing this app persists** besides saved races (widget toggles still don't persist).
+  **Annotation (§5, forty-first round): `WindowStateStore`/`window.json` no longer exist.** They
+  were replaced by `AppStateStore`/`settings.json` once the UDP port also needed persisting, which
+  reset everyone's saved placement once - an accepted cost, no migration was written.
   `RestoreWindowPlacement()` runs in the constructor before the window shows; `OnClosing` saves
   `RestoreBounds` (the normal-state rect, so un-maximizing next launch returns to a sane size) plus
   a `Maximized` flag. Two guards: the saved size is ignored if below the XAML `MinWidth`/`MinHeight`,
@@ -1535,7 +1543,7 @@ correct code and were left alone - recorded here so the same false alarms aren't
   rewritten, per this file's rule about historical rounds.
 - **The install-directory note was materially WRONG and is corrected in place** (see §2's release
   steps). It claimed nothing writes to `%LocalAppData%\F1RaceEngineer\` once Track Map was removed;
-  in fact `RaceHistoryStore`, `WindowStateStore` and the pit log all do, inside Velopack's own
+  in fact `RaceHistoryStore`, `AppStateStore` and the pit log all do, inside Velopack's own
   install root. Updates are empirically safe, but **uninstall takes the saved race history with it**,
   and the "already installed" false positive can recur - most easily for the project owner, since a
   `dotnet run` dev session creates that folder before any install exists. Recorded, with a possible
@@ -1552,6 +1560,135 @@ correct code and were left alone - recorded here so the same false alarms aren't
   the part worth keeping, the vendor name isn't. `%LocalAppData%` / `%USERPROFILE%` were already
   correctly used as variables throughout, including in the API dump's header. `LICENSE` keeps the
   author's public GitHub handle, which is intentional - MIT needs a named copyright holder.
+
+### Forty-first round — two-player head-to-head built, plus a first-run help card
+The largest round so far. The §8 spec written earlier the same day was implemented, then extended
+by user feedback during the build; several defects were caught only because the page was rendered
+and MEASURED rather than eyeballed, which is recorded here because that's what found them.
+
+**Capture layer**
+- `CareerNames` maps `GameMode` to a career label and, more importantly, gates the feature:
+  `IsTwoPlayer` is `Career25Online` ONLY. Split-screen is excluded deliberately - it's one machine
+  with a single PlayerCarIndex, so player 2 would be "some other car that happens to be human", a
+  second code path for a mode the user never plays.
+- The gate requires `Career25Online` **and exactly two non-AI cars**. Neither signal alone can
+  switch it on: a mislabelled mode can't (F1 25 has form - it reports a sprint as
+  `SessionType.Race`) and a multiplayer lobby full of humans can't either.
+- The tower highlights the rival in cyan `#37BEDD` beside the player's blue. Red/amber/purple
+  already mean penalty/warning/fastest-lap there, so cyan was the one accent left with no existing
+  meaning to collide with. `RivalCarIndex` is hoisted out of the row loop - `RefreshRaceStandings`
+  runs every LapData tick and the property walks a set.
+- `SavedRace` gains `GameMode` (stored by NAME, like `SavedLapEvent`) and an optional
+  `HeadToHead`, null for every non-two-player race.
+- Both humans' full lap-by-lap comes from `SessionHistoryDataPacket`, which is per-car and was
+  **already load-bearing in shipped code** (the timing board ranks the whole field from it), so
+  this rests on proven behaviour rather than a new assumption. Stored as RAW MILLISECONDS, not
+  `SavedLapRow`'s formatted text, because the head-to-head has to compute - parsing "1:37.355"
+  back into a number to do arithmetic would be lossy and absurd. Sector minutes+ms fields are
+  recombined so a >1min sector can't wrap and read as a wildly fast one.
+- **Pit stops are captured per car.** The peak-tracking in `HandleLapData` already ran for every
+  car; only the lap-history patching was player-gated, so the rival's stop times were being
+  computed and thrown away. Recorded at pit-LANE exit (the later of the two events, so both the
+  stationary peak and the lane peak are final), skipping lane visits with no service so a
+  drive-through isn't logged as a 0.00s stop.
+
+**The head-to-head page**
+- A `[ RESULT | HEAD TO HEAD ]` pill toggle, **orthogonal** to the Race/Sprint tabs and visible at
+  the same time. Merging the two axes would force a 2x2 tab matrix on a sprint weekend; keeping
+  them separate, with the H2H header naming its session, is what makes the weekend card safe to
+  leave intact. Splitting the card into separate race/sprint cards was considered and rejected -
+  it would undo the weekend-collapsing design, double the cards, and break both the combined
+  weekend points and the mains-only season counting.
+- Page contents: verdict banner, tale of the tape, gap evolution, strategy, pit stops.
+- **Three defects found by rendering a synthetic saved race:**
+  1. *Race pace trimmed outliers at 1.3x best to drop pit laps, which cannot work* - a ~20s pit
+     loss on a 90s lap is only 1.22x, so the filter caught nothing while looking rigorous. The
+     user pushed back on the whole idea of a threshold, correctly: pit laps are now excluded **by
+     identity** from the stint boundaries the game reports (in-lap AND out-lap). Pace and
+     consistency use the median and the median-absolute-deviation, so safety-car laps - which have
+     no per-lap marker - can't skew them either.
+  2. *The gap chart had no scale*: a 2s swing and a 20s swing drew identically. It now has
+     major/minor gridlines on a nice 1/2/5-x-power-of-ten step derived from the data, on both axes,
+     so a 5-lap sprint, a 20-lap race and a 78-lap GP all get sensible labels.
+  3. *One shared tick axis under both strategy bars* drew only the rival's pit markers while
+     appearing to describe both. Each bar has its own now.
+- Pit stops moved into a bounded scrolling card: as a single formatted line, a **three-stop race
+  silently lost its last stop** to text trimming. `STOPS`, `PIT TIME` and that card all derive
+  from the same captured list so they can't contradict each other on screen (they did: the tape
+  read the game's `NumPitStops` while the others read captured stops).
+- The gap chart marks each driver's stops as dashed verticals in the tower's player/rival accents,
+  and fills green above the zero line / red below via a gradient with a hard stop - which avoids
+  splitting the geometry at every crossing.
+
+**Layout, measured not eyeballed**
+- The two columns each nested their own row grid, so they divided height independently and the
+  bottom cards sat **14px out of line**. One grid now owns the rows for both columns, and the
+  verdict is merged into the tape card so each column holds exactly two cards - PIT STOPS and
+  STRATEGY align by construction (measured 1206 = 1206).
+- `TOTAL BOX` was right-aligned across the full card, landing under the LANE column while summing
+  the BOX column. Now ends at x=372, under the numbers it totals.
+- The gap trace started at x=0 and ran **underneath its own y-axis labels**, and the last lap label
+  overflowed the card by 4px. The plot is inset from both edges.
+- The tape was restructured to the broadcast form at the user's request: each driver's numbers on
+  their own side, metric names centred (labels measured on x=660, the card's exact centre). The
+  delta moved beneath the label after right-aligning it collided with the rival's value
+  ("0.2001:37.522"). A MaxWidth keeps the two sides readable - pinned to the card edges they were
+  ~900px apart on a maximised window.
+- Spreading the tape rows to fill the leftover height was tried and **rejected by the user**; that
+  space is reserved for future content and the card stretches so all four cards share two edges.
+
+**Export**
+- `RaceHtmlExporter` took a single session, so a sprint weekend exported only the feature race and
+  the head-to-head never left the app - the file didn't contain what the user had been looking at.
+  It now takes a `WeekendCardView` and emits every session with its own classification, laps,
+  strategy and H2H. Verified on a two-session weekend: sessions=2, classification x2.
+- The exported gap chart is inline SVG - vector, self-contained, no script or external assets - and
+  reuses the same nice-step gridlines, split fill (an SVG gradient with a hard stop) and pit
+  markers, so it survives being emailed on.
+
+**First-run help + connection UX** (user-initiated, from a report that the app "sticks")
+- The report was that the preset pills couldn't be clicked to leave the history overlay. **Not a
+  bug**: they're a read-only session indicator (`MainWindow.xaml` says so explicitly) and never
+  had a handler. The real faults were an affordance mismatch - they're styled exactly like an
+  interactive tab group - and that the icon toggles set the **same** `#1C2733` background when
+  checked as when hovered, so an open panel looked identical to a hovered icon and gave no cue it
+  was a toggle to press again. Checked now uses the app accent; **Esc** also closes whichever
+  panel is open.
+- A **`?` help card**: the exact in-game telemetry settings, the **live** port (hardcoding 20777
+  would actively mislead anyone who'd changed it), a status line naming what the app can actually
+  see, and firewall/port-conflict notes. Also linked from the "Waiting for a session" screen -
+  the screen a user stares at when it isn't working - because someone who doesn't know the icon
+  exists will never click it. Third-party telemetry apps are **not named** here or in the README:
+  the behaviour is what matters and names date badly.
+- **Connection controls moved to Settings.** The port means different things in the two places: in
+  the help card it's an INSTRUCTION (type this into the game), in Settings it's CONFIGURATION
+  (what the app listens on). Editable in one, read-only in the other, with a link between them so
+  neither is a dead end.
+- The top bar's group now **hides once the connection is proven** (listening AND telemetry
+  received) and shows whenever it isn't. Safe by design, not luck: every element in that row
+  carries an explicit `Height="24"` and the group sits in a STAR column, so the pills stay centred
+  and the icons stay pinned. The "proven" flag is once-true-forever on purpose - closing the game
+  stops the data but the port is still good, and controls flapping back in would be noise.
+- **The port was never persisted** - hardcoded in XAML, never saved or loaded. Survivable while it
+  was an obscure top-bar box; a trap once Settings invited you to change it, since it silently
+  reverted on the next launch. `WindowStateStore` is replaced by `AppStateStore` (`settings.json`)
+  holding placement and port as peers. No migration - saved window positions reset once, which the
+  user explicitly accepted. Port changes save immediately so a crash can't lose them, and a
+  persisted port outside 1-65535 falls back to the default rather than failing to bind forever.
+- Both popups overflowed the window's right edge (they anchor under buttons at the edge); the help
+  card threw most of itself onto the desktop and Settings clipped its Disconnect button. Both now
+  carry a fixed width and a matching negative offset. **The Settings overflow predated this round**
+  and was only exposed by the new CONNECTION row making the panel wider.
+
+**Verified end to end**
+- Career label renders as "2026 SEASON · TWO-PLAYER CAREER"; the H2H toggle appears only for a
+  two-player race; PIT TIME 2.41s vs 10.80s shows a slow stop as the reason a position went.
+- Port: set 20778 in Settings -> `settings.json` shows it and the socket rebinds -> close writes
+  placement + port -> relaunch binds 20778, not the default -> deleting the file falls back to 20777.
+- Graceful close releases the UDP port and exits cleanly (checked with `netstat`, after a real
+  `WM_CLOSE` rather than a kill, which would have bypassed `OnClosing` and proven nothing).
+- **NOT verifiable here:** the top bar's hidden state, because `_hasReceivedPacket` only flips on a
+  valid game packet and a malformed one never raises `PacketReceived`. Needs a live session.
 
 ## 6. Known caveats — built, but not yet trustworthy
 
@@ -1572,6 +1709,17 @@ against live game data or is known to have an open edge case. Referenced through
   correctly mark its lap with the chip. The banner was no longer showing by the time the
   session was reviewed, so it did clear - but nothing captured *when*, so the 15s timeout
   itself is still unmeasured. Watch the banner directly at the next red flag.
+- **The entire two-player head-to-head rests on two UNOBSERVED assumptions (§5, forty-first
+  round).** That `SessionDataPacket.GameMode` actually reports `Career25Online` for a two-player
+  career, and that `ParticipantData.IsAiControlled` marks BOTH humans. Everything else in the
+  feature is built on `SessionHistory` and Final Classification, which are already load-bearing in
+  shipped code - but if either of those two signals behaves differently, the feature simply never
+  activates (the gate requires both), so the failure mode is "nothing appears", not corrupt data.
+  One two-player race settles it. The pit-debug log is still running and will capture it.
+- **The top bar's connection group hiding is unverified.** It collapses once a telemetry packet has
+  arrived, and that can't be exercised without a live game - a malformed UDP packet fails to parse
+  and never raises `PacketReceived`. The visible state is verified; the hidden one is reasoned from
+  the layout (every element `Height="24"`, group in a star column).
 - **`CarPosition == 0` is used to filter inactive car slots** in the position list —
   a reasonable inference from the API's general pattern, not explicitly documented.
 - **Tower's pending-penalty badge (§5, twelfth round) is reasoned from field semantics,
@@ -1927,117 +2075,34 @@ before rebuilding a version of this.
   `DrsFault` are all received and unused.
 - **Weather forecast timeline — proposed, undecided.** Currently a single "next change"
   callout; a small timeline across the forecast samples would read like a pit-wall rain radar.
-- **Two-player career head-to-head — DESIGN COMPLETE AND APPROVED, NOT BUILT.** Awaiting an
-  explicit go-ahead before any code is written; the user was emphatic that agreement on scope is
-  not agreement to build. Everything below is decided, not proposed.
-  - **Why no file exchange is needed.** In a two-player career both humans are in the *same*
-    session, and `SessionHistoryDataPacket` is **per car** (`CarIndex`), carrying the full lap
-    history (100 laps) with lap time, all three sector times, validity flags, best-sector lap
-    numbers **and** tyre stint history. This is not a theory: per-car session history is already
-    load-bearing in shipped code - the Practice/Qualifying timing board ranks the whole field from
-    `_carBestLapMs[packet.CarIndex]` in `HandleSessionHistory` (§5 thirty-seventh round). So "we
-    receive full lap history for cars that aren't the player" is proven production behaviour.
-  - **Activation gate: `GameMode == Career25Online` AND exactly 2 non-AI cars.** Per the user:
-    a two-player career never has more than two player-controlled cars; multiplayer lobbies do,
-    and those simply keep today's behaviour (own car highlighted only). Belt-and-braces on two
-    signals rather than one, matching the sprint/race lap-count check that caught F1 25 mislabelling
-    session types. This promotes `GameMode` from a display label to the **feature's gate** - it is
-    foundational, not cosmetic.
-  - **No backwards compatibility, and the slate is already clean.** `GameMode` can't be backfilled
-    into existing saves, so rather than carry a compat path the user cleared the entire race
-    history on **23 July 2026** - verified empty (0 files in `%LocalAppData%\F1RaceEngineer\
-    history\`) at the time this spec was written. Every saved race from here on will carry
-    `GameMode`, the rival's laps and everything else this feature needs. **Do not build a
-    fallback for saves that predate it - there are none.** This is the same call made in §5's
-    thirty-eighth round, when clearing the history removed the reason for the penalty compat layer.
-
-  **IN SCOPE (all decided):**
-  1. **Capture `GameMode`** on `SavedRace`, cached in `HandleSession` alongside `_currentTrack` /
-     `_seasonLinkId` (identical pattern). Career-type label in the season header:
-     `2026 SEASON · TWO-PLAYER CAREER`. This also **replaces the meaningless `(2)` suffix**
-     `HistoryGroups` appends when two careers share a calendar year, with the actual reason they
-     differ.
-  2. **Highlight both humans in the Race Position Tower** (`ParticipantData.IsAiControlled`).
-     Today only the player's row is marked, so a second human is indistinguishable from 19 AI.
-     Gates everything else.
-  3. **Store the rival's laps + stints in `SavedRace`** beside `PlayerLaps`. Roughly doubles a
-     race file - negligible, the whole history is ~24KB.
-  4. **`[ RESULT | HEAD TO HEAD ]` pill toggle** in the race detail, swapping the **whole body**
-     (row 3), header rows retained. **MUST be orthogonal to the existing `SessionTabs`**, which
-     picks *which session* (Race/Sprint) - merging the two axes would force a 2x2 tab matrix on
-     sprint weekends. Chosen specifically because the detail body is a 50/50 split with both
-     columns already full (classification + penalties | strategy + lap-by-lap) under a no-page-
-     scroll rule, so there is nowhere to insert H2H without damaging what's there.
-  5. **The H2H page**, mirroring the existing 50/50 split - left: verdict + tape; right: gap
-     evolution + strategy:
-     - **Verdict banner** - both drivers, finish, points, who won, gap at the flag.
-     - **Tale of the tape** - grid, finish, positions gained, best lap, **ideal lap** (sum of best
-       sectors), best S1/S2/S3 each (the game gives `BestSector1LapNum` etc. directly), race pace
-       (median green lap, excluding in/out/SC laps - the mean is wrecked by one pit lap),
-       consistency (spread), stops, penalties/warnings, laps ahead (from cumulative lap times).
-       The **ideal-lap row is the point of the whole table** - it shows *where* the time is, not
-       just who was faster.
-     - **Gap evolution** - line chart of the gap between the two cars, lap by lap; above the axis
-       ahead, below behind. Derived exactly from cumulative lap times in `SessionHistory`, needs
-       no events. Vector-drawn per the project's "drawn, not captured" rule.
-     - **Strategy** - two stint bars stacked with pit markers (`StintStripRenderer` as-is), stop
-       laps and stint lengths, so an undercut reads as a visible offset.
-  6. **Season H2H strip** in the season header (the list scrolls, so vertical space is cheap
-     there): broadcast-style split bars for races won, points, fastest laps, podiums - i.e. the
-     tale of the tape and the "mini-championship between just the two of you" are **one surface,
-     not two features**.
-  7. **Card verdict block** - one stat block in the history card's stat row, which has dead space
-     between `STOPS` and the right-pinned `POINTS`: `VS ALEX  ▲ P4-P7`, green if you beat them,
-     red if not. Deliberately NOT a full H2H - the card is far too small - but enough to scan a
-     season and see who won each round.
-
-  **SPRINT-WEEKEND SEMANTICS (decided - the user raised this specifically, worried H2H would be
-  ambiguous about which session it was describing):**
-  - **The weekend card is NOT split into separate race/sprint cards.** Splitting was considered and
-    rejected: it would undo the deliberate weekend-collapsing design in `HistoryGroups`, double the
-    cards in the list, and break both `WeekendPointsText` (race + sprint combined) and the
-    mains-only season counting. The ambiguity it was meant to solve doesn't actually exist in the
-    detail view.
-  - **The two toggles compose, they don't conflict.** `SessionTabs` picks *which session*
-    (Race/Sprint), the new pill picks *which view* (Result/H2H), and both stay visible at once, so
-    "Sprint" + "HEAD TO HEAD" reads unambiguously. **The H2H page header must name the session
-    explicitly** (`Chinese Grand Prix · Sprint — HEAD TO HEAD`) - that label is what removes the
-    doubt, and is the whole reason splitting the cards isn't needed.
-  - **Card verdict block: MAIN RACE ONLY.** Consistent with the card as it already behaves - the
-    large finish badge and delta are main-race-only today, with the sprint reachable in the detail
-    view. The stat row also has only one spare gap, so two verdicts would crowd it.
-  - **Season H2H follows the EXISTING precedent exactly, no new rule:** race-count style rows
-    (races won, podiums) count **main races only**; the points row **includes sprint points**.
-    This is precisely what `SeasonGroupView` already does one strip above it (`RacesText`/
-    `WinsText`/`PodiumsText` from `mains`, `PointsText` from `Race.Points + Sprint.Points`), so the
-    two strips can never disagree. Counting sprints as races was rejected for exactly that reason.
-
-  **OUT OF SCOPE (each explicitly declined by the user):** battle log ("no value to me") · live
-  rivalry alerts in the Race tab banner · lap chips for overtake/contact · split-screen support
-  (`GameMode.SplitScreen`, never played) · qualifying capture · pinned always-visible rival gap ·
-  live during-race sector H2H · top speed.
-
-  **The consequence of those cuts is the important part: the feature now has ZERO unverified
-  data dependencies.** `OvertakeEvent`, `CollisionEvent` and `SpeedTrapEvent` are the three
-  packets the app has never handled, and dropping the battle log, the live banner and top speed
-  removes the need for all three - including the `CollisionSettings.PlayerToPlayerOff` trap,
-  where contact between two players may never fire an event at all. Everything remaining is built
-  on `SessionHistory` and Final Classification, both already parsed in production.
-
-  **Still to verify before/while building** (observation only, no code needed): that `GameMode`
-  really reports `Career25Online`, and that `IsAiControlled` marks both humans. That the game
-  sends `SessionHistory` for a human-driven car is near-certain (it does for AI) but unobserved.
-  A **grid head-to-head comes free** either way - `GridPosition` is already on the saved
-  classification, so "who out-qualified whom" is answerable per race with no quali capture at all,
-  which recovers much of what deferring qualifying gave up.
-
-  **Superseded idea, recorded so it isn't re-proposed:** exchanging race JSON between friends plus
-  capturing a "fairness fingerprint" (`AIDifficulty`, the ten assist flags, `RuleSet`,
-  `IsNetworkGame`) to make cross-machine comparisons honest. That solves the *general* case - two
-  different races, different difficulty and assists - which the same-session case makes
-  unnecessary. Those fields are still captured nowhere, and assists are session-level (they
-  describe *your own* settings, not per-driver), so they remain the only route if a general
-  comparison is ever wanted.
+- **Two-player career head-to-head — MOSTLY BUILT (§5 forty-first round); two pieces remain.**
+  The capture layer, the head-to-head page and the weekend export all shipped. What was specced
+  and is still NOT built:
+  - **Season head-to-head strip** - broadcast-style split bars in the season header ("RACES WON
+    7 |=====----| 5", plus points, fastest laps, podiums). Decided rules, ready to build: count
+    rows use MAIN RACES ONLY and the points row INCLUDES sprint points, mirroring exactly what
+    `SeasonGroupView` already does one strip above it (`RacesText`/`WinsText`/`PodiumsText` from
+    `mains`, `PointsText` from `Race.Points + Sprint.Points`) so the two strips can never
+    disagree. Counting sprints as races was considered and rejected for that reason.
+  - **Card verdict block** - one stat block in the history card's stat row, which has dead space
+    between `STOPS` and the right-pinned `POINTS`: `VS ALEX  ▲ P4-P7`, green if you beat them,
+    red if not. **MAIN RACE ONLY**, matching the card's existing behaviour (the big finish badge
+    and delta are main-race-only today) and because that row has only one spare gap.
+  - Both need the head-to-head data that IS now captured, so they're view work only.
+  - **Still unverified against real telemetry:** that `GameMode` reports `Career25Online` and
+    that `IsAiControlled` marks both humans. Everything built rests on those two assumptions.
+- **Qualifying capture — DEFERRED (user decision).** Only races are saved, so a career rivalry
+  can't show a qualifying head-to-head. A **grid** head-to-head does work already, free, because
+  `GridPosition` is on the saved classification - "who out-qualified whom" is answerable per race
+  with no quali capture at all, which recovers much of what deferring gave up. The cost of the
+  deferral: every qualifying session run in the meantime is lost for good, since it can't be
+  backfilled.
+- **Auto-retry on a failed port bind — proposed, not built.** `Connect()` deliberately has no
+  retry loop, so if something held the port at launch and released it later, the user must open
+  Settings and press Reconnect. An auto-retry with backoff (2s -> 10s -> 30s) would make that
+  self-healing. Weighed against it: a timer that polls a socket bind forever is a background cost
+  for a rare case, and the connection status is now visible in three places (top bar, help card,
+  Settings), so the failure is at least no longer silent.
 - **Uninstall-time race-history rescue — investigated and REJECTED by the user, don't rebuild
   without new information.** Uninstalling deletes the saved race history (see §2's release-steps
   correction). Several shapes were designed and all were declined: a tickbox during uninstall, an
