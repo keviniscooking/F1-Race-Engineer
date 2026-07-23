@@ -1970,7 +1970,17 @@ namespace F1RaceEngineer.Telemetry
                 GrandPrix = TrackNames.GrandPrixFor(_currentTrack),
                 Circuit = TrackNames.CircuitFor(_currentTrack),
                 Country = TrackNames.CountryCodeFor(_currentTrack),
-                SessionLabel = SessionLabelFor(_lastSeenSessionType),
+                // Always "Race" at capture: the session TYPE cannot tell a sprint from a feature
+                // race in F1 25, which reports the sprint as SessionType.Race and the feature race
+                // as Race2 - the inverse of the obvious reading. Mapping Race2 to "Sprint" (as this
+                // did) labelled a real 20-lap Chinese GP feature race, logged as type=Race2, a
+                // sprint. The reliable signal is LAP COUNT and HistoryGroups already applies it:
+                // a sprint weekend saves two race-type sessions under one WeekendLinkId and the
+                // longer is the feature race, with ApplyWeekendRole stamping the right word on
+                // each. So a full weekend is always labelled correctly, and a lone saved session
+                // reads "Race" - right in the overwhelming majority, and never confidently wrong
+                // the way guessing from the type was.
+                SessionLabel = "Race",
                 TotalLaps = _totalLaps > 0 ? _totalLaps : player.NumLaps,
                 SeasonLinkId = _seasonLinkId,
                 WeekendLinkId = _weekendLinkId,
@@ -2002,11 +2012,6 @@ namespace F1RaceEngineer.Telemetry
         private static bool IsOutStatus(ResultStatus status) => status is ResultStatus.Retired
             or ResultStatus.DidNotFinish or ResultStatus.Disqualified or ResultStatus.NotClassified;
 
-        private static string SessionLabelFor(SessionType? type) => type switch
-        {
-            SessionType.Race2 or SessionType.Race3 => "Sprint",
-            _ => "Race"
-        };
 
         private static string ResultStatusLabelFor(ResultStatus status) => status switch
         {
