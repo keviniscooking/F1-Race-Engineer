@@ -2139,6 +2139,47 @@ before rebuilding a version of this.
   rejoin position as the hero number). **Do not build before logging these for a real race**:
   it's unverified that the game populates them outside certain modes, and this project has a
   history of theories that didn't survive contact with live data (see the pit-tag saga, §6).
+- **Waiting-screen formation lap — FULLY DESIGNED, proven in a mockup, NOT built.** Replace the
+  plain "Waiting for a session…" placeholder with a formation lap of F1 cars circulating a real,
+  accurate circuit, plus rotating F1 trivia. All assets and the interactive mockup are in
+  `docs/waiting-screen/` (see its README); the mockup URL is recorded there. Every decision below
+  was made with the user during the design session.
+  - **Real track outlines, not hand-drawn.** Two failed attempts at hand-drawing a circuit proved
+    the point: accuracy has to come from real coordinates. Source is the MIT-licensed
+    `bacinger/f1-circuits` repo (OpenStreetMap-derived) - 24 GeoJSON `LineString`s, one per
+    2026-calendar round, bundled in `docs/waiting-screen/geojson/`. **We draw our own outline from
+    the coordinates; we never touch F1's map artwork**, so a track's *shape* (a geographic fact,
+    not copyrightable) is free to use regardless of how F1's graphics are licensed. `tracks.json`
+    holds them pre-projected; the projection + Catmull-Rom method is in the README.
+  - **Named corners, placed accurately - and here's the proof it's accurate.** Corner NAMES aren't
+    in the data, so they're placed by fraction-of-lap from start/finish. Before trusting that, a
+    curvature-detection pass over the real geometry validated the anchor on four tracks: Spa's very
+    first corner reads at 4% as a 134-degree hairpin (La Source, exactly right) and its Bus Stop at
+    94-95%; Suzuka's esses cluster early and 130R+Casio at 89-91%; Monza's Ascari lands at 63%.
+    Every geojson starts at start/finish and runs in racing direction. So fraction placement is
+    trustworthy, NOT guessed. `corners.json` has 4 of 24 done; the rest follow the same method.
+  - **Cars in the LAST SAVED RACE's classification order** - leader at the front, correct team
+    liveries, driver code shown above each car, ~one car length apart. This was chosen over two
+    alternatives: (a) the live in-game order (impossible - the waiting screen only shows when there
+    is NO live telemetry) and (b) the real-world F1 championship order (verified pullable from the
+    jolpica-f1 API, the live successor to the shut-down Ergast - but it adds the app's first content
+    network call for a decorative feature, and it isn't personal to the player). The saved-race
+    order needs no network: the app already writes every race's full classification to disk, so this
+    reads the newest one. **Randomised** when the history is empty (cold start).
+  - **Trivia** - 110 curated evergreen-biased F1 Q&A in `trivia.json`, question shown then answer
+    revealed after ~3s. Bundled and hand-refreshed like a content pack; no live source. (The same
+    jolpica option exists if a live feed is ever wanted, but was declined for the same reason as
+    the standings.)
+  - **THE non-negotiable performance requirement:** the animation runs on ONE render loop
+    (`CompositionTarget.Rendering` in WPF) that MUST be stopped the instant the waiting placeholder
+    stops being visible. The mockup demonstrates this literally with a frame counter that freezes on
+    connect; the loop also auto-pauses when the window/tab loses focus. It must cost nothing while
+    racing.
+  - **Static, not busy:** track info under the circuit is static (only the trivia and the cars
+    move) - the user explicitly asked to keep the number of moving things down.
+  - **Known rough edge for the build:** with cars one length apart AND names on by default, labels
+    can overlap where the field bunches in a slow corner. Handle by fading a label when its car is
+    near another, or only labelling a spread-out subset - noted, not solved.
 - **DRS indicator — proposed, undecided.** `DrsAllowed`, `DrsActivationDistance` and
   `DrsFault` are all received and unused.
 - **Weather forecast timeline — proposed, undecided.** Currently a single "next change"
