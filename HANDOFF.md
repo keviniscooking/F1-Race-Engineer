@@ -1744,6 +1744,19 @@ red-flagged Chinese GP.
 - **Race cards show the session fastest lap and who set it**, ahead of the player's own best. Read
   from the classification rows, which already carry the flag per driver, so it works on every race
   already saved.
+- **Car faults are now lap events** (`LapEventKind.Fault` / `FaultFixed`): amber when a fault
+  appears, green when it clears, with a warning-triangle glyph deliberately distinct from the "!"
+  badge, which means an infringement everywhere else - a DRS fault happened TO the car, not
+  because of you. Only the four BOOLEAN faults qualify (`DrsFault`, `ErsFault`, `EngineBlown`,
+  `EngineSeized`); everything else in Car Condition is a damage percentage that creeps up
+  continuously with no moment to tag.
+  - **There is no repair event in the telemetry** - searching the entire API for repair/fixed/
+    serviced returns nothing - so edge detection on the flag is the only signal available, and
+    "it stopped being true" is all the game ever tells us.
+  - **Whether F1 25 ever clears DRS/ERS faults in a session is UNCONFIRMED.** If it never does,
+    the cleared chip simply never appears, which costs nothing.
+  - Terminal faults (blown/seized engine) get no cleared chip: an engine that "un-blows" is the
+    flag resetting at a restart, not a repair, and calling that fixed would be worse than silence.
 
 ## 6. Known caveats — built, but not yet trustworthy
 

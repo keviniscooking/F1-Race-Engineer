@@ -5,7 +5,7 @@ namespace F1RaceEngineer.Models
     // SavedLapEvent persists the kind by NAME (Kind.ToString()), not by ordinal, so members can
     // be added or reordered freely - but a member must never be RENAMED without migrating, or
     // every already-saved race carrying it fails to parse back.
-    public enum LapEventKind { SafetyCar, VirtualSafetyCar, RedFlag, Chequered, Penalty, Warning, Restart }
+    public enum LapEventKind { SafetyCar, VirtualSafetyCar, RedFlag, Chequered, Penalty, Warning, Restart, Fault, FaultFixed }
 
     /// <summary>
     /// A notable thing that happened on one lap - a Safety Car / VSC caution, a red flag, the
@@ -31,6 +31,13 @@ namespace F1RaceEngineer.Models
         // amber warning), the same convention the Penalties & Flags list now uses.
         public bool IsPenalty => Kind is LapEventKind.Penalty or LapEventKind.Warning;
 
+        /// <summary>
+        /// A car fault appearing or clearing (DRS, ERS, engine). Gets its own warning-triangle
+        /// glyph rather than reusing the "!" badge, which means an infringement everywhere else in
+        /// the app - a DRS fault is something that happened TO the car, not something you did.
+        /// </summary>
+        public bool IsFault => Kind is LapEventKind.Fault or LapEventKind.FaultFixed;
+
         // Waved-flag fill: yellow for a caution (SC/VSC), red for a red flag, green for the
         // restart that ends one.
         public SolidColorBrush IconBrush => Kind switch
@@ -49,6 +56,10 @@ namespace F1RaceEngineer.Models
             // the same colour means the same thing wherever an infringement is shown.
             LapEventKind.Penalty => PenaltyRed,
             LapEventKind.Warning => Amber,
+            // Amber when a fault appears, green when it clears - the same "problem" / "resolved"
+            // pairing the Red Flag and Restart chips already use.
+            LapEventKind.Fault => Amber,
+            LapEventKind.FaultFixed => Green,
             _ => Neutral
         };
 

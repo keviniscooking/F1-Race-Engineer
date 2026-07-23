@@ -818,6 +818,9 @@ namespace F1RaceEngineer.Telemetry
 
             CarConditionIssues.Clear();
             CarConditionIsOk = true;
+            // Otherwise a fault carried over from the last session would read as "cleared" on the
+            // first lap of this one, or a still-present one would never re-announce itself.
+            _hadDrsFault = _hadErsFault = _hadEngineBlown = _hadEngineSeized = false;
 
             PenaltiesIssues.Clear();
             PenaltiesIsOk = true;
@@ -986,6 +989,30 @@ namespace F1RaceEngineer.Telemetry
         }
 
         // Red flag / chequered fire once but the event can repeat - only keep one per lap.
+        // Previous-tick state for each boolean fault, so only the TRANSITIONS are turned into lap
+        // events rather than one chip per packet for as long as the fault lasts.
+        private bool _hadDrsFault, _hadErsFault, _hadEngineBlown, _hadEngineSeized;
+
+        /// <summary>
+        /// Turns a fault flag's edges into lap events: amber when it appears, green when it clears.
+        ///
+        /// Edge detection is the ONLY option here - the telemetry has no repair event of any kind
+        /// (nothing in the whole API reports a fix), so "it stopped being true" is all the game
+        /// ever tells us. Whether F1 25 actually clears DRS/ERS faults within a session is
+        /// unconfirmed; if it never does, the cleared chip simply never appears, which costs
+        /// nothing. Terminal faults (a blown or seized engine) are not given a cleared chip at all
+        /// - an engine that "un-blows" is the flag being reset at a restart, not a repair, and
+        /// reporting it as fixed would be worse than saying nothing.
+        /// </summary>
+        private void TrackFault(ref bool had, bool now, string label, bool terminal = false)
+        {
+            if (now && !had)
+                AddPendingLapEvent(new LapEvent(LapEventKind.Fault, terminal ? label : $"{label} fault"));
+            else if (!now && had && !terminal)
+                AddPendingLapEvent(new LapEvent(LapEventKind.FaultFixed, $"{label} fixed"));
+            had = now;
+        }
+
         private void AddPendingLapEvent(LapEvent e)
         {
             if (_pendingLapEvents.Any(x => x.Kind == e.Kind)) return;
@@ -1304,6 +1331,14 @@ namespace F1RaceEngineer.Telemetry
             if (car.ErsFault) issues.Add((101, "ERS fault"));
             if (car.EngineBlown) issues.Add((102, "Engine blown"));
             if (car.EngineSeized) issues.Add((102, "Engine seized"));
+
+            // Mark the LAP a fault appeared on, and the lap it cleared. These four are the only
+            // boolean faults the telemetry carries; everything else in this widget is a damage
+            // PERCENTAGE that creeps up continuously and has no meaningful "moment" to tag.
+            TrackFault(ref _hadDrsFault, car.DrsFault, "DRS");
+            TrackFault(ref _hadErsFault, car.ErsFault, "ERS");
+            TrackFault(ref _hadEngineBlown, car.EngineBlown, "Engine blown", terminal: true);
+            TrackFault(ref _hadEngineSeized, car.EngineSeized, "Engine seized", terminal: true);
 
             CarConditionIsOk = issues.Count == 0;
             // No banner on this widget, so it always gets the full entry budget.

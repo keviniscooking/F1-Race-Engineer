@@ -12,7 +12,8 @@ to alt-tab out of the game mid-session.
   full-race lap history (its viewport grows with the window; scroll back for earlier laps)
   with per-sector colour coding, IN/OUT lap tags, pit stop/pit lane timing, and inline
   per-lap event markers (Safety Car / VSC, red flag, a green restart when racing resumes,
-  chequered flag, and infringements — red for a penalty, amber for a warning). Laps are
+  chequered flag, car faults — amber when a DRS/ERS/engine fault appears, green when it clears —
+  and infringements, red for a penalty and amber for a warning). Laps are
   numbered by the game's own lap count, so they line up with the tower's "LAP X / Y" even
   if the app joins a session late or after a red-flag restart.
 - **Race Position Tower** — the Grand Prix name and country flag above a "LAP X / Y"

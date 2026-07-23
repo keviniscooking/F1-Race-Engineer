@@ -29,6 +29,18 @@
             </Canvas>
         </Viewbox>
 
+        <!-- Car fault - a warning triangle, deliberately NOT the "!" badge below, which means an
+             infringement everywhere else. Amber when it appears, green when it clears. -->
+        <Viewbox Width="13" Height="13" Margin="0,0,5,0" VerticalAlignment="Center"
+                 Visibility="{Binding IsFault, Converter={StaticResource BoolToVis}}">
+            <Canvas Width="24" Height="24">
+                <Path Data="M12 3.5 22 20.5 2 20.5 Z" Stroke="{Binding TextBrush}" StrokeThickness="2"
+                      StrokeLineJoin="Round"/>
+                <Path Data="M12 10v4.2" Stroke="{Binding TextBrush}" StrokeThickness="2" StrokeStartLineCap="Round"/>
+                <Path Data="M12 17.4v.2" Stroke="{Binding TextBrush}" StrokeThickness="2.2" StrokeStartLineCap="Round"/>
+            </Canvas>
+        </Viewbox>
+
         <!-- Infringement "!" badge - red for a real penalty, amber for a warning (the badge takes
              the event's own colour, so it matches the Penalties & Flags chips). -->
         <Border Width="15" Height="15" CornerRadius="4" Background="{Binding TextBrush}" Margin="0,0,5,0" VerticalAlignment="Center"
