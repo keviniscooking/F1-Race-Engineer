@@ -78,6 +78,14 @@ namespace F1RaceEngineer.Models
 
         public string BestLapText { get; }
         public SolidColorBrush BestLapBrush { get; }
+
+        // The FASTEST lap of the session and who set it - distinct from BestLapText above, which
+        // is the player's own best. Shown side by side on the card so "my best" and "the best" are
+        // directly comparable; when they're the same lap the name shown is the player's own.
+        public string FastestLapText { get; } = "";
+        public string FastestLapBy { get; } = "";
+        public bool HasSessionFastestLap { get; }
+
         public string StopsText { get; }
         public string PointsText { get; }
         public bool HasFastestLap { get; }
@@ -187,6 +195,20 @@ namespace F1RaceEngineer.Models
                 if (!row.IsOut && row.Position >= 1) { winner = row; break; }
             double winnerTime = winner?.TotalRaceTimeSeconds ?? 0;
             int winnerLaps = winner?.NumLaps ?? 0;
+
+            // The session's fastest lap and who set it. Read from the classification rather than
+            // stored separately - the flag is already per driver there, so there's nothing new to
+            // capture and this works for every race already on disk. Purple is F1's own colour for
+            // the fastest lap of a session, the same one the live timing board and the tower's
+            // fastest-lap strip use.
+            foreach (var row in r.Classification)
+                if (row.HasFastestLap && row.BestLapMs > 0)
+                {
+                    FastestLapText = FormatTime(row.BestLapMs);
+                    FastestLapBy = row.DriverName;
+                    HasSessionFastestLap = true;
+                    break;
+                }
 
             Classification = new List<ClassRowView>();
             foreach (var row in r.Classification) Classification.Add(new ClassRowView(row, winnerTime, winnerLaps));

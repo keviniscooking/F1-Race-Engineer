@@ -52,6 +52,12 @@ namespace F1RaceEngineer.Models
         public string IdentityText { get; }              // "Haas · Bearman"
         public System.Windows.Media.SolidColorBrush IdentityBrush { get; }
 
+        // Season-long head-to-head against the other human, shown only for a two-player career
+        // where at least one race captured one. Null everywhere else, so the strip is simply
+        // absent rather than showing an empty comparison.
+        public H2HSeasonView? HeadToHead { get; }
+        public bool HasHeadToHead => HeadToHead != null;
+
         public string RacesText { get; }
         public string WinsText { get; }
         public string PodiumsText { get; }
@@ -85,6 +91,8 @@ namespace F1RaceEngineer.Models
             DnfsText = mains.Count(m => m.IsDnf).ToString();
             BestText = classified.Count > 0 ? "P" + classified.Min(m => m.Source.FinishPosition) : "—";
             AvgText = classified.Count > 0 ? classified.Average(m => m.Source.FinishPosition).ToString("0.0") : "—";
+
+            HeadToHead = H2HSeasonView.Build(weekends);
         }
 
         /// <summary>
