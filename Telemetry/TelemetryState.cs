@@ -146,7 +146,7 @@ namespace F1RaceEngineer.Telemetry
             // in/out-lap classification to the lap that just ended instead.
             public DriverStatus LastKnownDriverStatus;
 
-            // True if DriverStatus was InLap at ANY point during the lap now in progress.
+            // True if DriverStatus TRANSITIONED into InLap during the lap now in progress.
             // The previous-tick status alone is not enough to spot an in-lap: where the pit
             // exit lies BEFORE the start/finish line, the whole stop (entry, box, rejoin)
             // fits inside one lap and the status flips InLap -> OutLap seconds before the
@@ -154,8 +154,16 @@ namespace F1RaceEngineer.Telemetry
             // long-standing double-OUT with no IN row (confirmed from the pit log: a stop
             // finished at 21:58:10 and the lap only completed at 21:58:15). Because the IN
             // row never existed, PatchMostRecentInRowPitTime also silently dropped the
-            // stationary stop time. Latching "saw InLap this lap" fixes both, and leaves the
-            // straddling-pit-lane case (already correct) unchanged. Cleared per lap.
+            // stationary stop time. Latching "saw InLap this lap" fixes that.
+            //
+            // Latched on the EDGE into InLap, not every InLap tick, to avoid the mirror bug:
+            // where the pit box sits on the lap AFTER the line, the car crosses S/F still
+            // reading InLap (in-lap tagged + this flag consumed), then holds InLap for several
+            // more ticks while it's serviced. An any-tick latch re-armed on those trailing
+            // ticks and tagged the following out-lap "IN" too - the double-IN (confirmed at
+            // Suzuka: InLap held to 22:52:39, past the line, before flipping to OutLap). Because
+            // a second pit stop can't begin without the car driving OnTrack in between, one
+            // edge always maps to exactly one in-lap. Cleared per lap.
             public bool SawInLapThisLap;
 
             // PitStopTimerInMS (the stationary box time) goes stale by the time the IN
@@ -1420,7 +1428,14 @@ namespace F1RaceEngineer.Telemetry
 
                 // Latch the in-lap for THIS lap the moment it's seen, rather than relying on the
                 // status still reading InLap at the line - see CarLapTracker.SawInLapThisLap.
-                if (car.DriverStatus == DriverStatus.InLap) tracker.SawInLapThisLap = true;
+                // Latched on the EDGE into InLap, not every InLap tick: where the pit box sits on
+                // the lap AFTER the line, the car crosses the S/F line (in-lap tagged + consumed)
+                // while still reading InLap, then stays InLap for several ticks while it's serviced.
+                // A plain any-tick latch re-armed on those trailing ticks and tagged the out-lap
+                // "IN" too - the double-IN (confirmed at Suzuka: InLap held past the line to 22:52:39
+                // before flipping to OutLap). One edge = one in-lap per pit visit.
+                if (car.DriverStatus == DriverStatus.InLap && prevDriverStatus != DriverStatus.InLap)
+                    tracker.SawInLapThisLap = true;
 
                 // Track the peak PitStopTimerInMS while actually in the pits. On exit,
                 // try to patch it straight into an already-existing IN row (see

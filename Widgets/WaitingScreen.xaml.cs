@@ -233,22 +233,15 @@ namespace F1RaceEngineer.Widgets
 
         // ---- cars ----
 
+        // A car is drawn as a simple livery dot: cleaner on the thin track ribbon than a little car
+        // shape. Sits in a Canvas centred on the origin so PlaceCars' translate lands it on the
+        // racing line; the rotation PlaceCars also applies is a no-op on a circle.
         private static Canvas BuildCar(Brush body)
         {
+            const double d = 15;   // dot diameter in the 1000-unit canvas
             var c = new Canvas();
-            void Rect(double x, double y, double w, double h, double r, Brush f) =>
-                c.Children.Add(new Rectangle { Width = w, Height = h, RadiusX = r, RadiusY = r, Fill = f,
-                    RenderTransform = new TranslateTransform(x, y) });
-            Rect(-20, -9, 5, 18, 1.5, Dark);        // rear wing
-            Rect(-11, -8.5, 6.5, 5.5, 1.5, Dark);   // rear wheels
-            Rect(-11, 3, 6.5, 5.5, 1.5, Dark);
-            Rect(9, -8.5, 6.5, 5.5, 1.5, Dark);     // front wheels
-            Rect(9, 3, 6.5, 5.5, 1.5, Dark);
-            c.Children.Add(new Polygon { Fill = body, Points = new PointCollection {
-                new(-18, -5.5), new(13, -5), new(22, 0), new(13, 5), new(-18, 5.5) } });  // body
-            c.Children.Add(new Ellipse { Width = 10, Height = 6, Fill = Dark, Opacity = 0.9,
-                RenderTransform = new TranslateTransform(-8, -3) });                       // cockpit
-            Rect(19, -8.5, 4, 17, 1.5, Dark);       // front wing
+            c.Children.Add(new Ellipse { Width = d, Height = d, Fill = body, Stroke = Dark, StrokeThickness = 2,
+                RenderTransform = new TranslateTransform(-d / 2, -d / 2) });
             return c;
         }
 

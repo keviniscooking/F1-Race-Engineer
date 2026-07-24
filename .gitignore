@@ -19,3 +19,6 @@ desktop.ini
 # Claude Code local settings (permission allowlist etc.) - personal to this machine,
 # not project content
 .claude/settings.local.json
+
+# WPF markup-compile pass-2 scratch project (see F1RaceEngineer.csproj comment)
+*_wpftmp.csproj

@@ -1788,6 +1788,32 @@ previewing a preset, which hid it).
   the geojson metadata); corner coverage went from 4 to 10 tracks (Shanghai, Silverstone, Zandvoort,
   Interlagos, Bahrain, Austin added), placed on curvature-detected apexes.
 
+### Forty-fourth round — the double-IN pit bug SOLVED, plus waiting-screen dots (v1.5.1)
+The mirror of the double-OUT bug from the thirty-eighth round, found in the collected `pit-debug.log`
+from a real two-player career race at Suzuka.
+
+- **Double-IN root cause.** The stop straddled the start/finish line with the pit box on the lap
+  *after* the line. The car crossed S/F still reading `DriverStatus.InLap` (in-lap correctly tagged
+  IN and the `SawInLapThisLap` latch consumed), then *held* `InLap` for several more ticks (to
+  `22:52:39` in the log) while being serviced before flipping to `OutLap`. The thirty-eighth round's
+  fix latched "saw InLap" on *every* `InLap` tick to catch the opposite (exit-before-line) case - but
+  that same any-tick latch **re-armed on those trailing ticks**, so the following out-lap inherited a
+  phantom IN. Result: lap 11 = IN *and* lap 12 = IN.
+- **Fix (`TelemetryState.cs`).** Latch `SawInLapThisLap` only on the **edge into** `InLap`
+  (`car.DriverStatus == InLap && prevDriverStatus != InLap`), not on every tick. One edge maps to
+  exactly one in-lap per pit visit - a second stop can't begin without the car driving `OnTrack` in
+  between, so multi-stop races are unaffected, and the double-OUT case latches on that same first
+  edge so it stays fixed. Suzuka now reads lap 11 = IN (with the stationary stop time patched in) and
+  lap 12 = OUT (with the pit-lane time) - the normal straddling-stop display.
+- **Still to confirm live (§6).** Needs a *real* straddling pit stop to verify the IN/OUT tags on the
+  user's machine. The TEMP `pit-debug.log` diagnostic is deliberately left in one more session to
+  catch exactly that; once a live straddling stop confirms it, both the double-OUT and double-IN cases
+  are closed and the diagnostic can be removed.
+- **Waiting-screen cars → dots.** User feedback: the little car shapes read poorly on the thin ribbon.
+  `WaitingScreen.BuildCar` now draws a simple livery dot (15px, dark ring) centred on the racing line;
+  order, spacing, driver labels and the animation are unchanged. Verified live via a test run (Suzuka,
+  the last saved race).
+
 ## 6. Known caveats — built, but not yet trustworthy
 
 Everything in this section is shipped and *looks* right, but has either not been verified
