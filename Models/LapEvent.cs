@@ -5,7 +5,7 @@ namespace F1RaceEngineer.Models
     // SavedLapEvent persists the kind by NAME (Kind.ToString()), not by ordinal, so members can
     // be added or reordered freely - but a member must never be RENAMED without migrating, or
     // every already-saved race carrying it fails to parse back.
-    public enum LapEventKind { SafetyCar, VirtualSafetyCar, RedFlag, Chequered, Penalty, Warning, Restart, Fault, FaultFixed }
+    public enum LapEventKind { SafetyCar, VirtualSafetyCar, RedFlag, Chequered, Penalty, Warning, Restart, Fault, FaultFixed, Retired }
 
     /// <summary>
     /// A notable thing that happened on one lap - a Safety Car / VSC caution, a red flag, the
@@ -38,6 +38,11 @@ namespace F1RaceEngineer.Models
         /// </summary>
         public bool IsFault => Kind is LapEventKind.Fault or LapEventKind.FaultFixed;
 
+        /// <summary>The player retiring from the race - its own "out" glyph (a crossed circle),
+        /// distinct from a fault (something that went wrong but you kept going) and from an
+        /// infringement. Mirrors the detail header's "Retired on lap X".</summary>
+        public bool IsRetired => Kind == LapEventKind.Retired;
+
         // Waved-flag fill: yellow for a caution (SC/VSC), red for a red flag, green for the
         // restart that ends one.
         public SolidColorBrush IconBrush => Kind switch
@@ -60,6 +65,8 @@ namespace F1RaceEngineer.Models
             // pairing the Red Flag and Restart chips already use.
             LapEventKind.Fault => Amber,
             LapEventKind.FaultFixed => Green,
+            // A retirement is the race ending badly - the same red the alert banner uses for it.
+            LapEventKind.Retired => Red,
             _ => Neutral
         };
 

@@ -41,6 +41,16 @@
             </Canvas>
         </Viewbox>
 
+        <!-- Retirement - a crossed circle ("out"), distinct from the fault triangle and the "!"
+             badge. Red, matching the alert banner's retirement colour. -->
+        <Viewbox Width="13" Height="13" Margin="0,0,5,0" VerticalAlignment="Center"
+                 Visibility="{Binding IsRetired, Converter={StaticResource BoolToVis}}">
+            <Canvas Width="24" Height="24">
+                <Ellipse Canvas.Left="3" Canvas.Top="3" Width="18" Height="18" Stroke="{Binding TextBrush}" StrokeThickness="2.2"/>
+                <Path Data="M7.5 7.5 16.5 16.5" Stroke="{Binding TextBrush}" StrokeThickness="2.2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+            </Canvas>
+        </Viewbox>
+
         <!-- Infringement "!" badge - red for a real penalty, amber for a warning (the badge takes
              the event's own colour, so it matches the Penalties & Flags chips). -->
         <Border Width="15" Height="15" CornerRadius="4" Background="{Binding TextBrush}" Margin="0,0,5,0" VerticalAlignment="Center"

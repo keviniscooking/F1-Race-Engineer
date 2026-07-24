@@ -32,10 +32,13 @@ namespace F1RaceEngineer.Models
         private static readonly SolidColorBrush Red = Frozen(0xE1, 0x2E, 0x2E);
         private static readonly SolidColorBrush Muted = Frozen(0x6B, 0x76, 0x84);
 
-        public HeadToHeadView(SavedHeadToHead h2h, string sessionLabel)
+        public HeadToHeadView(SavedHeadToHead h2h, string sessionLabel, IReadOnlyList<int>? youInLaps = null)
         {
             SessionLabel = sessionLabel;
-            You = new H2HSide(h2h.You);
+            // youInLaps are the player's real IN-tagged laps (see SavedRaceView.InLapsFrom): they pin
+            // "You"'s pit stops to the exact laps the result/history tab shows. The rival has no IN
+            // tags, so it keeps its raw captured stop laps.
+            You = new H2HSide(h2h.You, youInLaps);
             Rival = new H2HSide(h2h.Rival);
 
             // The verdict is finishing position, not lap time - a race is won on the road. A
@@ -305,23 +308,31 @@ namespace F1RaceEngineer.Models
         // ARE the pit stops, and without markers the reader has to cross-reference the list.
         public List<int> PitLaps { get; }
 
-        public H2HSide(SavedH2HDriver d)
+        public H2HSide(SavedH2HDriver d, IReadOnlyList<int>? inLaps = null)
         {
             Name = d.Name;
             Team = d.Team;
             LiveryBrush = SavedRaceView.BrushFromHex(d.LiveryHex);
             PositionText = d.IsOut ? "DNF" : "P" + d.FinishPosition;
             PointsText = d.Points > 0 ? $"{d.Points} pts" : "-";
-            // Reuses the same segment builder the result view's strategy bar uses, so both bars
-            // are drawn from identical logic and can't drift apart. No AlignStintsToInLaps pass
-            // here: that corrects stint boundaries against the player's IN-tagged laps, which
-            // only exist for the player - the raw game boundaries are what both drivers share.
-            StintSegments = SavedRaceView.BuildSegments(d.Stints, d.NumLaps);
+
+            // When the player's real IN-lap numbers are supplied (they exist only for the player),
+            // every pit-stop lap on this page - the strategy-bar markers, the per-stop rows and the
+            // gap-chart markers - is pinned to them, so the whole H2H matches the result/history tab
+            // exactly (the raw _h2hStops.Lap is the pit-lane-exit lap, one late on a straddling pit
+            // lane). Guarded on the counts lining up; otherwise, and always for the rival, the raw
+            // captured data is used so nothing is ever guessed.
+            bool useInLaps = inLaps != null && inLaps.Count == d.Stops.Count
+                             && inLaps.Count == Math.Max(0, d.Stints.Count - 1);
+
+            // Same segment builder the result view uses, so the bars can't drift apart in shape.
+            var stints = useInLaps ? SavedRaceView.AlignStintsToInLaps(d.Stints, inLaps!) : d.Stints;
+            StintSegments = SavedRaceView.BuildSegments(stints, d.NumLaps);
 
             HasStops = d.Stops.Count > 0;
-            Stops = d.Stops.Select(s => new H2HStopRow
+            Stops = d.Stops.Select((s, i) => new H2HStopRow
             {
-                LapText = "L" + s.Lap,
+                LapText = "L" + (useInLaps ? inLaps![i] : s.Lap),
                 BoxText = $"{s.StationaryMs / 1000.0:0.00}s",
                 LaneText = $"{s.LaneMs / 1000.0:0.0}s"
             }).ToList();
@@ -329,7 +340,7 @@ namespace F1RaceEngineer.Models
             uint totalBox = 0;
             foreach (var s in d.Stops) totalBox += s.StationaryMs;
             StopTotalText = HasStops ? $"{totalBox / 1000.0:0.00}s" : "—";
-            PitLaps = d.Stops.Select(s => s.Lap).ToList();
+            PitLaps = useInLaps ? inLaps!.ToList() : d.Stops.Select(s => s.Lap).ToList();
         }
     }
 

@@ -48,7 +48,21 @@ namespace F1RaceEngineer.Models
         /// print the very ambiguity the header exists to remove.
         /// </summary>
         public HeadToHeadView? BuildHeadToHead() =>
-            Source.HeadToHead == null ? null : new HeadToHeadView(Source.HeadToHead, $"{GrandPrix} · {_sessionLabel}");
+            Source.HeadToHead == null ? null
+                : new HeadToHeadView(Source.HeadToHead, $"{GrandPrix} · {_sessionLabel}", InLapsFrom(Source.PlayerLaps));
+
+        // The player's real in-lap numbers, straight from the IN tags the result tab already trusts.
+        // Passed into the H2H so "You"'s pit stops pin to the exact same laps the RESULT/history bar
+        // shows - the capture-time _h2hStops.Lap is the pit-lane-EXIT lap, which lands one late where
+        // the pit lane straddles the start/finish line. Only the player has IN tags; the rival keeps
+        // its raw captured laps (there's no result-tab bar for the rival to disagree with anyway).
+        private static List<int> InLapsFrom(List<SavedLapRow> laps)
+        {
+            var inLaps = new List<int>();
+            foreach (var lap in laps)
+                if (lap.Tag == "IN" && lap.LapNumber > 0) inLaps.Add(lap.LapNumber);
+            return inLaps;
+        }
 
         public bool IsDnf { get; }
 
@@ -253,7 +267,13 @@ namespace F1RaceEngineer.Models
             var inLaps = new List<int>();
             foreach (var lap in laps)
                 if (lap.Tag == "IN" && lap.LapNumber > 0) inLaps.Add(lap.LapNumber);
+            return AlignStintsToInLaps(stints, inLaps);
+        }
 
+        // Overload taking the in-lap numbers directly, so the H2H page can align "You"'s stints
+        // against the same player IN tags without re-deriving them.
+        internal static List<SavedStint> AlignStintsToInLaps(List<SavedStint> stints, IReadOnlyList<int> inLaps)
+        {
             if (stints.Count < 2 || inLaps.Count != stints.Count - 1) return stints;
 
             var aligned = new List<SavedStint>(stints.Count);

@@ -1805,14 +1805,44 @@ from a real two-player career race at Suzuka.
   between, so multi-stop races are unaffected, and the double-OUT case latches on that same first
   edge so it stays fixed. Suzuka now reads lap 11 = IN (with the stationary stop time patched in) and
   lap 12 = OUT (with the pit-lane time) - the normal straddling-stop display.
-- **Still to confirm live (§6).** Needs a *real* straddling pit stop to verify the IN/OUT tags on the
-  user's machine. The TEMP `pit-debug.log` diagnostic is deliberately left in one more session to
-  catch exactly that; once a live straddling stop confirms it, both the double-OUT and double-IN cases
-  are closed and the diagnostic can be removed.
+- **CONFIRMED LIVE (forty-fifth round).** A later two-player career race (20 laps) produced a straddling
+  stop in `pit-debug.log` and it now reads lap 12 = IN, lap 13 = OUT - the double-IN is fixed on real
+  data. The `pit-debug.log` diagnostic is still left in for now (see forty-fifth round).
 - **Waiting-screen cars → dots.** User feedback: the little car shapes read poorly on the thin ribbon.
   `WaitingScreen.BuildCar` now draws a simple livery dot (15px, dark ring) centred on the racing line;
   order, spacing, driver labels and the animation are unchanged. Verified live via a test run (Suzuka,
   the last saved race).
+
+### Forty-fifth round — retirement banner self-heal, H2H pit alignment, waiting order, "Retired" chip (v1.5.2)
+Four items from live use of v1.5.1.
+
+- **Terminal-damage banner stuck after a game restart.** The retirement banner is deliberately
+  timer-less (see `_isRetirementActive`) - it persists for the rest of a retired session and is
+  cleared only by `ResetSessionScopedState` on the next session change. But restarting the game to
+  re-race the same session can hand back a session the reset doesn't recognise as new (a two-player /
+  online career can keep the lobby's `SessionUID` across the restart), leaving it stuck. Fix
+  (`HandleLapData`): self-heal - the moment the player's own `ResultStatus` reads `Active` again
+  (unambiguously "racing, not retired"; a car stays `Retired` for the whole session it retired in, so
+  this can never fire mid-retirement), drop the banner.
+- **H2H pit stops one lap off the RESULT/history tab.** The result tab pins pit markers to the player's
+  IN-tagged lap via `AlignStintsToInLaps`; the H2H tab instead used `_h2hStops.Lap`, the pit-lane-EXIT
+  lap, which is one late where the pit lane straddles the start/finish line. Fix: `SavedRaceView`
+  passes the player's real in-laps (`InLapsFrom(Source.PlayerLaps)`) into `HeadToHeadView`, and
+  `H2HSide` pins the strategy-bar markers, per-stop rows and gap-chart markers to them (new
+  `AlignStintsToInLaps` overload taking in-laps directly). Guarded on the counts lining up, else it
+  falls back to the raw captured laps - so old saves / mid-race joins aren't guessed. **Retroactive**
+  (view-side), and the HTML export gets it free. The rival keeps raw laps: it has no IN tags, and
+  there's no result-tab bar for it to disagree with.
+- **Waiting-screen field ran backwards.** A larger path-offset sits further along the direction of
+  travel (ahead), but the classification leader (`order[0]`) was given offset 0, so P10 led and the
+  leader trailed. Fix (`WaitingScreen.BuildScene`): the leader gets the largest offset - `(n-1-i)*gap`.
+  Verified live (the field reads as one coherent leader-first train).
+- **"Retired" now a lap event.** Previously a retirement was captured only at race level (the
+  `RetiredOnLap` header). New `LapEventKind.Retired` (red, a crossed-circle "out" glyph) is added to
+  the lap-by-lap EVENTS column at final classification (`MarkRetirementLap`, before
+  `SnapshotPlayerLaps`) on the lap the player went out - a blank numbered row is synthesised for it if
+  that lap never completed. Idempotent. Captured going forward like every other lap event (not
+  back-filled into pre-existing DNF saves); shows in the saved race, the live list and the HTML export.
 
 ## 6. Known caveats — built, but not yet trustworthy
 

@@ -10,7 +10,7 @@
     <ApplicationIcon>AppIcon.ico</ApplicationIcon>
     <!-- Compared by Velopack (see App.xaml.cs) to detect when a newer release is
          available. Bump this on every release cut - see HANDOFF.md's release steps. -->
-    <Version>1.5.1</Version>
+    <Version>1.5.2</Version>
     <!-- Velopack needs a custom Main (App.xaml.cs) instead of the default
          StartupUri-generated one, so it can intercept install/update/uninstall
          invocations before any window opens. -->

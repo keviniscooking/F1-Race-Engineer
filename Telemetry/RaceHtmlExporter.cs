@@ -296,6 +296,7 @@ namespace F1RaceEngineer.Telemetry
         {
             LapEventKind.Chequered => "▦",
             LapEventKind.Penalty or LapEventKind.Warning => "!",
+            LapEventKind.Retired => "⊘",
             _ => "⚑"
         };
 

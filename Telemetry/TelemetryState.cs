@@ -1407,6 +1407,20 @@ namespace F1RaceEngineer.Telemetry
 
                 bool isPlayer = i == _playerCarIndex;
 
+                // Self-heal the retirement banner. By design it has no timer - it persists for the
+                // rest of the retired session (see _isRetirementActive) and is normally cleared by
+                // ResetSessionScopedState on the next session change. But restarting the game to
+                // re-race the same session can hand back a session the reset doesn't recognise as new
+                // (notably a two-player/online career, where the lobby's SessionUID can survive the
+                // restart), leaving the banner stuck. The player's own ResultStatus reading Active is
+                // an unambiguous "racing again, not retired" signal - once retired, a car stays
+                // Retired for that whole session, so this can never fire mid-retirement. Drop it.
+                if (isPlayer && _isRetirementActive && car.ResultStatus == ResultStatus.Active)
+                {
+                    _isRetirementActive = false;
+                    RefreshAlertBanner();
+                }
+
                 // TEMP pit diagnostic: snapshot previous-tick pit state so a change this tick
                 // can be detected and logged at the end of the iteration (see LogPitEvent).
                 DriverStatus prevDriverStatus = tracker.LastKnownDriverStatus;
@@ -2013,6 +2027,13 @@ namespace F1RaceEngineer.Telemetry
             var player = span[playerIdx];
             bool playerOut = IsOutStatus(player.ResultStatus);
 
+            // A retired player gets a "Retired" chip in the lap-by-lap EVENTS column on the lap they
+            // went out, mirroring the header's "Retired on lap X". Done before SnapshotPlayerLaps
+            // below so it travels into the saved race (and shows on the live list too). The lap the
+            // player retired on often never completed as a timed row, so a blank one is created for
+            // it when none exists - same as a skipped lap, but carrying the chip.
+            if (playerOut) MarkRetirementLap(player.NumLaps);
+
             var race = new SavedRace
             {
                 SessionUid = uid,
@@ -2227,6 +2248,55 @@ namespace F1RaceEngineer.Telemetry
                     ColorBrush = TimingColorPalette.NeutralText
                 });
         }
+
+        /// <summary>
+        /// Adds the "Retired" chip to the lap the player went out on. If that lap already has a row,
+        /// the chip is appended to it; if it never completed (the usual case for a mid-lap
+        /// retirement), a blank numbered row is created for it, carrying only the chip - the same
+        /// treatment a skipped lap gets. Idempotent, so a re-fired classification can't double it.
+        /// </summary>
+        private void MarkRetirementLap(int lapNum)
+        {
+            if (lapNum <= 0) return;
+            var retired = new LapEvent(LapEventKind.Retired, "Retired");
+
+            for (int i = 0; i < LapHistory.Count; i++)
+            {
+                var e = LapHistory[i];
+                if (ParseLapNumber(e.LapNumberText) != lapNum) continue;
+                if (e.Events.Any(ev => ev.Kind == LapEventKind.Retired)) return; // already marked
+                LapHistory[i] = CloneWithEvents(e, new List<LapEvent>(e.Events) { retired });
+                return;
+            }
+
+            // No row for the retirement lap - it was never completed. Add a blank one (newest-first,
+            // so at the top) so the chip still appears against the right lap number.
+            LapHistory.Insert(0, new LapHistoryEntry
+            {
+                LapNumberText = $"Lap {lapNum}",
+                LapTimeText = "—",
+                DeltaText = "",
+                ColorBrush = TimingColorPalette.NeutralText,
+                Events = new List<LapEvent> { retired }
+            });
+        }
+
+        // Copies a lap row with a different event list - LapHistoryEntry has no per-property change
+        // notification, so a row is "edited" by replacing it (see PatchMostRecentInRowPitTime).
+        private static LapHistoryEntry CloneWithEvents(LapHistoryEntry e, List<LapEvent> events) => new()
+        {
+            LapNumberText = e.LapNumberText,
+            LapTimeText = e.LapTimeText,
+            DeltaText = e.DeltaText,
+            ColorBrush = e.ColorBrush,
+            LapTagText = e.LapTagText,
+            HasLapTag = e.HasLapTag,
+            PitStopTimeText = e.PitStopTimeText,
+            Sector1Text = e.Sector1Text, Sector1Brush = e.Sector1Brush,
+            Sector2Text = e.Sector2Text, Sector2Brush = e.Sector2Brush,
+            Sector3Text = e.Sector3Text, Sector3Brush = e.Sector3Brush,
+            Events = events
+        };
 
         private static int ParseLapNumber(string lapText)
         {

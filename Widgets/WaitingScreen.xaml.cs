@@ -109,9 +109,13 @@ namespace F1RaceEngineer.Widgets
             AddStartFinish();
             AddCorners(track.Id);
 
-            // cars, one car length apart, leader at the front
+            // cars, one car length apart, leader at the front. A larger offset sits further along
+            // the path in the direction of travel (i.e. ahead), so the classification leader
+            // (order[0]) needs the LARGEST offset, not zero - otherwise the field runs backwards,
+            // P10 leading the leader.
             double gap = _approxLength > 0 ? (2 * CarLen) / _approxLength : 0.03;
-            for (int i = 0; i < order.Count; i++)
+            int n = order.Count;
+            for (int i = 0; i < n; i++)
             {
                 var (code, brush) = order[i];
                 var car = BuildCar(brush);
@@ -120,7 +124,7 @@ namespace F1RaceEngineer.Widgets
                     FontWeight = FontWeights.Bold, Foreground = Frozen(0x58, 0xA6, 0xFF),
                     Visibility = showNames && code.Length > 0 ? Visibility.Visible : Visibility.Collapsed };
                 TrackCanvas.Children.Add(label);
-                _cars.Add((car, label, i * gap));
+                _cars.Add((car, label, (n - 1 - i) * gap));
             }
             _progress = 0;
             PlaceCars();
