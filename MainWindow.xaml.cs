@@ -80,8 +80,8 @@ namespace F1RaceEngineer
             // on the timing board + lap timing unless the user toggles more on.
             _togglesByPreset = new Dictionary<PresetType, ObservableCollection<WidgetToggle>>
             {
-                [PresetType.Practice] = BuildToggleSet(defaultEnabled: false, historyDefault: true),
-                [PresetType.Qualifying] = BuildToggleSet(defaultEnabled: false, historyDefault: true),
+                [PresetType.Practice] = BuildToggleSet(defaultEnabled: false, historyDefault: true, sessionDefault: true, conditionDefault: true),
+                [PresetType.Qualifying] = BuildToggleSet(defaultEnabled: false, historyDefault: true, sessionDefault: true, conditionDefault: true),
                 [PresetType.Race] = BuildToggleSet(defaultEnabled: true, historyDefault: true),
                 [PresetType.Unsupported] = BuildToggleSet(defaultEnabled: false, historyDefault: true)
             };
@@ -257,16 +257,19 @@ namespace F1RaceEngineer
         /// entirely (null) - currently every preset passes true (history on, toggleable),
         /// but the nullable path is kept for a future preset that shouldn't offer history.
         /// </summary>
-        private ObservableCollection<WidgetToggle> BuildToggleSet(bool defaultEnabled, bool? historyDefault)
+        private ObservableCollection<WidgetToggle> BuildToggleSet(bool defaultEnabled, bool? historyDefault,
+            bool? sessionDefault = null, bool? conditionDefault = null)
         {
             var toggles = new ObservableCollection<WidgetToggle>();
 
             if (historyDefault.HasValue)
                 toggles.Add(new WidgetToggle { Key = "history", Label = "Lap History", IsEnabled = historyDefault.Value });
 
-            toggles.Add(new() { Key = "session", Label = "Session & Track", IsEnabled = defaultEnabled });
+            // session and condition can opt out of the blanket defaultEnabled: Practice and Qualifying
+            // turn them on (with Lap History) while leaving tyres/penalties off, per user preference.
+            toggles.Add(new() { Key = "session", Label = "Session & Track", IsEnabled = sessionDefault ?? defaultEnabled });
             toggles.Add(new() { Key = "tyres", Label = "Tyres", IsEnabled = defaultEnabled });
-            toggles.Add(new() { Key = "condition", Label = "Car Condition", IsEnabled = defaultEnabled });
+            toggles.Add(new() { Key = "condition", Label = "Car Condition", IsEnabled = conditionDefault ?? defaultEnabled });
             toggles.Add(new() { Key = "penalties", Label = "Penalties & Flags", IsEnabled = defaultEnabled });
 
             foreach (var toggle in toggles)

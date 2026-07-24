@@ -1844,6 +1844,38 @@ Four items from live use of v1.5.1.
   that lap never completed. Idempotent. Captured going forward like every other lap event (not
   back-filled into pre-existing DNF saves); shows in the saved race, the live list and the HTML export.
 
+### Forty-sixth round — phantom IN on a declined pit call, waiting-screen full field + flags, P/Q defaults (v1.5.3)
+Mostly from live use of v1.5.2, plus waiting-screen polish.
+
+- **Declined pit call tagged "IN" (SOLVED, confirmed live).** After an early front-wing stop, the
+  player's engineer called them in for the scheduled stop and they waved it off. The lap the call
+  came on still got an IN tag with no stop. Root cause from `pit-debug.log`: the game flips
+  `DriverStatus` to `InLap` the instant a car is *called* in and it STAYS `InLap` for the rest of
+  the race even if the driver never pits (confirmed - InLap held from lap 15 to the finish, `pit=None
+  lane=False`), yet the IN tag was derived from `DriverStatus.InLap` alone. Fix (`CarLapTracker`): a
+  new `EnteredPitLaneThisLap` latch (set on `PitLaneTimerActive` / `PitStatus != None`), and
+  `ClassifyLapTag` now requires BOTH the in-lap edge AND real pit-lane presence to tag IN. Verified
+  against every logged case: real stops and straddling stops still tag correctly; the declined call
+  no longer does.
+- **Waiting screen: full field.** `ResolveScene` no longer caps at the top 10 - it takes the whole
+  saved classification (20 in F1 25, 22 in F1 26; the count tracks the grid automatically). Cold
+  start (no saved race) mocks a full 20-car grid (each of the ten fallback team colours twice).
+  Spacing was briefly halved to fit them, then restored to the original two-car-length gap (user
+  found the halved version too tight); a clamp caps the train at ~85% of the lap so a full grid can't
+  wrap and overlap its own tail on a short circuit (never binds on a normal-length track).
+- **Waiting screen: flags, not codes.** The facts line showed the 3-letter country code (`TrackCc`)
+  as text, never a flag. It now renders the vector `FlagPalette` flag (the same one the tower and
+  history cards use), with the code kept only as a fallback for a country with no flag design (all 24
+  currently have one). Verified live (Bahrain).
+- **Practice/Qualifying default widgets.** `BuildToggleSet` gained per-widget `sessionDefault` /
+  `conditionDefault` overrides; Practice and Qualifying now default Lap History, Session & Track and
+  Car Condition ON (tyres/penalties stay off). No persistence layer for toggles, so these defaults
+  are the live values each launch.
+- **Track name atop the P/Q board.** `PositionListWidget` gained a track-identity bar (Grand Prix
+  name + country flag) mirroring the Race tower's header, deliberately WITHOUT the lap counter -
+  neither session is run to a lap count. Same `HasGrandPrix` / `TrackFlagBrush` / `GrandPrixName`
+  bindings the tower uses.
+
 ## 6. Known caveats — built, but not yet trustworthy
 
 Everything in this section is shipped and *looks* right, but has either not been verified

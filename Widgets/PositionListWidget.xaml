@@ -7,6 +7,23 @@
 
     <Border Style="{StaticResource WidgetCardStyle}">
         <StackPanel>
+            <!-- Track identity bar - the Grand Prix name + country flag, mirroring the Race tab's
+                 tower header so Practice and Qualifying also name the circuit at the top of the
+                 board. Deliberately NO lap counter: neither session is run to a lap count the way the
+                 race is. Same name/flag pair the tower and history cards use; hidden until a session
+                 packet has named the track. -->
+            <Border Background="#1C2733" CornerRadius="6" Padding="0,7" Margin="0,0,0,10"
+                    Visibility="{Binding HasGrandPrix, Converter={StaticResource BoolToVis}}">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                    <Border CornerRadius="2" VerticalAlignment="Center" Margin="0,0,7,0" BorderBrush="#3A4552" BorderThickness="1"
+                            Visibility="{Binding HasTrackFlag, Converter={StaticResource BoolToVis}}">
+                        <Rectangle Width="18" Height="12" RadiusX="1.5" RadiusY="1.5" Fill="{Binding TrackFlagBrush}"/>
+                    </Border>
+                    <TextBlock Text="{Binding GrandPrixName}" FontSize="12.5" FontWeight="SemiBold" Foreground="#C7D0DA"
+                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                </StackPanel>
+            </Border>
+
             <TextBlock Text="POSITION" FontSize="11" Foreground="#6B7684" Margin="0,0,0,8"/>
 
             <Grid Margin="6,0,6,4">

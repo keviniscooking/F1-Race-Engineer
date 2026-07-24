@@ -96,7 +96,23 @@ namespace F1RaceEngineer.Widgets
             TrackName.Text = track.Circuit.Split(new[] { " - " }, StringSplitOptions.None)[0];
             string km = (track.Len / 1000.0).ToString("0.000") + " km";
             TrackLen.Text = track.FirstGp > 0 ? $"{km}   ·   first Grand Prix {track.FirstGp}" : km;
-            TrackCc.Text = CountryFromId(track.Id);
+
+            // Show the country flag; fall back to the 3-letter code only if that country has no
+            // flag design (all 24 tracks currently do, but the fallback keeps a new one from blanking).
+            string cc = CountryFromId(track.Id);
+            var flag = FlagPalette.BrushFor(cc);
+            if (flag != null)
+            {
+                TrackFlag.Fill = flag;
+                TrackFlagBorder.Visibility = Visibility.Visible;
+                TrackCc.Visibility = Visibility.Collapsed;
+            }
+            else
+            {
+                TrackCc.Text = cc;
+                TrackCc.Visibility = Visibility.Visible;
+                TrackFlagBorder.Visibility = Visibility.Collapsed;
+            }
 
             // track ribbon + dashed centre line
             var ribbon = new Path { Data = _geometry, Stroke = Frozen(0x2F, 0x3A, 0x48), StrokeThickness = 17,
@@ -109,12 +125,16 @@ namespace F1RaceEngineer.Widgets
             AddStartFinish();
             AddCorners(track.Id);
 
-            // cars, one car length apart, leader at the front. A larger offset sits further along
-            // the path in the direction of travel (i.e. ahead), so the classification leader
-            // (order[0]) needs the LARGEST offset, not zero - otherwise the field runs backwards,
-            // P10 leading the leader.
+            // cars ~two car lengths apart (the original, roomier spacing), leader at the front. A
+            // larger offset sits further along the path in the direction of travel (i.e. ahead), so
+            // the classification leader (order[0]) needs the LARGEST offset, not zero - otherwise the
+            // field runs backwards, P10 leading the leader.
             double gap = _approxLength > 0 ? (2 * CarLen) / _approxLength : 0.03;
             int n = order.Count;
+            // Safety net for the full field on a short circuit: never let the train wrap past ~85% of
+            // the lap and overlap its own tail. On a normal-length track this never binds, so the
+            // spacing above is preserved exactly.
+            if (n > 1) gap = Math.Min(gap, 0.85 / (n - 1));
             for (int i = 0; i < n; i++)
             {
                 var (code, brush) = order[i];
@@ -132,8 +152,9 @@ namespace F1RaceEngineer.Widgets
 
         /// <summary>
         /// Picks the circuit and the car order. Newest saved race drives both - its track and its
-        /// finishing order, with driver codes. No saved race: a random circuit, and cars in a
-        /// shuffled fallback set of team colours with no names (we have no drivers to name).
+        /// FULL finishing order (however many cars it holds - 20 in F1 25, 22 in F1 26), with driver
+        /// codes. No saved race: a random circuit, and a full grid's worth of cars in a shuffled
+        /// fallback set of team colours with no names (we have no drivers to name).
         /// </summary>
         private (TrackOutline? Track, List<(string Code, Brush Brush)> Order, bool ShowNames) ResolveScene()
         {
@@ -151,12 +172,17 @@ namespace F1RaceEngineer.Widgets
             var order = new List<(string, Brush)>();
             if (last != null && last.Classification.Count > 0)
             {
-                foreach (var row in last.Classification.OrderBy(r => r.Position).Take(10))
+                // The whole field, in finishing order - no cap. The count is however many the saved
+                // race captured, so it tracks the game's grid size automatically.
+                foreach (var row in last.Classification.OrderBy(r => r.Position))
                     order.Add((DriverCode(row.DriverName), SavedRaceView.BrushFromHex(row.LiveryHex)));
                 return (track, order, true);
             }
 
-            var shuffled = FallbackLiveries.ToList();
+            // Cold start: no saved race to size or colour the grid, so mock a full 20-car field -
+            // each of the ten team colours twice (two cars per team) - and shuffle it.
+            var shuffled = new List<string>(FallbackLiveries);
+            shuffled.AddRange(FallbackLiveries);
             Shuffle(shuffled);
             foreach (var hex in shuffled) order.Add(("", SavedRaceView.BrushFromHex(hex)));
             return (track, order, false);

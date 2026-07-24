@@ -166,6 +166,14 @@ namespace F1RaceEngineer.Telemetry
             // edge always maps to exactly one in-lap. Cleared per lap.
             public bool SawInLapThisLap;
 
+            // True if the car actually entered the pit lane this lap (PitLaneTimerActive / PitStatus).
+            // The IN tag requires this AND SawInLapThisLap: DriverStatus.InLap by itself is set the
+            // moment the engineer calls a car in and sticks for the rest of the race even if the
+            // driver declines and never pits, so InLap alone tagged the call lap "IN" with no stop
+            // (confirmed live). Gating on real pit-lane presence rejects the declined call while still
+            // catching every genuine stop. Cleared per lap.
+            public bool EnteredPitLaneThisLap;
+
             // PitStopTimerInMS (the stationary box time) goes stale by the time the IN
             // lap's row would normally be created at the line - confirmed live, it reads
             // back as 0. Testing the theory that on some tracks the pit lane sits inside
@@ -1451,6 +1459,15 @@ namespace F1RaceEngineer.Telemetry
                 if (car.DriverStatus == DriverStatus.InLap && prevDriverStatus != DriverStatus.InLap)
                     tracker.SawInLapThisLap = true;
 
+                // Did the car ACTUALLY enter the pit lane this lap? DriverStatus.InLap alone is not a
+                // pit stop: the game flips a car to InLap the moment its engineer calls it in, and it
+                // STAYS InLap for the rest of the race even if the driver waves the call off and never
+                // pits (confirmed live - a declined stop held InLap from lap 15 to the finish with
+                // pit=None, lane=False, yet tagged the call lap "IN"). The pit lane timer / PitStatus
+                // is the real "I'm in the pit lane" signal, so the IN tag is gated on it below.
+                if (car.PitLaneTimerActive || car.PitStatus != PitStatus.None)
+                    tracker.EnteredPitLaneThisLap = true;
+
                 // Track the peak PitStopTimerInMS while actually in the pits. On exit,
                 // try to patch it straight into an already-existing IN row (see
                 // PatchMostRecentInRowPitTime) - only meaningful for the player, since
@@ -1540,8 +1557,9 @@ namespace F1RaceEngineer.Telemetry
                         RegisterSectorTime(3, sector3Ms, isPlayer);
                     }
 
-                    string lapTag = isPlayer ? ClassifyLapTag(tracker.LastKnownDriverStatus, tracker.SawInLapThisLap) : "";
-                    tracker.SawInLapThisLap = false; // consumed - the next lap starts clean
+                    string lapTag = isPlayer ? ClassifyLapTag(tracker.LastKnownDriverStatus, tracker.SawInLapThisLap, tracker.EnteredPitLaneThisLap) : "";
+                    tracker.SawInLapThisLap = false;       // consumed - the next lap starts clean
+                    tracker.EnteredPitLaneThisLap = false;
 
                     // The lap that resumes racing after a red flag is an out-lap in the game's
                     // eyes, but not a pit stop - so it gets a green "Restart" chip in EVENTS
@@ -2353,16 +2371,18 @@ namespace F1RaceEngineer.Telemetry
 
         /// <summary>
         /// Tags the lap that just ended as the pit IN lap, the OUT lap, or neither.
-        /// <paramref name="sawInLap"/> wins over <paramref name="status"/>: a lap the car spent any
-        /// part of driving to the pits IS the in-lap, even if it left the box before the line. That
-        /// case (pit exit before start/finish, so the whole stop fits in one lap) is exactly what
-        /// made both laps read OutLap and produced the double-OUT bug - see CarLapTracker.
+        /// A lap is the IN lap only if the car both saw InLap AND actually entered the pit lane
+        /// (<paramref name="enteredPitLane"/>): DriverStatus.InLap alone is set the instant the
+        /// engineer calls a car in and persists even if the driver declines and never pits, so it
+        /// would otherwise tag a waved-off call "IN" with no stop. <paramref name="sawInLap"/> is a
+        /// lap the car spent any part of driving to the pits, even if it left the box before the line
+        /// (the pit-exit-before-S/F case that once produced the double-OUT - see CarLapTracker).
         /// <paramref name="status"/> is the tracker's PREVIOUS-tick value, so the out-lap is still
         /// attributed to the lap that just ended rather than the one starting.
         /// </summary>
-        private static string ClassifyLapTag(DriverStatus status, bool sawInLap)
+        private static string ClassifyLapTag(DriverStatus status, bool sawInLap, bool enteredPitLane)
         {
-            if (sawInLap) return "IN";
+            if (sawInLap && enteredPitLane) return "IN";
             return status == DriverStatus.OutLap ? "OUT" : "";
         }
 
